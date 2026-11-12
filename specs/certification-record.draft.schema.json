@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/onaa/schemas/certification-record-0.1.0.json",
+  "title": "ONAA certification record - draft (policy draft not yet public)",
+  "description": "Public, signed status record for one certification of one subject. Draft only; no records are issued until certification issuance is approved.",
+  "type": "object",
+  "required": [
+    "certification_record_version",
+    "certificate_id",
+    "subject",
+    "scheme",
+    "criteria_version",
+    "scope",
+    "status",
+    "issued_at",
+    "expires_at",
+    "review",
+    "status_url"
+  ],
+  "properties": {
+    "certification_record_version": { "const": "0.1.0" },
+    "certificate_id": { "type": "string", "minLength": 1 },
+    "subject": {
+      "type": "object",
+      "required": ["subject_type", "subject_id", "operator_id"],
+      "properties": {
+        "subject_type": { "enum": ["operator", "agent", "service"] },
+        "subject_id": { "type": "string" },
+        "operator_id": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "scheme": {
+      "enum": [
+        "operator_verified_individual",
+        "operator_verified_organization",
+        "protocol_conformance",
+        "commerce_seller",
+        "service_provider",
+        "security_reviewed"
+      ]
+    },
+    "criteria_version": { "type": "string", "pattern": "^\\d+\\.\\d+(\\.\\d+)?$" },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "service_type": {
+          "enum": ["payment", "escrow", "insurance", "shipping", "inspection", "dispute", "identity", "hosting"]
+        },
+        "jurisdictions": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Z]{2}$|^EU$" },
+          "uniqueItems": true,
+          "description": "ISO 3166-1 alpha-2 codes (or EU). Unlisted jurisdictions were not reviewed."
+        },
+        "protocols": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "version"],
+            "properties": { "name": { "type": "string" }, "version": { "type": "string" } },
+            "additionalProperties": false
+          }
+        },
+        "licence_evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["jurisdiction", "register_url", "checked_at"],
+            "properties": {
+              "jurisdiction": { "type": "string" },
+              "register_url": { "type": "string", "format": "uri" },
+              "licence_reference": { "type": "string" },
+              "checked_at": { "type": "string", "format": "date-time" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "status": { "enum": ["active", "conditional", "suspended", "revoked", "expired", "superseded"] },
+    "status_reason": { "type": "string" },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "review": {
+      "type": "object",
+      "required": ["reviewer_ids", "approver_id", "evidence_hashes"],
+      "properties": {
+        "reviewer_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "approver_id": { "type": "string", "description": "Authorized human approver; must not be a model agent in MVP." },
+        "independent_review": { "type": "boolean", "description": "True when the independent reviewer pool was used (affiliated or first-party subjects)." },
+        "evidence_hashes": { "type": "array", "items": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" } }
+      },
+      "additionalProperties": false
+    },
+    "fee_paid": {
+      "type": "boolean",
+      "description": "Whether a review fee was paid. Never affects status; recorded for audit and pay-to-pass monitoring."
+    },
+    "status_url": { "type": "string", "format": "uri" },
+    "limitations": {
+      "type": "string",
+      "default": "Not a government approval, licence, guarantee or insurance. Scope limited to listed criteria, jurisdictions and dates."
+    },
+    "signature": { "type": "string", "description": "Detached JWS over the canonical record (RFC 7515 / RFC 8785 canonicalization proposed)." }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/onaa/schemas/registry-record-0.1.0.json",
+  "title": "ONAA registry record - draft, not official A2A AgentCard",
+  "type": "object",
+  "required": [
+    "registry_record_version",
+    "id",
+    "operator_id",
+    "listing_type",
+    "display_name",
+    "capabilities",
+    "status",
+    "trust"
+  ],
+  "properties": {
+    "registry_record_version": {
+      "const": "0.1.0"
+    },
+    "id": {
+      "type": "string"
+    },
+    "operator_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "null only while status is 'discovered' (unclaimed)"
+    },
+    "listing_type": {
+      "enum": [
+        "agent",
+        "service",
+        "hosting"
+      ]
+    },
+    "display_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "agent_card_url": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uri"
+    },
+    "service_type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "regions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "currencies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "status": {
+      "enum": [
+        "discovered",
+        "claim_pending",
+        "registered",
+        "endpoint_verified",
+        "certified",
+        "suspended",
+        "deleted"
+      ]
+    },
+    "trust": {
+      "type": "object",
+      "required": [
+        "registration_status",
+        "endpoint_control_verified",
+        "certifications"
+      ],
+      "properties": {
+        "registration_status": {
+          "type": "string"
+        },
+        "endpoint_control_verified": {
+          "type": "boolean"
+        },
+        "operator_identity_verified": {
+          "type": "boolean"
+        },
+        "legal_entity_verified": {
+          "type": "boolean"
+        },
+        "certifications": {
+          "type": "array"
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

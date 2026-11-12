@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "onaa-mcp-registry"
+version = "0.1.0"
+description = "Read-only MCP server exposing ONAA Registry search and trust lookups to AI agents."
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+# mcp pinned per specs/STANDARDS_BASELINE.md (targets MCP 2026-07-28, accepts 2025-11-25 clients).
+dependencies = ["mcp==2.3.0", "onaa-sdk>=0.1,<0.2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9", "anyio>=4"]
+
+[project.scripts]
+onaa-mcp-registry = "onaa_mcp_registry.server:main"
+
+[tool.setuptools.packages.find]
+include = ["onaa_mcp_registry*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]

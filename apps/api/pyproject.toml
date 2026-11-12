@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "onaa-registry"
+version = "0.1.0"
+description = "ONAA (Open Network for AI Agents) central Registry API - discovery, registration and trust metadata only."
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dependencies = [
+  "fastapi>=0.115,<0.116",
+  "pydantic>=2.9,<3",
+  "sqlalchemy>=2.0.30,<2.1",
+  "httpx>=0.27,<0.29",
+  "uvicorn>=0.30,<0.36",
+  "dnspython>=2.6,<3",
+  "alembic>=1.13,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9", "jsonschema>=4.22,<5"]
+postgres = ["psycopg[binary]>=3.2,<4"]
+
+[tool.setuptools.packages.find]
+include = ["onaa_registry*"]
+
+[tool.setuptools.package-data]
+onaa_registry = ["registry-record.schema.json", "migrations/*.py", "migrations/*.mako", "migrations/versions/*.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Body"]
+
+[tool.ruff.lint.per-file-ignores]
+"onaa_registry/migrations/versions/*.py" = ["E501", "W291"]

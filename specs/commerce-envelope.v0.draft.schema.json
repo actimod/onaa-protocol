@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:onaa:schema:commerce-envelope:v0",
+  "title": "ONAA commerce envelope onaa.commerce/v0 - DRAFT ONAA extension, not an official A2A/AP2/UCP schema",
+  "description": "Carried as the `data` value of an A2A 1.0 Part. See specs/commerce-extension.md. Amounts are integer minor units. Carries no payment credentials or authorization.",
+  "type": "object",
+  "required": ["spec", "spec_version", "type", "id", "idempotency_key", "nonce", "created_at", "expires_at", "sender", "body"],
+  "properties": {
+    "spec": { "const": "onaa.commerce/v0" },
+    "spec_version": { "type": "string", "pattern": "^0\\.[0-9]+\\.[0-9]+$" },
+    "type": { "enum": ["RFQ", "QUOTE", "ESCROW_HANDOFF_REQUEST", "ESCROW_HANDOFF_ACK", "REJECT"] },
+    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "idempotency_key": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" },
+    "nonce": { "type": "string", "pattern": "^[A-Za-z0-9_-]{22,128}$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "in_reply_to": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "sender": { "$ref": "#/$defs/party" },
+    "recipient": { "$ref": "#/$defs/party" },
+    "body": { "type": "object" },
+    "references": {
+      "type": "array",
+      "description": "Reserved for future mapping to external objects (e.g. AP2 mandates, UCP checkout/order). Not used in v0.",
+      "items": {
+        "type": "object",
+        "required": ["scheme", "ref"],
+        "properties": { "scheme": { "type": "string" }, "ref": { "type": "string" } }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    { "if": { "properties": { "type": { "const": "RFQ" } } }, "then": { "properties": { "body": { "$ref": "#/$defs/rfq" } } } },
+    { "if": { "properties": { "type": { "const": "QUOTE" } } }, "then": { "required": ["in_reply_to"], "properties": { "body": { "$ref": "#/$defs/quote" } } } },
+    { "if": { "properties": { "type": { "const": "ESCROW_HANDOFF_REQUEST" } } }, "then": { "properties": { "body": { "$ref": "#/$defs/escrowHandoffRequest" } } } },
+    { "if": { "properties": { "type": { "const": "ESCROW_HANDOFF_ACK" } } }, "then": { "required": ["in_reply_to"], "properties": { "body": { "$ref": "#/$defs/escrowHandoffAck" } } } },
+    { "if": { "properties": { "type": { "const": "REJECT" } } }, "then": { "properties": { "body": { "$ref": "#/$defs/reject" } } } }
+  ],
+  "$defs": {
+    "party": {
+      "type": "object",
+      "required": ["agent_id"],
+      "properties": {
+        "agent_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "agent_card_url": { "type": "string", "format": "uri" }
+      }
+    },
+    "minor": { "type": "integer", "minimum": 0 },
+    "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+    "rfq": {
+      "type": "object",
+      "required": ["items", "currency"],
+      "properties": {
+        "items": {
+          "type": "array", "minItems": 1, "maxItems": 50,
+          "items": {
+            "type": "object",
+            "required": ["sku", "quantity"],
+            "properties": {
+              "sku": { "type": "string", "minLength": 1 },
+              "quantity": { "type": "integer", "minimum": 1, "maximum": 1000000 }
+            }
+          }
+        },
+        "currency": { "$ref": "#/$defs/currency" },
+        "delivery_region": { "type": "string", "pattern": "^[A-Z]{2}$" },
+        "max_total_minor": { "$ref": "#/$defs/minor" }
+      }
+    },
+    "quote": {
+      "type": "object",
+      "required": ["rfq_id", "currency", "line_items", "total_minor"],
+      "properties": {
+        "rfq_id": { "type": "string" },
+        "currency": { "$ref": "#/$defs/currency" },
+        "line_items": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["sku", "quantity", "unit_price_minor", "line_total_minor"],
+            "properties": {
+              "sku": { "type": "string" },
+              "description": { "type": "string" },
+              "quantity": { "type": "integer", "minimum": 1 },
+              "unit_price_minor": { "$ref": "#/$defs/minor" },
+              "line_total_minor": { "$ref": "#/$defs/minor" }
+            }
+          }
+        },
+        "total_minor": { "$ref": "#/$defs/minor" },
+        "settlement": { "type": "object" },
+        "sample": { "type": "boolean" }
+      }
+    },
+    "escrowHandoffRequest": {
+      "type": "object",
+      "required": ["quote_id", "quote_expires_at", "seller_agent_id", "buyer_agent_id", "currency", "amount_minor"],
+      "properties": {
+        "quote_id": { "type": "string" },
+        "quote_expires_at": { "type": "string", "format": "date-time" },
+        "seller_agent_id": { "type": "string" },
+        "buyer_agent_id": { "type": "string" },
+        "currency": { "$ref": "#/$defs/currency" },
+        "amount_minor": { "$ref": "#/$defs/minor" }
+      }
+    },
+    "escrowHandoffAck": {
+      "type": "object",
+      "required": ["escrow_reference", "state", "funds_held_minor"],
+      "anyOf": [
+        { "required": ["mock"], "properties": { "mock": { "const": true } } },
+        { "required": ["sandbox"], "properties": { "sandbox": { "const": true } } }
+      ],
+      "properties": {
+        "escrow_reference": { "type": "string" },
+        "state": { "type": "string" },
+        "funds_held_minor": { "$ref": "#/$defs/minor" },
+        "label": { "type": "string" }
+      }
+    },
+    "reject": {
+      "type": "object",
+      "required": ["code"],
+      "properties": { "code": { "type": "string" }, "message": { "type": "string" } }
+    }
+  }
+}

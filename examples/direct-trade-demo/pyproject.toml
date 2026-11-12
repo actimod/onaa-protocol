@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "onaa-direct-trade-demo"
+version = "0.1.0"
+description = "ONAA reference demo (SAMPLE): buyer -> registry discovery -> direct A2A 1.0 RFQ/QUOTE with seller -> MOCK escrow handoff. No real funds."
+requires-python = ">=3.12"
+dependencies = [
+  "httpx==0.28.1",
+  "starlette==0.46.2",
+  "uvicorn==0.35.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==8.4.2",
+  "jsonschema==4.25.1",
+  "ruff==0.14.4",
+]
+
+[project.scripts]
+onaa-direct-trade-demo = "onaa_demo.demo:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S"]
