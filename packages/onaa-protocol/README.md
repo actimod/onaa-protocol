@@ -29,18 +29,18 @@ Everything below is importable from `onaa_protocol`. Other modules are internal 
 | Validate | `validate_envelope(env, *, now=None, expected_types=None)` | Schema, version, time window, arithmetic, signing *presence*, `recipient` presence on signed envelopes |
 | | `check_envelope(env, keys, *, now=None, expected_types=None, expected_recipient=None)`, `check_recipient(env, expected)` | Receiver entry point: `validate_envelope` + recipient check + signature verification. Pass your own `{agent_id, agent_card_url}` as `expected_recipient` |
 | | `verify_envelope(env, keys) -> protected_header` | Signature only |
-| | `extract_envelope(a2a_message)`, `ReplayGuard(*, max_entries=100_000, gc_interval=30s, wait_seconds=30)`: `.reserve(env)` / `.complete(env, reply)` / `.release(env)` (atomic), legacy `.check(env)` / `.remember(env, reply)` | §7.6 |
-| Keys | `Signer(private_key, kid)`, `public_jwk(key, kid)`, `StaticKeyResolver({card_url: jwks}, revoked_kids=None, pins=None)` (`revoked_kids` items: a kid, or a `(card_url, kid)` pair), `HttpKeyResolver(httpx_client, allow_localhost=None, resolver=None, cache_seconds=300, refetch_seconds=30, pins=None, negative_cache_seconds=30, max_cache_entries=1024, max_concurrent_fetches=8, fetch_wait_seconds=2, fetch_deadline=5)`, `KeyResolver` (protocol: `resolve(sender, kid)`) | §9.4; `HttpKeyResolver` uses the SSRF-safe fetcher |
+| | `extract_envelope(a2a_message)`, `ReplayGuard(*, max_entries=100_000, gc_interval=30s, wait_seconds=30, max_unsigned_ttl=1h, max_per_source=None)`: `.reserve(env, *, source=None)` / `.complete(env, reply)` / `.release(env)` (atomic), legacy `.check(env, *, source=None)` / `.remember(env, reply)` | §7.6; `source` is the caller's network quota key (for example the client IP or IPv6 /64). `max_per_source` defaults to `max_entries // 10`; 0 disables per-source quotas |
+| Keys | `Signer(private_key, kid)`, `public_jwk(key, kid)`, `StaticKeyResolver({card_url: jwks}, revoked_kids=None, pins=None)` (`revoked_kids` items: a kid, or a `(card_url, kid)` pair), `HttpKeyResolver(httpx_client, allow_localhost=None, resolver=None, cache_seconds=300, refetch_seconds=30, pins=None, negative_cache_seconds=30, max_cache_entries=1024, max_concurrent_fetches=8, fetch_wait_seconds=0, fetch_deadline=5, max_fetches_per_origin=2, max_waiters_per_fetch=2)`, `KeyResolver` (protocol: `resolve(sender, kid)`) | §9.4; `HttpKeyResolver` uses the SSRF-safe fetcher |
 | Low-level JOSE | `sign_detached(payload, signer, typ)`, `verify_detached(payload, sig_obj, lookup, typ)`, `canonicalize(value) -> bytes` (RFC 8785) | §9.3, §9.5 |
 | Agent Card | `build_extension_params(*, roles, jwks_uri, message_types=None, service_types=None, service_modes=None, regions=None, currencies=None, **extra)`, `extension_declaration(params, required=True)`, `onaa_params(card, card_url=None)` | §5 |
-| State | `TradeLedger().apply(env, now=None)`, `check_transition(machine, current, new)` | §7.4; local view only, never a central ledger |
+| State | `TradeLedger().apply(env, now=None)`, `TradeLedger.accepted_providers(order) -> frozenset[str]`, `check_transition(machine, current, new)` | §7.4; local view only, never a central ledger |
 | Registry view | `validate_record(record)`, `trust_levels(record, now=None) -> {discovered_unclaimed, registered, endpoint_verified, operator_verified, certified[], listing_tier, suspended}` | §6; read-only, matches `apps/api` field names |
 | Attestations | `build_attestation(...)` (refuses `test_only=False`), `sign_attestation`, `verify_attestation(att, issuer_jwks, *, trusted_issuers, now=None, status_record=None, max_status_age=7d, allow_test_only=False) -> AttestationResult`, `build_status_record`, `sign_status_record`, `verify_status_record` | §10 |
 | Errors | `ProtocolError(code, message)`, `SignatureError`, `AttestationError`, `public_message(code)`; code registries in `onaa_protocol.errors` | §7.8, §9.7 |
-| Text | `sanitize(value, limit=300)` | Escapes C0/C1 and bidi controls in untrusted text before display or logging (§13) |
+| Text | `sanitize(value, limit=300)` | Escapes C0/C1, bidi controls and Unicode tag characters (U+E0000–U+E007F) in untrusted text before display or logging (§13.12) |
 | Conformance | `onaa_protocol.conformance.run_offline(dir=None)`, `run_live(card_url, role, *, http=None, allow_loopback=False, resolver=None, service_type=None, probe_rfq=None, harness_base_url=None, harness_port=0, harness_alt_base_url=None, harness_alt_port=0, harness_seller_base_url=None, harness_seller_port=0, harness_provider_base_url=None, harness_provider_port=0)`, `run_registry_live(base_url, ...)`, `TESTS`, `verdict(results)` | §12 |
-| Conformance trigger (buyers, opt-in) | `onaa_protocol.trigger`: `trigger_declaration()`, `declared_trigger(params)`, `find_trigger(message)`, `check_trigger(trigger, keys, *, expected_recipient, now=None)`, `check_counterparty(card_params, trigger)`, `TriggerGuard()` (`.reserve(trigger)` / `.finish()`), `trigger_result(trigger, outcome, *, code=None, stopped_on=None)`; harness side `build_trigger(...)`, `sign_trigger`, `counterparty_marker(url)`; `TYP_TRIGGER` | §12.1; conformance-only, off by default |
-| Transport helpers | `onaa_protocol.a2a` (client subset: `make_message`, `data_part`, `send_message`, `validate_agent_card`, `select_jsonrpc_interface`, error codes), `onaa_protocol.safe_fetch` (`validate_url`, `fetch_json(..., deadline=10)`, `request_bytes`, `loads_json`, `same_origin`, `PinnedTransport`, `safe_client`); `send_message`/`rpc_call` take `deadline=15` | Used by the demo and the SDK |
+| Conformance trigger (buyers, opt-in) | `onaa_protocol.trigger`: `trigger_declaration()`, `declared_trigger(params)`, `find_trigger(message)`, `check_trigger(trigger, keys, *, expected_recipient, now=None, allowed_senders=None)`, `check_counterparty(card_params, trigger)`, `TriggerGuard(*, max_entries=1024, max_per_sender=32)` (`.reserve(trigger)` / `.finish()`), `trigger_result(trigger, outcome, *, code=None, stopped_on=None)`; harness side `build_trigger(...)`, `sign_trigger`, `counterparty_marker(url)`; `TYP_TRIGGER` | §12.1; conformance-only, off by default |
+| Transport helpers | `onaa_protocol.a2a` (client subset: `make_message`, `data_part`, `send_message`, `validate_agent_card`, `select_jsonrpc_interface`, error codes), `onaa_protocol.safe_fetch` (`validate_url(..., timeout=None)`, `fetch_json(..., deadline=10)`, `request_bytes`, `deadline_extensions(deadline_at, pin=None)`, `remaining(deadline_at)`, `loads_json`, `same_origin`, `PinnedTransport`, `safe_client`); `send_message`/`rpc_call` take `deadline=15` | Used by the demo and the SDK |
 
 ### Minimal receiver
 
@@ -52,25 +52,43 @@ from onaa_protocol import (HttpKeyResolver, ProtocolError, ReplayGuard, check_en
 keys, guard = HttpKeyResolver(safe_client()), ReplayGuard()
 # my_sender = {"agent_id": ..., "agent_card_url": ...}  (this receiver's own identity)
 
-def handle(message):                       # A2A SendMessage params.message -> reply envelope
+def handle(message, client_ip):            # A2A SendMessage params.message -> reply envelope
     env = None
     try:
         env = extract_envelope(message)
         check_envelope(env, keys, expected_types=("RFQ", "ORDER_PROPOSE"), expected_recipient=my_sender)
-        if (cached := guard.reserve(env)) is not None:
+        if (cached := guard.reserve(env, source=client_ip)) is not None:   # per-source quota (v0.1.2)
             return cached
+        reply = None
         try:
             reply = ...                    # business logic; raise ProtocolError(code) to reject
-        except BaseException:
-            guard.release(env)
-            raise
+        finally:
+            if reply is None:
+                guard.release(env)         # always free the reservation, whatever was raised
         guard.complete(env, reply)
         return reply
     except ProtocolError as exc:           # fixed public message; never echo exc.message or input
         return reject(env, my_sender, exc.code, signer=my_signer, recipient=reply_recipient(env))
 ```
 
-Run handlers off the event loop (for example Starlette `run_in_threadpool`): key resolution performs blocking HTTP with a bounded deadline.
+Run handlers off the event loop on a dedicated bounded limiter (for example `anyio.to_thread.run_sync(..., limiter=anyio.CapacityLimiter(16))`), not the shared default pool: key resolution performs blocking HTTP with a bounded total deadline, and a dedicated limiter stops slow peers from starving other routes (spec §13.11).
+
+## v0.1.2 security errata (behaviour changes)
+
+Version 0.1.2 follows a security re-review of 0.1.1. The spec change log (§15) lists the normative errata. Every new parameter is optional. Some defaults are stricter on purpose, because the old behaviour could be exploited:
+
+| Change | Effect on existing callers |
+|---|---|
+| No self-acknowledgement (§8.4.5): a SERVICE_HANDOFF_REQUEST addressed to the buyer's or seller's card, or an ACK sent from either card, is refused (`not_a_party`). SECURED also requires the provider card to be listed in the QUOTE's new `settlement.accepted_provider_card_urls` (covered by `terms_hash`); otherwise `invalid_transition`. | Sellers that offer secured settlement must list accepted providers in the QUOTE |
+| `TradeLedger` binds `agent_id` to a card URL only after the envelope is accepted, so a refused envelope binds nothing (§7.4). ORDER_PROPOSE is accepted only from the buyer card bound by the RFQ. | |
+| An unsigned ORDER_STATUS from a bound party is refused even when it repeats the current state (`signer_mismatch`, §9.2). This is now fail-closed in both the spec and the code. | |
+| An RFQ at spec 0.2+ MUST carry `sender.agent_card_url` (§7.1). | `invalid_envelope` for RFQs without it |
+| `ReplayGuard` is no longer a lockout lever (§7.6.7): unsigned envelopes may live at most `max_unsigned_ttl` (default 1 h; longer gives `invalid_envelope`). With `source=` there are per-source quotas, and signed envelopes are also counted per verified card origin. When a quota is full the result is `rate_limited`, only for that source. | Pass `source=`; unsigned envelopes with a TTL above 1 h are refused |
+| `HttpKeyResolver`: `fetch_deadline` is now a true total deadline for card + JWKS, including DNS. There are per-origin slots (`max_fetches_per_origin=2`) and a cap on waiters (`max_waiters_per_fetch=2`). When no slot is free it fails fast (`fetch_wait_seconds` default 0, was 2). | Under heavy load new signers see `jwks_unavailable` sooner; clients retry |
+| `safe_fetch`: name resolution runs on bounded threads and respects the deadline. `request_bytes` resolves once and connects only to the addresses it checked (no second lookup, so no rebinding window). `PinnedTransport` takes its deadline and pinned addresses from request extensions. Site-local `fec0::/10` and SRv6 SID `5f00::/16` are refused (§13.2). | |
+| `sanitize()` escapes Unicode tag characters U+E0000–U+E007F (§13.12). | |
+| Conformance trade trigger (§12.1): `check_trigger(allowed_senders=...)` refuses unlisted senders before verifying the signature. `TriggerGuard(max_per_sender=32)` adds a per-sender quota. Buyers keep triggered deals in a separate bounded store and give each triggered run a total time budget. | |
+| Conformance suite 0.5.0 adds `ONAA-C-MUST-092` (RFQ without a card is refused) and `ONAA-C-MUST-093` (unsigned same-state ORDER_STATUS is refused). The vectors add one invalid envelope and four state-machine cases. | |
 
 ## v0.1.1 security errata (behaviour changes)
 

@@ -10,7 +10,7 @@ from . import __version__
 from .config import Settings
 from .db import Base, make_engine, make_sessionmaker
 from .netsafety import Fetcher, SafeFetcher
-from .routes import certifications, listings, misc, operators, self_register
+from .routes import certifications, listings, misc, operators, self_register, vocabulary
 from .security import RateLimiter
 from .terms import load_terms
 from .verification import TxtResolver, system_txt_resolver
@@ -53,6 +53,7 @@ def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
     app.include_router(listings.build_router("agents"))
     app.include_router(listings.build_router("services"))
     app.include_router(certifications.router)
+    app.include_router(vocabulary.router)
 
     @app.get("/v1/specs/registry-record.schema.json", tags=["meta"], include_in_schema=False)
     def record_schema():

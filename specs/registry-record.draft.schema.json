@@ -114,6 +114,64 @@
           "description": "How the listing joined. agent_self_registration = the agent proved host control once at signup (anti-abuse gate), not the Endpoint Verified tier."
         }
       }
+    },
+    "commerce": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Self-declared trade terms: pricing, quoting, service_level, capacity, accepts_services, payment_terms, policies, classifications, incoterms"
+    },
+    "jurisdiction": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Self-declared operating_country, excluded_regions, data_residency, compliance_claims, restricted_activities"
+    },
+    "integration": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "skills_io schemas, auth_methods, rate limit, status/changelog URLs, depends_on, sunset_at, replaced_by"
+    },
+    "data_handling": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "privacy policy, data categories, retention, training use, subprocessors"
+    },
+    "contacts": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "support, escalation and security contact URLs"
+    },
+    "self_reported": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Track record claimed by the listing; never ONAA-verified"
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Namespaced extension fields (com.example/field, x-name/field); untrusted; max 8 KiB"
+    },
+    "jwks_uri": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "uri"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Increments on every change; HTTP ETag W/\"<id>-r<revision>\""
     }
   },
   "additionalProperties": true

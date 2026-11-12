@@ -30,6 +30,7 @@ def test_every_catalog_id_is_cited(cited):
 
 ROLES = ("buyer_agent", "seller_agent", "service_provider", "registry")
 SUITE_040_IDS = {f"C-MUST-0{n}" for n in range(80, 92)}  # added in suite 0.4.0 (buyer trigger tests)
+SUITE_050_IDS = {"C-MUST-092", "C-MUST-093"}               # added in suite 0.5.0 (v0.1.2 errata)
 CELL_ID_RE = re.compile(r"\b([CV]-(?:MUST|SHOULD)-\d{3})\b")
 
 
@@ -56,19 +57,29 @@ def _coverage(text: str, drop: set[str]) -> dict[tuple[str, str], tuple[int, int
     return {k: tuple(v) for k, v in out.items()}
 
 
-def test_summary_2a_matches_the_matrix():
+def _check_summary(heading: str, before_drop: set[str], after_drop: set[str]) -> None:
     if not DOC.is_file():
         pytest.skip("repository specs/ not available")
     text = DOC.read_text(encoding="utf-8")
-    before, after = _coverage(text, SUITE_040_IDS), _coverage(text, set())
+    before, after = _coverage(text, before_drop), _coverage(text, after_drop)
 
     def fmt(k: int, n: int) -> str:
         return f"{k}/{n} ({round(100 * k / n)}%)"
 
-    rows = [line for line in _section(text, "## 2a.").splitlines() if line.startswith(("| buyer", "| seller",
-                                                                                        "| service", "| registry"))]
+    rows = [line for line in _section(text, heading).splitlines() if line.startswith(("| buyer", "| seller",
+                                                                                      "| service", "| registry"))]
     assert len(rows) == len(after)
     for line in rows:
         role, level, n, live_b, live_a, any_b, any_a = [c.strip() for c in line.strip().strip("|").split("|")]
         (nb, lb, ab), (na, la, aa) = before[(role, level)], after[(role, level)]
         assert (int(n), live_b, live_a, any_b, any_a) == (na, fmt(lb, nb), fmt(la, na), fmt(ab, nb), fmt(aa, na)), role
+
+
+def test_summary_2a_matches_the_matrix():
+    """Suite 0.3.0 -> 0.4.0 over the current requirement rows (0.5.0 ids removed from both columns)."""
+    _check_summary("## 2a.", SUITE_040_IDS | SUITE_050_IDS, SUITE_050_IDS)
+
+
+def test_summary_2b_matches_the_matrix():
+    """Suite 0.4.0 -> 0.5.0 over the current requirement rows."""
+    _check_summary("## 2b.", SUITE_050_IDS, set())

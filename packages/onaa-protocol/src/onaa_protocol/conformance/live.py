@@ -470,10 +470,12 @@ class LiveRun(BuyerTriggerTests):
             confirmed = ("ONAA-C-MUST-021", "state:confirmed")
             self.check("ONAA-C-MUST-027", self.t_order_retry, needs=confirmed)
             self.check("ONAA-C-MUST-077", self.t_unsigned_status, needs=confirmed)
+            self.check("ONAA-C-MUST-093", self.t_unsigned_same_status, needs=confirmed)
             self.check("ONAA-C-MUST-028", self.t_secured_claim, needs=confirmed)
             self.check("ONAA-C-MUST-029", self.t_illegal_transition, needs=(*confirmed, "state:payment_pending"))
             self.check("ONAA-C-SHOULD-004", self.t_cancel, needs=confirmed)
             self.check("ONAA-C-SHOULD-005", self.t_unknown_sku, needs=base)
+            self.check("ONAA-C-MUST-092", self.t_rfq_without_card, needs=base)
             self.check("ONAA-C-MUST-056", self.t_forward_minor, needs=after_quote)
             self.check("ONAA-C-MUST-072", self.t_legacy_reply_version, needs=after_quote)
         if self.role == SERVICE:
@@ -929,6 +931,21 @@ class LiveRun(BuyerTriggerTests):
         if reply["type"] != "REJECT" or reply["body"]["code"] not in ("signature_missing", "signer_mismatch"):
             raise Fail(f"unsigned ORDER_STATUS CANCELLED claiming the buyer answered with {reply['type']} "
                        f"{reply['body'].get('code', '')}")
+
+    def t_unsigned_same_status(self) -> None:
+        """Spec 9.2 (v0.1.2): an ORDER_STATUS from a party bound in the deal MUST be signed even when it only
+        repeats the current state (fail closed)."""
+        env = self.env("ORDER_STATUS", {"order_id": self.state["confirmed"]["id"], "state": "CONFIRMED"})
+        reply = self.exchange(env, context_id=self.state["rfq"]["id"])
+        if reply["type"] != "REJECT" or reply["body"]["code"] not in ("signature_missing", "signer_mismatch"):
+            raise Fail(f"unsigned same-state ORDER_STATUS from the bound buyer answered with {reply['type']} "
+                       f"{reply['body'].get('code', '')}")
+
+    def t_rfq_without_card(self) -> None:
+        """Spec 7.1/7.4 (v0.1.2): the deal-opening RFQ names the buyer's card, which binds the buyer."""
+        env = self.env("RFQ", {"items": [{"sku": BAD_SKU, "quantity": 1}], "currency": "USD"},
+                       sender={"agent_id": self.h.agent_id})
+        self.expect_reject(env, {"invalid_envelope"})
 
     def t_recipient(self) -> None:
         """Spec 7.1/7.2 (v0.1.1): signed envelopes are bound to their recipient (no cross-recipient replay)."""

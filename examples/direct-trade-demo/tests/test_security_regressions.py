@@ -194,7 +194,8 @@ def test_poc7_reused_rfq_id_cannot_wipe_the_deal(network):
         ctx = json.loads(network.escrow.request_log[0]["body"])["params"]["message"]["contextId"]
         assert ctx == res.rfq["id"]
         evil = new_envelope("RFQ", {"items": [{"sku": "widget-std", "quantity": 1}], "currency": "USD"},
-                            sender={"agent_id": "evil"}, id_=ctx)
+                            sender={"agent_id": "evil", "agent_card_url": "https://evil.example/.well-known/agent-card.json"},
+                            id_=ctx)
         r = _send_http(http, network.seller.base_url, evil)
         assert (r["type"], r["body"]["code"]) == ("REJECT", "not_a_party")
         led = network.seller.ledgers[ctx]
@@ -263,14 +264,16 @@ def test_seller_deals_are_bounded(parties, monkeypatch):
     ids = []
     for i in range(3):
         rfq = new_envelope("RFQ", {"items": [{"sku": "widget-std", "quantity": 1}], "currency": "USD"},
-                           sender={"agent_id": f"b{i}"}, recipient=seller.sender)
+                           sender={"agent_id": f"b{i}", "agent_card_url": "https://t-buyer.example/.well-known/agent-card.json"},
+                           recipient=seller.sender)
         ids.append(rfq["id"])
         assert _send(seller, rfq)["type"] == "QUOTE"
     assert list(seller.ledgers) == ids[1:]          # the oldest quote-only deal was evicted
     for led in seller.ledgers.values():
         led.orders["pinned"] = None                 # every remaining deal has an order: nothing to evict
     rfq = new_envelope("RFQ", {"items": [{"sku": "widget-std", "quantity": 1}], "currency": "USD"},
-                       sender={"agent_id": "b9"}, recipient=seller.sender)
+                       sender={"agent_id": "b9", "agent_card_url": "https://t-buyer.example/.well-known/agent-card.json"},
+                       recipient=seller.sender)
     assert _send(seller, rfq)["body"]["code"] == "rate_limited"
 
 

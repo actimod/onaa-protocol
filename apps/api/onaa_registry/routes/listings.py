@@ -6,7 +6,7 @@ import datetime as dt
 import secrets
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
@@ -19,8 +19,10 @@ from ..logic import (
     PUBLIC_STATUSES,
     active_cert_exists,
     active_certs,
+    apply_profile,
     audit,
     aware,
+    bump_revision,
     check_listing_quota,
     ensure_not_taken,
     flag_name_collision,
@@ -35,11 +37,16 @@ from ..logic import (
     to_record,
     verified_predicate,
 )
-from ..models import DomainChallenge, Listing, ListingFacet, Operator, utcnow
+from ..models import AuditEvent, DomainChallenge, Listing, ListingFacet, Operator, utcnow
 from ..security import current_operator, sha256_hex, write_limit
 from ..verification import CHALLENGE_PATH, check_host_proof, dns_record_name, verification_entitlement
 
 MAX_CHALLENGE_ATTEMPTS = 10
+PUBLIC_HISTORY_ACTIONS = ("agent.register", "service.register", "agent.update", "service.update", "agent.claim",
+                          "agent.card_refresh", "verification.complete", "agent.delete", "service.delete",
+                          "listing.superseded", "listing.claimed_via_self_registration",
+                          "discovered.import", "discovered.import_service", "self_register.listing",
+                          "listing.suspend", "verification.expired")
 
 
 def _record(session: Session, listing: Listing) -> schemas.RegistryRecord:
@@ -50,7 +57,8 @@ def _record(session: Session, listing: Listing) -> schemas.RegistryRecord:
 def search(session: Session, *, listing_types: tuple[str, ...], q: str | None, filters: dict[str, list[str]],
            service_type: list[str] | None, verified_only: bool, certified_only: bool, claimed_only: bool,
            reachable_only: bool = False,
-           status_in: list[str] | None, limit: int, offset: int) -> schemas.SearchPage:
+           status_in: list[str] | None, limit: int, offset: int,
+           updated_since: dt.datetime | None = None, sort: str = "trust") -> schemas.SearchPage:
     stmt = select(Listing).where(Listing.listing_type.in_(listing_types))
     allowed = [s for s in (status_in or PUBLIC_STATUSES) if s in PUBLIC_STATUSES]
     stmt = stmt.where(Listing.lifecycle_status.in_(allowed or ["__none__"]))
@@ -63,9 +71,15 @@ def search(session: Session, *, listing_types: tuple[str, ...], q: str | None, f
         if not values:
             continue
         if kind == "region":
+            # Country search: listings serving it (or GLOBAL), minus those that explicitly exclude it.
+            excluded = select(ListingFacet.listing_id).where(ListingFacet.kind == "excl_region",
+                                                             ListingFacet.value.in_(values))
+            stmt = stmt.where(Listing.id.not_in(excluded))
             values = sorted(set(values) | {"GLOBAL"})
         sub = select(ListingFacet.listing_id).where(ListingFacet.kind == kind, ListingFacet.value.in_(values))
         stmt = stmt.where(Listing.id.in_(sub))
+    if updated_since is not None:
+        stmt = stmt.where(Listing.updated_at > updated_since)
     if verified_only:
         stmt = stmt.where(verified_predicate())
     if certified_only:
@@ -78,8 +92,13 @@ def search(session: Session, *, listing_types: tuple[str, ...], q: str | None, f
     # Ranking (MVP): certified, then endpoint-verified, then most recently updated. Same rules for
     # every operator, including any future first-party ONAA services.
     rank = active_cert_exists() & verified_predicate()
-    rows = session.scalars(stmt.order_by(rank.desc(), verified_predicate().desc(),
-                                         Listing.updated_at.desc(), Listing.id).limit(limit).offset(offset)).all()
+    if sort == "updated":
+        order = (Listing.updated_at.desc(), Listing.id)
+    elif sort == "updated_asc":  # stable incremental sync together with updated_since
+        order = (Listing.updated_at.asc(), Listing.id)
+    else:
+        order = (rank.desc(), verified_predicate().desc(), Listing.updated_at.desc(), Listing.id)
+    rows = session.scalars(stmt.order_by(*order).limit(limit).offset(offset)).all()
     return schemas.SearchPage(items=[_record(session, r) for r in rows], total=total or 0, limit=limit, offset=offset)
 
 
@@ -116,6 +135,23 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
         language: Annotated[list[str] | None, Query()] = None,
         category: Annotated[list[str] | None, Query()] = None,
         type: Annotated[list[str] | None, Query(description="service_type filter (services only)")] = None,
+        service_type: Annotated[list[str] | None, Query(description="alias of type")] = None,
+        country: Annotated[list[str] | None, Query(
+            description="ISO country the buyer is in: serves it (or GLOBAL) and does not exclude it")] = None,
+        operating_country: Annotated[list[str] | None, Query()] = None,
+        data_residency: Annotated[list[str] | None, Query(description="ISO country, EU or EEA")] = None,
+        compliance: Annotated[list[str] | None, Query(description="self-declared, e.g. gdpr")] = None,
+        accepts: Annotated[list[str] | None, Query(
+            description="works with this settlement service type, e.g. escrow")] = None,
+        pricing_model: Annotated[list[str] | None, Query()] = None,
+        quote_mode: Annotated[list[str] | None, Query()] = None,
+        payment_terms: Annotated[list[str] | None, Query()] = None,
+        classification: Annotated[list[str] | None, Query(description="scheme:code, e.g. unspsc:43211503")] = None,
+        incoterm: Annotated[list[str] | None, Query()] = None,
+        auth_method: Annotated[list[str] | None, Query()] = None,
+        skill: Annotated[list[str] | None, Query(description="A2A card skill id or tag (from the cached card)")] = None,
+        updated_since: Annotated[dt.datetime | None, Query(description="ISO 8601; for incremental sync")] = None,
+        sort: Annotated[Literal["trust", "updated", "updated_asc"], Query()] = "trust",
         verified_only: bool = False,
         certified_only: bool = False,
         claimed_only: bool = False,
@@ -128,15 +164,44 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
             "role": _norm_list(role), "capability": _norm_list(capability), "region": _norm_list(region, True),
             "currency": _norm_list(currency, True), "protocol": _norm_list(protocol),
             "language": _norm_list(language), "category": _norm_list(category),
+            "op_country": _norm_list(operating_country, True), "residency": _norm_list(data_residency, True),
+            "compliance": _norm_list(compliance), "accepts": _norm_list(accepts),
+            "pricing_model": _norm_list(pricing_model), "quote_mode": _norm_list(quote_mode),
+            "payment_terms": _norm_list(payment_terms), "classification": _norm_list(classification),
+            "incoterm": _norm_list(incoterm), "auth_method": _norm_list(auth_method), "skill": _norm_list(skill),
         }
+        if country:
+            filters["region"] = sorted(set(filters["region"]) | set(_norm_list(country, True)))
+        if updated_since is not None and updated_since.tzinfo is None:
+            updated_since = updated_since.replace(tzinfo=dt.UTC)
         return search(session, listing_types=listing_types, q=q, filters=filters,
-                      service_type=None if is_agent else (_norm_list(type) or None),
+                      service_type=None if is_agent else (_norm_list((type or []) + (service_type or [])) or None),
                       verified_only=verified_only, certified_only=certified_only, claimed_only=claimed_only,
-                      reachable_only=reachable_only, status_in=_norm_list(status_) or None, limit=limit, offset=offset)
+                      reachable_only=reachable_only, status_in=_norm_list(status_) or None, limit=limit, offset=offset,
+                      updated_since=updated_since, sort=sort)
 
-    @router.get("/{listing_id}", response_model=schemas.RegistryRecord)
-    def get_one(listing_id: str, session: Session = Depends(get_session)):
-        return _record(session, _load(session, listing_id))
+    @router.get("/{listing_id}", response_model=schemas.RegistryRecord,
+                responses={304: {"description": "Not modified (If-None-Match matched the ETag)"}})
+    def get_one(listing_id: str, request: Request, response: Response, session: Session = Depends(get_session)):
+        listing = _load(session, listing_id)
+        etag = f'W/"{listing.id}-r{listing.revision or 1}"'
+        if request.headers.get("if-none-match") == etag:
+            return Response(status_code=304, headers={"ETag": etag})
+        response.headers["ETag"] = etag
+        return _record(session, listing)
+
+    @router.get("/{listing_id}/history", response_model=list[schemas.HistoryEntry],
+                summary="Public change history (which fields changed, when, at which revision)")
+    def history(listing_id: str, limit: Annotated[int, Query(ge=1, le=200)] = 50,
+                session: Session = Depends(get_session)):
+        listing = _load(session, listing_id)
+        rows = session.scalars(select(AuditEvent).where(AuditEvent.subject_id == listing.id,
+                                                        AuditEvent.action.in_(PUBLIC_HISTORY_ACTIONS),
+                                                        AuditEvent.result == "ok")
+                               .order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc()).limit(limit)).all()
+        return [schemas.HistoryEntry(at=aware(r.created_at), action=r.action, actor_type=r.actor_type,
+                                     fields=[f for f in (r.detail or {}).get("fields", []) if isinstance(f, str)],
+                                     revision=(r.detail or {}).get("revision")) for r in rows]
 
     @router.get("/{listing_id}/trust", response_model=schemas.Trust)
     def trust(listing_id: str, session: Session = Depends(get_session)):
@@ -166,8 +231,10 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
                 require_same_host(listing, data["endpoint_url"], "endpoint_url")
             _apply_scalar_updates(listing, data)
             set_facets(listing, data)
-            listing.updated_at = utcnow()
-            audit(session, "operator", op.id, "agent.update", listing.id, fields=sorted(data))
+            apply_profile(listing, body.model_dump(mode="json", exclude_unset=True), partial=True)
+            bump_revision(listing)
+            audit(session, "operator", op.id, "agent.update", listing.id, fields=sorted(data),
+                  revision=listing.revision)
             return _record(session, listing)
 
         @router.post("/{listing_id}/claim", response_model=schemas.RegistryRecord,
@@ -197,7 +264,7 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
             require_owner(listing, op)
             refresh_card(listing, request.app.state.fetcher)
             audit(session, "operator", op.id, "agent.card_refresh", listing.id,
-                  result_category=listing.card_fetch_result)
+                  result_category=listing.card_fetch_result, revision=listing.revision)
             return _record(session, listing)
     else:
         @router.post("", status_code=201, response_model=schemas.RegistryRecord,
@@ -219,8 +286,10 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
             data = body.model_dump(exclude_unset=True)
             _apply_scalar_updates(listing, data)
             set_facets(listing, data)
-            listing.updated_at = utcnow()
-            audit(session, "operator", op.id, "service.update", listing.id, fields=sorted(data))
+            apply_profile(listing, body.model_dump(mode="json", exclude_unset=True), partial=True)
+            bump_revision(listing)
+            audit(session, "operator", op.id, "service.update", listing.id, fields=sorted(data),
+                  revision=listing.revision)
             return _record(session, listing)
 
     @router.delete("/{listing_id}", status_code=204, summary="Delist immediately (owner only)")
@@ -371,6 +440,7 @@ def build_agent_listing(session: Session, body: schemas.AgentCreate, operator_id
     require_same_host(listing, listing.endpoint_url, "endpoint_url")
     flag_name_collision(session, listing)
     set_facets(listing, body.model_dump())
+    apply_profile(listing, body.model_dump(mode="json", exclude_none=True), partial=False)
     return listing
 
 
@@ -406,6 +476,7 @@ def build_service_listing(session: Session, body: schemas.ServiceCreate, operato
     data = body.model_dump()
     data["roles"] = ["hosting_provider" if ltype == "hosting" else "service_provider"]
     set_facets(listing, data)
+    apply_profile(listing, body.model_dump(mode="json", exclude_none=True), partial=False)
     return listing
 
 

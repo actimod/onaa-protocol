@@ -224,6 +224,36 @@ class OnaaClient:
     def trust(self, kind: Kind, listing_id: str) -> dict:
         return self._request("GET", f"/v1/{kind}/{listing_id}/trust")
 
+    def history(self, kind: Kind, listing_id: str, limit: int = 50) -> list[dict]:
+        """Public change history: which fields changed, when, and at which revision."""
+        return self._request("GET", f"/v1/{kind}/{listing_id}/history", params={"limit": limit})
+
+    def sync(self, kind: Kind, since: str | None = None, *, page_size: int = 100, **filters) -> Iterator[dict]:
+        """Yield listings changed after `since` (ISO 8601), oldest first, for keeping a local mirror current.
+        Remember the last item's `updated_at` as the next cursor."""
+        offset = 0
+        while True:
+            page = self.search(kind, limit=page_size, offset=offset, updated_since=since, sort="updated_asc",
+                               **filters)
+            yield from page.items
+            offset += len(page.items)
+            if not page.items or offset >= page.total:
+                return
+
+    # ---- vocabulary evolution ----
+    def vocabulary(self, top: int = 50) -> dict:
+        """Canonical values, tokens and extension keys in use, open proposals and the promotion policy."""
+        return self._request("GET", "/v1/vocabulary", params={"top": top})
+
+    def propose_vocabulary(self, kind: str, name: str, description: str, example: dict | None = None) -> dict:
+        body: dict[str, Any] = {"kind": kind, "name": name, "description": description}
+        if example is not None:
+            body["example"] = example
+        return self._request("POST", "/v1/vocabulary/proposals", auth=True, json=body)
+
+    def support_proposal(self, proposal_id: str) -> dict:
+        return self._request("POST", f"/v1/vocabulary/proposals/{proposal_id}/support", auth=True)
+
     def claim_agent(self, listing_id: str) -> dict:
         return self._request("POST", f"/v1/agents/{listing_id}/claim", auth=True)
 

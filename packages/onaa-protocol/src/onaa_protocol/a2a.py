@@ -21,7 +21,7 @@ from typing import Any
 
 import httpx
 
-from .safe_fetch import loads_json, read_capped
+from .safe_fetch import deadline_extensions, loads_json, read_capped
 
 A2A_VERSION = "1.0"
 JSONRPC_BINDING = "JSONRPC"
@@ -163,8 +163,9 @@ def rpc_call(
     def err(msg: str) -> A2AError:
         return A2AError(INTERNAL_ERROR, msg)
 
+    # The absolute deadline also reaches safe_client's transport (name resolution, connect, TLS, headers).
     with client.stream("POST", url, json=body, headers=hdrs, follow_redirects=False,
-                       timeout=httpx.Timeout(deadline)) as resp:
+                       timeout=httpx.Timeout(deadline), extensions=deadline_extensions(deadline_at)) as resp:
         if resp.status_code != 200:
             raise A2AError(INTERNAL_ERROR, f"unexpected HTTP status {resp.status_code}")
         raw = read_capped(resp, max_bytes=MAX_RESPONSE_BYTES, deadline_at=deadline_at, error=err)

@@ -149,3 +149,20 @@ def test_self_register_retries_then_fails(env):
                           accept_terms_version=reg.current_terms_version(), confirm_operator_authority=True)
     assert ei.value.status_code == 422 and ei.value.body["error"] == "txt_record_not_found"
     assert reg.api_key is None
+
+
+def test_profile_evolution_sync_and_vocabulary(env):
+    reg, _, _, _ = env
+    agent = _seller(reg)
+    upd = reg.update("agents", agent["id"], commerce={"accepts_services": [{"service_type": "escrow"}]},
+                     jurisdiction={"operating_country": "US", "excluded_regions": ["CU"]},
+                     extensions={"com.example/moq_units": 5})
+    assert upd["revision"] == 2
+    assert reg.search_agents(accepts="escrow", country="US").total == 1
+    assert reg.search_agents(country="CU").total == 0
+    assert [h["revision"] for h in reg.history("agents", agent["id"])] == [2, None]
+    assert [x["id"] for x in reg.sync("agents")] == [agent["id"]]
+    assert list(reg.sync("agents", since=upd["updated_at"])) == []
+    assert reg.vocabulary()["extension_keys"] == [{"key": "com.example/moq_units", "listings": 1}]
+    p = reg.propose_vocabulary("field", "com.example/moq_units", "Minimum order quantity for B2B RFQs")
+    assert reg.support_proposal(p["id"])["support_count"] == 1  # same identity counts once

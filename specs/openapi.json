@@ -1,6 +1,50 @@
 {
   "components": {
     "schemas": {
+      "AcceptedService": {
+        "additionalProperties": false,
+        "description": "A settlement/fulfilment service type this listing works with. Pairs buyers and sellers with the same\nescrow, payment, insurance or logistics providers found in the registry.",
+        "properties": {
+          "listing_ids": {
+            "description": "Specific registry providers (svc_/hst_) accepted; empty = any",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Listing Ids",
+            "type": "array"
+          },
+          "required": {
+            "default": false,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "service_type": {
+            "enum": [
+              "payment",
+              "escrow",
+              "insurance",
+              "logistics",
+              "shipping",
+              "inspection",
+              "identity",
+              "dispute",
+              "tax",
+              "fraud",
+              "fx",
+              "hosting",
+              "other"
+            ],
+            "title": "Service Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service_type"
+        ],
+        "title": "AcceptedService",
+        "type": "object"
+      },
       "AgentCreate": {
         "additionalProperties": false,
         "properties": {
@@ -26,6 +70,26 @@
             "title": "Categories",
             "type": "array"
           },
+          "commerce": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Commerce"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contacts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Contacts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "currencies": {
             "items": {
               "type": "string"
@@ -33,6 +97,16 @@
             "maxItems": 32,
             "title": "Currencies",
             "type": "array"
+          },
+          "data_handling": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataHandling"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "description": {
             "anyOf": [
@@ -76,6 +150,52 @@
             ],
             "title": "Endpoint Url"
           },
+          "extensions": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Namespaced extension fields (`com.example/field`, `x-name/field`), max 8 KiB. Untrusted. Widely used keys can be proposed for promotion via /v1/vocabulary.",
+            "title": "Extensions"
+          },
+          "integration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Integration"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "jurisdiction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Jurisdiction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "jwks_uri": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ONAA Protocol signing keys (JWK Set); must be on the listing host",
+            "title": "Jwks Uri"
+          },
           "languages": {
             "items": {
               "type": "string"
@@ -107,6 +227,16 @@
             "minItems": 1,
             "title": "Roles",
             "type": "array"
+          },
+          "self_reported": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SelfReported"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "supported_protocols": {
             "items": {
@@ -168,6 +298,26 @@
             ],
             "title": "Categories"
           },
+          "commerce": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Commerce"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contacts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Contacts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "currencies": {
             "anyOf": [
               {
@@ -181,6 +331,16 @@
               }
             ],
             "title": "Currencies"
+          },
+          "data_handling": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataHandling"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "description": {
             "anyOf": [
@@ -228,6 +388,52 @@
               }
             ],
             "title": "Endpoint Url"
+          },
+          "extensions": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Namespaced extension fields (`com.example/field`, `x-name/field`), max 8 KiB. Untrusted. Widely used keys can be proposed for promotion via /v1/vocabulary.",
+            "title": "Extensions"
+          },
+          "integration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Integration"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "jurisdiction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Jurisdiction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "jwks_uri": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ONAA Protocol signing keys (JWK Set); must be on the listing host",
+            "title": "Jwks Uri"
           },
           "languages": {
             "anyOf": [
@@ -277,6 +483,16 @@
               }
             ],
             "title": "Roles"
+          },
+          "self_reported": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SelfReported"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "supported_protocols": {
             "anyOf": [
@@ -333,6 +549,75 @@
           "challenge_id"
         ],
         "title": "Body_complete_challenge_v1_services__listing_id__verification_complete_post",
+        "type": "object"
+      },
+      "Capacity": {
+        "additionalProperties": false,
+        "properties": {
+          "lead_time_days": {
+            "anyOf": [
+              {
+                "maximum": 365.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Time Days"
+          },
+          "max_concurrent_orders": {
+            "anyOf": [
+              {
+                "maximum": 10000000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Concurrent Orders"
+          },
+          "max_order_value": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{1,12}(\\.\\d{1,6})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Order Value"
+          },
+          "min_order_value": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{1,12}(\\.\\d{1,6})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Order Value"
+          },
+          "order_value_currency": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Value Currency"
+          }
+        },
+        "title": "Capacity",
         "type": "object"
       },
       "CertificationApplicationCreate": {
@@ -666,6 +951,242 @@
         "title": "ChallengeStart",
         "type": "object"
       },
+      "Classification": {
+        "additionalProperties": false,
+        "description": "What is traded, in a public code list: UNSPSC (UN), HS (WCO), GS1 GPC, ISIC (UN) or NAICS.",
+        "properties": {
+          "code": {
+            "pattern": "^[0-9A-Za-z.]{1,20}$",
+            "title": "Code",
+            "type": "string"
+          },
+          "scheme": {
+            "enum": [
+              "unspsc",
+              "hs",
+              "gs1_gpc",
+              "isic",
+              "naics"
+            ],
+            "title": "Scheme",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheme",
+          "code"
+        ],
+        "title": "Classification",
+        "type": "object"
+      },
+      "Commerce": {
+        "additionalProperties": false,
+        "properties": {
+          "accepts_services": {
+            "items": {
+              "$ref": "#/components/schemas/AcceptedService"
+            },
+            "maxItems": 13,
+            "title": "Accepts Services",
+            "type": "array"
+          },
+          "capacity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Capacity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "classifications": {
+            "items": {
+              "$ref": "#/components/schemas/Classification"
+            },
+            "maxItems": 20,
+            "title": "Classifications",
+            "type": "array"
+          },
+          "incoterms": {
+            "description": "ICC Incoterms 2020, for physical goods",
+            "items": {
+              "enum": [
+                "EXW",
+                "FCA",
+                "CPT",
+                "CIP",
+                "DAP",
+                "DPU",
+                "DDP",
+                "FAS",
+                "FOB",
+                "CFR",
+                "CIF"
+              ],
+              "type": "string"
+            },
+            "maxItems": 11,
+            "title": "Incoterms",
+            "type": "array"
+          },
+          "payment_terms": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaymentTerms"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "policies": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Policies"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pricing": {
+            "items": {
+              "$ref": "#/components/schemas/Pricing"
+            },
+            "maxItems": 10,
+            "title": "Pricing",
+            "type": "array"
+          },
+          "quoting": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quoting"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "service_level": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ServiceLevel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Commerce",
+        "type": "object"
+      },
+      "Contacts": {
+        "additionalProperties": false,
+        "properties": {
+          "escalation_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalation Url"
+          },
+          "security_contact_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "e.g. https://host/.well-known/security.txt",
+            "title": "Security Contact Url"
+          },
+          "support_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Support Url"
+          }
+        },
+        "title": "Contacts",
+        "type": "object"
+      },
+      "DataHandling": {
+        "additionalProperties": false,
+        "properties": {
+          "data_categories": {
+            "description": "What it processes: personal, payment, location, health, ...",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Data Categories",
+            "type": "array"
+          },
+          "privacy_policy_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Privacy Policy Url"
+          },
+          "retention_days": {
+            "anyOf": [
+              {
+                "maximum": 36500.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retention Days"
+          },
+          "subprocessors": {
+            "description": "Registry listing ids",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Subprocessors",
+            "type": "array"
+          },
+          "trains_on_customer_data": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trains On Customer Data"
+          }
+        },
+        "title": "DataHandling",
+        "type": "object"
+      },
       "DiscoveredCreate": {
         "additionalProperties": false,
         "properties": {
@@ -888,6 +1409,220 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HistoryEntry": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "actor_type": {
+            "title": "Actor Type",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          }
+        },
+        "required": [
+          "at",
+          "action",
+          "actor_type"
+        ],
+        "title": "HistoryEntry",
+        "type": "object"
+      },
+      "Integration": {
+        "additionalProperties": false,
+        "properties": {
+          "auth_methods": {
+            "items": {
+              "enum": [
+                "none",
+                "api_key",
+                "oauth2",
+                "oidc",
+                "mtls",
+                "onaa_signature",
+                "http_signature"
+              ],
+              "type": "string"
+            },
+            "maxItems": 7,
+            "title": "Auth Methods",
+            "type": "array"
+          },
+          "changelog_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changelog Url"
+          },
+          "depends_on": {
+            "description": "Registry listings this one calls (sub-agents, providers)",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Depends On",
+            "type": "array"
+          },
+          "rate_limit_per_minute": {
+            "anyOf": [
+              {
+                "maximum": 10000000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate Limit Per Minute"
+          },
+          "replaced_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Successor listing id",
+            "title": "Replaced By"
+          },
+          "skills_io": {
+            "items": {
+              "$ref": "#/components/schemas/SkillIO"
+            },
+            "maxItems": 64,
+            "title": "Skills Io",
+            "type": "array"
+          },
+          "status_page_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Page Url"
+          },
+          "sunset_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Planned deprecation time",
+            "title": "Sunset At"
+          }
+        },
+        "title": "Integration",
+        "type": "object"
+      },
+      "Jurisdiction": {
+        "additionalProperties": false,
+        "description": "Where the listing operates and may serve. Self-declared; never a licence or legal verification.",
+        "properties": {
+          "compliance_claims": {
+            "description": "Self-declared tokens, e.g. gdpr, pci-dss, soc2, iso27001",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Compliance Claims",
+            "type": "array"
+          },
+          "data_residency": {
+            "description": "Where data is stored: ISO countries, EU or EEA",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Data Residency",
+            "type": "array"
+          },
+          "excluded_regions": {
+            "description": "Countries it does NOT serve; overrides `regions` in search",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 250,
+            "title": "Excluded Regions",
+            "type": "array"
+          },
+          "operating_country": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 3166-1 alpha-2 country the operator runs from",
+            "title": "Operating Country"
+          },
+          "restricted_activities": {
+            "description": "e.g. age_restricted, export_controlled, licensed_goods",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Restricted Activities",
+            "type": "array"
+          },
+          "sanctions_screening": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Operator says it screens counterparties",
+            "title": "Sanctions Screening"
+          }
+        },
+        "title": "Jurisdiction",
         "type": "object"
       },
       "OperatorCreate": {
@@ -1131,6 +1866,298 @@
         "title": "OperatorUpdate",
         "type": "object"
       },
+      "PaymentTerms": {
+        "additionalProperties": false,
+        "properties": {
+          "net_days": {
+            "anyOf": [
+              {
+                "maximum": 180.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Days"
+          },
+          "settlement_currencies": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Settlement Currencies",
+            "type": "array"
+          },
+          "terms": {
+            "items": {
+              "enum": [
+                "prepay",
+                "escrow",
+                "on_delivery",
+                "net",
+                "milestone",
+                "subscription"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "title": "Terms",
+            "type": "array"
+          }
+        },
+        "title": "PaymentTerms",
+        "type": "object"
+      },
+      "Policies": {
+        "additionalProperties": false,
+        "description": "Links to the operator's own policies. ONAA does not adjudicate them.",
+        "properties": {
+          "dispute_policy_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dispute Policy Url"
+          },
+          "liability_cap_amount": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{1,12}(\\.\\d{1,6})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liability Cap Amount"
+          },
+          "liability_cap_currency": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liability Cap Currency"
+          },
+          "refund_policy_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refund Policy Url"
+          },
+          "warranty_days": {
+            "anyOf": [
+              {
+                "maximum": 3650.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warranty Days"
+          }
+        },
+        "title": "Policies",
+        "type": "object"
+      },
+      "Pricing": {
+        "additionalProperties": false,
+        "description": "One price line (maps to schema.org PriceSpecification). Amounts are decimal strings, never floats.\nSelf-declared and indicative: the binding price is the signed QUOTE exchanged directly over A2A.",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{1,12}(\\.\\d{1,6})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "applies_to": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9._-]{0,119}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "capability or skill id this line prices; empty = whole listing",
+            "title": "Applies To"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "max_amount": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{1,12}(\\.\\d{1,6})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Amount"
+          },
+          "min_amount": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{1,12}(\\.\\d{1,6})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Amount"
+          },
+          "model": {
+            "enum": [
+              "free",
+              "fixed",
+              "percentage",
+              "per_unit",
+              "subscription",
+              "quote"
+            ],
+            "title": "Model",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "percentage": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{1,12}(\\.\\d{1,6})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "e.g. '2.9' for 2.9%",
+            "title": "Percentage"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9_.-]{1,40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "per_unit/subscription unit: request, transaction, kg, month, ...",
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "title": "Pricing",
+        "type": "object"
+      },
+      "Quoting": {
+        "additionalProperties": false,
+        "properties": {
+          "catalog_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Machine-readable offer catalog",
+            "title": "Catalog Url"
+          },
+          "mode": {
+            "default": "rfq",
+            "enum": [
+              "instant",
+              "rfq",
+              "negotiated",
+              "catalog"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "quote_response_time_s": {
+            "anyOf": [
+              {
+                "maximum": 2592000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Response Time S"
+          },
+          "quote_validity_s": {
+            "anyOf": [
+              {
+                "maximum": 7776000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Validity S"
+          }
+        },
+        "title": "Quoting",
+        "type": "object"
+      },
       "RegistryRecord": {
         "properties": {
           "agent_card": {
@@ -1171,6 +2198,31 @@
             "title": "Categories",
             "type": "array"
           },
+          "commerce": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Self-declared machine-readable trade terms.",
+            "title": "Commerce"
+          },
+          "contacts": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contacts"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -1182,6 +2234,18 @@
             },
             "title": "Currencies",
             "type": "array"
+          },
+          "data_handling": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Handling"
           },
           "description": {
             "anyOf": [
@@ -1220,9 +2284,51 @@
             ],
             "title": "Endpoint Url"
           },
+          "extensions": {
+            "additionalProperties": true,
+            "description": "Namespaced, untrusted extension fields.",
+            "title": "Extensions",
+            "type": "object"
+          },
           "id": {
             "title": "Id",
             "type": "string"
+          },
+          "integration": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Integration"
+          },
+          "jurisdiction": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Self-declared operating/serving countries.",
+            "title": "Jurisdiction"
+          },
+          "jwks_uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jwks Uri"
           },
           "languages": {
             "items": {
@@ -1295,6 +2401,12 @@
             "title": "Regulatory Claims",
             "type": "array"
           },
+          "revision": {
+            "default": 1,
+            "description": "Increments on every change; also sent as the HTTP ETag.",
+            "title": "Revision",
+            "type": "integer"
+          },
           "roles": {
             "items": {
               "type": "string"
@@ -1323,6 +2435,19 @@
               }
             ],
             "title": "Sandbox Url"
+          },
+          "self_reported": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Claimed by the listing; NOT verified by ONAA.",
+            "title": "Self Reported"
           },
           "service_type": {
             "anyOf": [
@@ -1758,6 +2883,50 @@
         "title": "SelfRegistrationStart",
         "type": "object"
       },
+      "SelfReported": {
+        "additionalProperties": false,
+        "description": "Track record as claimed by the listing itself. Shown under this name and never as ONAA-verified.",
+        "properties": {
+          "completed_trades": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed Trades"
+          },
+          "operating_since": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operating Since"
+          },
+          "references_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "References Url"
+          }
+        },
+        "title": "SelfReported",
+        "type": "object"
+      },
       "ServiceCreate": {
         "additionalProperties": false,
         "properties": {
@@ -1789,6 +2958,26 @@
             "title": "Categories",
             "type": "array"
           },
+          "commerce": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Commerce"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contacts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Contacts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "currencies": {
             "items": {
               "type": "string"
@@ -1796,6 +2985,16 @@
             "maxItems": 32,
             "title": "Currencies",
             "type": "array"
+          },
+          "data_handling": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataHandling"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "description": {
             "anyOf": [
@@ -1831,6 +3030,52 @@
             "maxLength": 2048,
             "title": "Endpoint Url",
             "type": "string"
+          },
+          "extensions": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Namespaced extension fields (`com.example/field`, `x-name/field`), max 8 KiB. Untrusted. Widely used keys can be proposed for promotion via /v1/vocabulary.",
+            "title": "Extensions"
+          },
+          "integration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Integration"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "jurisdiction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Jurisdiction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "jwks_uri": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ONAA Protocol signing keys (JWK Set); must be on the listing host",
+            "title": "Jwks Uri"
           },
           "languages": {
             "items": {
@@ -1873,6 +3118,16 @@
               }
             ],
             "title": "Sandbox Url"
+          },
+          "self_reported": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SelfReported"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "service_type": {
             "enum": [
@@ -1930,6 +3185,64 @@
         "title": "ServiceCreate",
         "type": "object"
       },
+      "ServiceLevel": {
+        "additionalProperties": false,
+        "properties": {
+          "availability_target_pct": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{1,12}(\\.\\d{1,6})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability Target Pct"
+          },
+          "p95_latency_ms": {
+            "anyOf": [
+              {
+                "maximum": 3600000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P95 Latency Ms"
+          },
+          "support_hours": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "e.g. '24/7', 'Mo-Fr 09-18 Asia/Seoul'",
+            "title": "Support Hours"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "IANA time zone, e.g. Asia/Seoul",
+            "title": "Timezone"
+          }
+        },
+        "title": "ServiceLevel",
+        "type": "object"
+      },
       "ServiceUpdate": {
         "additionalProperties": false,
         "properties": {
@@ -1947,6 +3260,26 @@
             ],
             "title": "Capabilities"
           },
+          "commerce": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Commerce"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contacts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Contacts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "currencies": {
             "anyOf": [
               {
@@ -1960,6 +3293,16 @@
               }
             ],
             "title": "Currencies"
+          },
+          "data_handling": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataHandling"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "description": {
             "anyOf": [
@@ -1997,6 +3340,52 @@
             ],
             "title": "Documentation Url"
           },
+          "extensions": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Namespaced extension fields (`com.example/field`, `x-name/field`), max 8 KiB. Untrusted. Widely used keys can be proposed for promotion via /v1/vocabulary.",
+            "title": "Extensions"
+          },
+          "integration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Integration"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "jurisdiction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Jurisdiction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "jwks_uri": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ONAA Protocol signing keys (JWK Set); must be on the listing host",
+            "title": "Jwks Uri"
+          },
           "regions": {
             "anyOf": [
               {
@@ -2033,6 +3422,16 @@
             ],
             "title": "Sandbox Url"
           },
+          "self_reported": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SelfReported"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "terms_url": {
             "anyOf": [
               {
@@ -2046,6 +3445,60 @@
           }
         },
         "title": "ServiceUpdate",
+        "type": "object"
+      },
+      "SkillIO": {
+        "additionalProperties": false,
+        "description": "Machine-readable I/O per skill (A2A cards list modes, not schemas).",
+        "properties": {
+          "example_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Example Url"
+          },
+          "input_schema_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "JSON Schema",
+            "title": "Input Schema Url"
+          },
+          "output_schema_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "JSON Schema",
+            "title": "Output Schema Url"
+          },
+          "skill_id": {
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,119}$",
+            "title": "Skill Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skill_id"
+        ],
+        "title": "SkillIO",
         "type": "object"
       },
       "SupportedInterface": {
@@ -2269,6 +3722,171 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VocabularyDecision": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "enum": [
+              "accept",
+              "decline"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "reason"
+        ],
+        "title": "VocabularyDecision",
+        "type": "object"
+      },
+      "VocabularyProposalCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "maxLength": 2000,
+            "minLength": 10,
+            "title": "Description",
+            "type": "string"
+          },
+          "example": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Example value or record fragment, max 4 KiB",
+            "title": "Example"
+          },
+          "kind": {
+            "enum": [
+              "field",
+              "capability",
+              "category",
+              "protocol",
+              "service_type",
+              "skill_tag",
+              "compliance",
+              "data_category"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "description": "token, or a namespaced extension key for fields",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "description"
+        ],
+        "title": "VocabularyProposalCreate",
+        "type": "object"
+      },
+      "VocabularyProposalOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decision_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Reason"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "example": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Example"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "support_count": {
+            "title": "Support Count",
+            "type": "integer"
+          },
+          "usage_count": {
+            "description": "How many public listings already use this name (facet or extension key)",
+            "title": "Usage Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "description",
+          "example",
+          "status",
+          "support_count",
+          "usage_count",
+          "decision_reason",
+          "created_at",
+          "decided_at"
+        ],
+        "title": "VocabularyProposalOut",
         "type": "object"
       }
     },
@@ -2709,6 +4327,64 @@
         ]
       }
     },
+    "/v1/admin/vocabulary/proposals/{proposal_id}/decision": {
+      "post": {
+        "operationId": "decide_v1_admin_vocabulary_proposals__proposal_id__decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "title": "Proposal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VocabularyDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VocabularyProposalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Decide",
+        "tags": [
+          "vocabulary",
+          "admin"
+        ]
+      }
+    },
     "/v1/agents": {
       "get": {
         "operationId": "list_listings_v1_agents_get",
@@ -2882,6 +4558,301 @@
               ],
               "description": "service_type filter (services only)",
               "title": "Type"
+            }
+          },
+          {
+            "description": "alias of type",
+            "in": "query",
+            "name": "service_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "alias of type",
+              "title": "Service Type"
+            }
+          },
+          {
+            "description": "ISO country the buyer is in: serves it (or GLOBAL) and does not exclude it",
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO country the buyer is in: serves it (or GLOBAL) and does not exclude it",
+              "title": "Country"
+            }
+          },
+          {
+            "in": "query",
+            "name": "operating_country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Operating Country"
+            }
+          },
+          {
+            "description": "ISO country, EU or EEA",
+            "in": "query",
+            "name": "data_residency",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO country, EU or EEA",
+              "title": "Data Residency"
+            }
+          },
+          {
+            "description": "self-declared, e.g. gdpr",
+            "in": "query",
+            "name": "compliance",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "self-declared, e.g. gdpr",
+              "title": "Compliance"
+            }
+          },
+          {
+            "description": "works with this settlement service type, e.g. escrow",
+            "in": "query",
+            "name": "accepts",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "works with this settlement service type, e.g. escrow",
+              "title": "Accepts"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pricing_model",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pricing Model"
+            }
+          },
+          {
+            "in": "query",
+            "name": "quote_mode",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Quote Mode"
+            }
+          },
+          {
+            "in": "query",
+            "name": "payment_terms",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Payment Terms"
+            }
+          },
+          {
+            "description": "scheme:code, e.g. unspsc:43211503",
+            "in": "query",
+            "name": "classification",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "scheme:code, e.g. unspsc:43211503",
+              "title": "Classification"
+            }
+          },
+          {
+            "in": "query",
+            "name": "incoterm",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Incoterm"
+            }
+          },
+          {
+            "in": "query",
+            "name": "auth_method",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Auth Method"
+            }
+          },
+          {
+            "description": "A2A card skill id or tag (from the cached card)",
+            "in": "query",
+            "name": "skill",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A2A card skill id or tag (from the cached card)",
+              "title": "Skill"
+            }
+          },
+          {
+            "description": "ISO 8601; for incremental sync",
+            "in": "query",
+            "name": "updated_since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO 8601; for incremental sync",
+              "title": "Updated Since"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "trust",
+              "enum": [
+                "trust",
+                "updated",
+                "updated_asc"
+              ],
+              "title": "Sort",
+              "type": "string"
             }
           },
           {
@@ -3105,6 +5076,9 @@
             },
             "description": "Successful Response"
           },
+          "304": {
+            "description": "Not modified (If-None-Match matched the ETag)"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -3266,6 +5240,64 @@
           }
         ],
         "summary": "Probe the endpoint now (owner only)",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
+    "/v1/agents/{listing_id}/history": {
+      "get": {
+        "operationId": "history_v1_agents__listing_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "listing_id",
+            "required": true,
+            "schema": {
+              "title": "Listing Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HistoryEntry"
+                  },
+                  "title": "Response History V1 Agents  Listing Id  History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Public change history (which fields changed, when, at which revision)",
         "tags": [
           "agents"
         ]
@@ -4062,6 +6094,301 @@
             }
           },
           {
+            "description": "alias of type",
+            "in": "query",
+            "name": "service_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "alias of type",
+              "title": "Service Type"
+            }
+          },
+          {
+            "description": "ISO country the buyer is in: serves it (or GLOBAL) and does not exclude it",
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO country the buyer is in: serves it (or GLOBAL) and does not exclude it",
+              "title": "Country"
+            }
+          },
+          {
+            "in": "query",
+            "name": "operating_country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Operating Country"
+            }
+          },
+          {
+            "description": "ISO country, EU or EEA",
+            "in": "query",
+            "name": "data_residency",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO country, EU or EEA",
+              "title": "Data Residency"
+            }
+          },
+          {
+            "description": "self-declared, e.g. gdpr",
+            "in": "query",
+            "name": "compliance",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "self-declared, e.g. gdpr",
+              "title": "Compliance"
+            }
+          },
+          {
+            "description": "works with this settlement service type, e.g. escrow",
+            "in": "query",
+            "name": "accepts",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "works with this settlement service type, e.g. escrow",
+              "title": "Accepts"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pricing_model",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pricing Model"
+            }
+          },
+          {
+            "in": "query",
+            "name": "quote_mode",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Quote Mode"
+            }
+          },
+          {
+            "in": "query",
+            "name": "payment_terms",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Payment Terms"
+            }
+          },
+          {
+            "description": "scheme:code, e.g. unspsc:43211503",
+            "in": "query",
+            "name": "classification",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "scheme:code, e.g. unspsc:43211503",
+              "title": "Classification"
+            }
+          },
+          {
+            "in": "query",
+            "name": "incoterm",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Incoterm"
+            }
+          },
+          {
+            "in": "query",
+            "name": "auth_method",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Auth Method"
+            }
+          },
+          {
+            "description": "A2A card skill id or tag (from the cached card)",
+            "in": "query",
+            "name": "skill",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "A2A card skill id or tag (from the cached card)",
+              "title": "Skill"
+            }
+          },
+          {
+            "description": "ISO 8601; for incremental sync",
+            "in": "query",
+            "name": "updated_since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO 8601; for incremental sync",
+              "title": "Updated Since"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "trust",
+              "enum": [
+                "trust",
+                "updated",
+                "updated_asc"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
             "in": "query",
             "name": "verified_only",
             "required": false,
@@ -4282,6 +6609,9 @@
             },
             "description": "Successful Response"
           },
+          "304": {
+            "description": "Not modified (If-None-Match matched the ETag)"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -4396,6 +6726,64 @@
           }
         ],
         "summary": "Probe the endpoint now (owner only)",
+        "tags": [
+          "services"
+        ]
+      }
+    },
+    "/v1/services/{listing_id}/history": {
+      "get": {
+        "operationId": "history_v1_services__listing_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "listing_id",
+            "required": true,
+            "schema": {
+              "title": "Listing Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HistoryEntry"
+                  },
+                  "title": "Response History V1 Services  Listing Id  History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Public change history (which fields changed, when, at which revision)",
         "tags": [
           "services"
         ]
@@ -4620,6 +7008,221 @@
         "summary": "Current registry terms text",
         "tags": [
           "meta"
+        ]
+      }
+    },
+    "/v1/vocabulary": {
+      "get": {
+        "operationId": "vocabulary_v1_vocabulary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "top",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Top",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Vocabulary in use: canonical values, top tokens, extension keys, proposals",
+        "tags": [
+          "vocabulary"
+        ]
+      }
+    },
+    "/v1/vocabulary/proposals": {
+      "get": {
+        "operationId": "list_proposals_v1_vocabulary_proposals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VocabularyProposalOut"
+                  },
+                  "title": "Response List Proposals V1 Vocabulary Proposals Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Proposals",
+        "tags": [
+          "vocabulary"
+        ]
+      },
+      "post": {
+        "operationId": "propose_v1_vocabulary_proposals_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VocabularyProposalCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VocabularyProposalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Propose a new core field or vocabulary token",
+        "tags": [
+          "vocabulary"
+        ]
+      }
+    },
+    "/v1/vocabulary/proposals/{proposal_id}/support": {
+      "post": {
+        "operationId": "support_v1_vocabulary_proposals__proposal_id__support_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "title": "Proposal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VocabularyProposalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Support a proposal (once per identity)",
+        "tags": [
+          "vocabulary"
         ]
       }
     }

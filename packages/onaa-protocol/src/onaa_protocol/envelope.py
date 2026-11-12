@@ -17,6 +17,7 @@ import uuid
 from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import urlsplit
 
 from . import jose, schemas
 from .errors import ProtocolError, SignatureError, public_message
@@ -316,6 +317,10 @@ def validate_envelope(
     _schema_check(env)
     if "signature" in env and type_ != "REJECT":
         _recipient_present(env)
+    if type_ == "RFQ" and not legacy and not env["sender"].get("agent_card_url"):
+        # v0.1.2: the deal-opening RFQ binds the buyer's agent_id to its card (spec sections 7.4, 9.4.4);
+        # an RFQ without one would leave the buyer unbound and its deal open to hijacking.
+        raise ProtocolError("invalid_envelope", "an RFQ must name sender.agent_card_url")
     float_at = _first_float(env)
     if float_at is not None:  # also covers unknown body members and ext, which the schema leaves open
         in_body = float_at[:1] == ("body",)  # member names are untrusted: never echo the path (section 7.8)
@@ -426,6 +431,29 @@ def reply_recipient(request: Any) -> dict[str, str] | None:
     return out
 
 
+DEFAULT_MAX_UNSIGNED_TTL = timedelta(hours=1)  # receiver retention window for unsigned envelopes (v0.1.2)
+
+_Record = tuple[str, datetime, "dict[str, Any] | None", tuple[str, ...]]  # fingerprint, expires, reply, buckets
+
+
+def source_buckets(env: dict[str, Any], source: str | None = None) -> tuple[str, ...]:
+    """Quota buckets a request counts against (spec section 7.6.7, v0.1.2): the caller-supplied network
+    ``source`` (e.g. ``"ip:203.0.113.7"``) and, for a signed envelope, the origin of its (verified)
+    ``sender.agent_card_url``. Self-asserted ``agent_id`` values are never a bucket: they cost nothing to mint."""
+    out: list[str] = []
+    if source:
+        out.append("src:" + source)
+    url = env.get("sender", {}).get("agent_card_url") if isinstance(env.get("sender"), dict) else None
+    if "signature" in env and isinstance(url, str):
+        p = urlsplit(url)
+        try:
+            port = p.port
+        except ValueError:
+            port = None
+        out.append(f"card:{p.scheme.lower()}://{p.hostname}:{port}")
+    return tuple(out)
+
+
 class ReplayGuard:
     """In-memory idempotency + nonce replay protection for one receiving agent (spec section 7.6).
 
@@ -438,19 +466,35 @@ class ReplayGuard:
     at ``max_entries`` live entries new requests get ``rate_limited`` (fail closed: unexpired records are
     never evicted, which would re-enable replays).
 
-    Atomic use (recommended): ``reserve(env)`` -> process -> ``complete(env, reply)`` (or ``release(env)``
-    on failure). A concurrent byte-identical retry waits for the first one and gets its reply, and a
-    concurrent request reusing the nonce gets ``replay``. ``check``/``remember`` remain for compatibility.
+    Lockout resistance (v0.1.2 errata, spec section 7.6.7). A full store refuses everyone, so filling it
+    must be expensive:
+
+    * ``max_unsigned_ttl`` (default 1 h): an UNSIGNED envelope whose ``expires_at`` lies further than this
+      (plus the 5 min skew) in the future is refused with ``invalid_envelope``. Its records therefore live
+      at most ~1 h instead of 24 h. ``None`` disables the cap.
+    * ``max_per_source`` (default ``max_entries // 10``): at most this many live records per quota bucket
+      (:func:`source_buckets`: the network ``source`` passed to :meth:`reserve`, and the verified card
+      origin of a signed envelope); beyond it that bucket gets ``rate_limited`` while others continue.
+      ``0`` disables per-source quotas.
+
+    Atomic use (recommended): ``reserve(env, source=...)`` -> process -> ``complete(env, reply)`` (or
+    ``release(env)`` on failure). A concurrent byte-identical retry waits for the first one and gets its
+    reply, and a concurrent request reusing the nonce gets ``replay``. ``check``/``remember`` remain for
+    compatibility.
     """
 
     def __init__(self, *, max_entries: int = 100_000, gc_interval: timedelta = timedelta(seconds=30),
-                 wait_seconds: float = 30.0) -> None:
+                 wait_seconds: float = 30.0, max_unsigned_ttl: timedelta | None = DEFAULT_MAX_UNSIGNED_TTL,
+                 max_per_source: int | None = None) -> None:
         self._lock = threading.Condition()
-        self._by_key: dict[tuple[str, str], tuple[str, datetime, dict[str, Any] | None]] = {}
+        self._by_key: dict[tuple[str, str], _Record] = {}
         self._nonces: dict[tuple[str, str], datetime] = {}
+        self._counts: dict[str, int] = {}
         self.max_entries = max_entries
         self.gc_interval = gc_interval
         self.wait_seconds = wait_seconds
+        self.max_unsigned_ttl = max_unsigned_ttl
+        self.max_per_source = max(1, max_entries // 10) if max_per_source is None else max_per_source
         self._next_gc: datetime | None = None
         self._last_full_gc = float("-inf")
 
@@ -464,10 +508,39 @@ class ReplayGuard:
         self._next_gc = now + self.gc_interval
         self._by_key = {k: v for k, v in self._by_key.items() if v[1] + CLOCK_SKEW > now or v[2] is None}
         self._nonces = {k: v for k, v in self._nonces.items() if v + CLOCK_SKEW > now}
+        counts: dict[str, int] = {}
+        for rec in self._by_key.values():
+            for b in rec[3]:
+                counts[b] = counts.get(b, 0) + 1
+        self._counts = counts
 
-    def _lookup(self, env: dict[str, Any], now: datetime, fp: str) -> dict[str, Any] | None:
+    def _count(self, buckets: tuple[str, ...], delta: int) -> None:
+        for b in buckets:
+            n = self._counts.get(b, 0) + delta
+            if n > 0:
+                self._counts[b] = n
+            else:
+                self._counts.pop(b, None)
+
+    def _store(self, key: tuple[str, str], rec: _Record) -> None:
+        old = self._by_key.get(key)
+        if old is not None:
+            self._count(old[3], -1)
+        self._by_key[key] = rec
+        self._count(rec[3], +1)
+
+    def _check_lifetime(self, env: dict[str, Any], now: datetime) -> None:
+        if self.max_unsigned_ttl is None or "signature" in env:
+            return
+        if parse_ts(env["expires_at"], "expires_at") - now > self.max_unsigned_ttl + CLOCK_SKEW:
+            raise ProtocolError("invalid_envelope",
+                                "unsigned envelope outlives this receiver's replay-retention window")
+
+    def _lookup(self, env: dict[str, Any], now: datetime, fp: str,
+                buckets: tuple[str, ...] = ()) -> dict[str, Any] | None:
         """Under the lock: cached reply, or None for a new request; raises conflict/replay/rate_limited."""
         self._gc(now)
+        self._check_lifetime(env, now)
         key = (env["sender"]["agent_id"], env["idempotency_key"])
         waited_until = time.monotonic() + self.wait_seconds
         while True:
@@ -484,17 +557,22 @@ class ReplayGuard:
             self._lock.wait(left)
         if (env["sender"]["agent_id"], env["nonce"]) in self._nonces:
             raise ProtocolError("replay", "nonce already used")
+        if self.max_per_source and any(self._counts.get(b, 0) >= self.max_per_source for b in buckets):
+            self._gc(now, force=True)
+            if any(self._counts.get(b, 0) >= self.max_per_source for b in buckets):
+                raise ProtocolError("rate_limited", "too many open requests from this source")
         if len(self._by_key) >= self.max_entries:
             self._gc(now, force=True)
             if len(self._by_key) >= self.max_entries:
                 raise ProtocolError("rate_limited", "replay store is full")
         return None
 
-    def check(self, env: dict[str, Any], now: datetime | None = None) -> dict[str, Any] | None:
+    def check(self, env: dict[str, Any], now: datetime | None = None, *,
+              source: str | None = None) -> dict[str, Any] | None:
         now = now or utcnow()
         fp = fingerprint(env)
         with self._lock:
-            return self._lookup(env, now, fp)
+            return self._lookup(env, now, fp, source_buckets(env, source))
 
     def remember(self, env: dict[str, Any], reply: dict[str, Any]) -> None:
         """Legacy counterpart of :meth:`check`. A new record is not stored when the store is full (``check``
@@ -507,25 +585,33 @@ class ReplayGuard:
                     return
         self.complete(env, reply)
 
-    def reserve(self, env: dict[str, Any], now: datetime | None = None) -> dict[str, Any] | None:
-        """Atomically check and, for a new request, record it as in flight. Returns a cached reply or None."""
+    def reserve(self, env: dict[str, Any], now: datetime | None = None, *,
+                source: str | None = None) -> dict[str, Any] | None:
+        """Atomically check and, for a new request, record it as in flight. Returns a cached reply or None.
+
+        ``source`` (optional) names the network source of the request, e.g. the client address as seen by
+        the HTTP layer; it becomes a per-source quota bucket (see the class docstring)."""
         now = now or utcnow()
         fp = fingerprint(env)
         sender = env["sender"]["agent_id"]
         expires = parse_ts(env["expires_at"], "expires_at")
+        buckets = source_buckets(env, source)
         with self._lock:
-            cached = self._lookup(env, now, fp)
+            cached = self._lookup(env, now, fp, buckets)
             if cached is not None:
                 return cached
-            self._by_key[(sender, env["idempotency_key"])] = (fp, expires, None)
+            self._store((sender, env["idempotency_key"]), (fp, expires, None, buckets))
             self._nonces[(sender, env["nonce"])] = expires
             return None
 
     def complete(self, env: dict[str, Any], reply: dict[str, Any]) -> None:
         sender = env["sender"]["agent_id"]
         expires = parse_ts(env["expires_at"], "expires_at")
+        key = (sender, env["idempotency_key"])
         with self._lock:
-            self._by_key[(sender, env["idempotency_key"])] = (fingerprint(env), expires, reply)
+            old = self._by_key.get(key)
+            buckets = old[3] if old is not None else source_buckets(env)
+            self._store(key, (fingerprint(env), expires, reply, buckets))
             self._nonces[(sender, env["nonce"])] = expires
             self._lock.notify_all()
 
@@ -537,6 +623,7 @@ class ReplayGuard:
             hit = self._by_key.get(key)
             if hit is not None and hit[2] is None:
                 del self._by_key[key]
+                self._count(hit[3], -1)
                 self._nonces.pop((sender, env["nonce"]), None)
             self._lock.notify_all()
 

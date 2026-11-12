@@ -57,5 +57,7 @@ python -m onaa_protocol.conformance --agent-card-url http://127.0.0.1:PORT/.well
 
 - Only message-only `SendMessage` is supported: no Task lifecycle, streaming, push notifications or auth schemes.
 - The mock escrow also accepts the legacy `ESCROW_HANDOFF_REQUEST` alias (`spec_version` 0.1.0, unsigned), for v0 clients.
-- Between validation and connect there is a DNS-rebinding window. The production fetcher must pin the IP it validated.
+- All demo fetches use `safe_client()`: each name is resolved once, and the client connects only to the addresses it checked (v0.1.2). A custom `http_client=` you pass in does not get this pinning.
+- Bounded stores (v0.1.2): the seller keeps at most 100 quote-only deals per client source and never evicts a deal that holds an order. The mock escrow keeps at most 1,000 handoffs per source, each for 1 h. The buyer keeps the last 256 notification summaries, and triggered conformance deals live in their own store. A full quota gives a retryable `rate_limited` for that source only. Quotas are keyed by client IP (IPv6 /64), so they raise the cost of a distributed sybil flood but cannot stop one.
+- The seller lists its accepted settlement providers in each QUOTE (`settlement.accepted_provider_card_urls`; `demo.py` passes the mock escrow). An order becomes SECURED only through one of them (spec §8.4.5).
 - State is in memory only. A restart forgets quotes and orders.

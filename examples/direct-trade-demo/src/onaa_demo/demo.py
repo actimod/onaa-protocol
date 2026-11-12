@@ -83,7 +83,7 @@ def start_network(registry_url: str | None = None, *, buyer_conformance_trigger:
     s_sock, s_url = bind_ephemeral()
     e_sock, e_url = bind_ephemeral()
     buyer = BuyerNode(b_url, conformance_trigger=buyer_conformance_trigger)
-    seller = SellerAgent(s_url)
+    seller = SellerAgent(s_url, accepted_providers=[e_url + AGENT_CARD_PATH])  # listed in its QUOTEs (spec 8.4.5)
     escrow = MockEscrow(e_url)
     handles.append(serve(buyer.app(), b_sock, b_url))
     handles.append(serve(seller.app(), s_sock, s_url))

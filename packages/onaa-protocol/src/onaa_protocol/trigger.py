@@ -13,7 +13,10 @@ Safety properties enforced here (the buyer additionally keeps triggered deals ap
 * counterparties are restricted to agents whose own card declares
   ``params.conformance.harness_counterparty.trigger_sender`` = the trigger sender's card URL, so a trigger
   can never point a buyer at a real seller or provider;
-* ``test_only`` is ``true`` and the handoff ``mode`` is ``mock``; nothing here carries payment data.
+* ``test_only`` is ``true`` and the handoff ``mode`` is ``mock``; nothing here carries payment data;
+* (v0.1.2) an optional operator allowlist of trigger sender card URLs is checked before any key fetch, and
+  :class:`TriggerGuard` limits the live single-use records per sender card origin, so one sender cannot
+  fill the store and lock out the real harness.
 """
 
 from __future__ import annotations
@@ -21,8 +24,10 @@ from __future__ import annotations
 import secrets
 import threading
 import uuid
+from collections.abc import Iterable
 from datetime import datetime, timedelta
 from typing import Any
+from urllib.parse import urlsplit
 
 from . import jose, schemas
 from .envelope import CLOCK_SKEW, SPEC, format_ts, parse_ts, signing_payload, utcnow
@@ -115,14 +120,17 @@ def check_trigger(
     *,
     expected_recipient: dict[str, Any],
     now: datetime | None = None,
+    allowed_senders: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     """Validate and verify a trigger addressed to ``expected_recipient`` (the buyer's own sender object).
 
     Order: shape and type (``invalid_envelope``), signature presence (``signature_missing``), mode
     (``live_mode_not_supported`` for ``live``), JSON Schema (``invalid_envelope``), time window
     (``invalid_envelope`` / ``expired``; lifetime at most 10 minutes), recipient (``recipient_mismatch``),
-    distinct counterparties (``invalid_envelope``) and finally the signature (section 9.7 codes). The buyer
-    then applies :class:`TriggerGuard` (``replay``) and :func:`check_counterparty` on each counterparty card.
+    distinct counterparties (``invalid_envelope``), the operator allowlist when ``allowed_senders`` (card
+    URLs) is given (``not_a_party``; before any key fetch) and finally the signature (section 9.7 codes).
+    The buyer then applies :class:`TriggerGuard` (``replay``) and :func:`check_counterparty` on each
+    counterparty card.
     """
     if not isinstance(trigger, dict) or trigger.get("spec") != TRIGGER_SPEC or trigger.get("type") != TRIGGER_TYPE:
         raise ProtocolError("invalid_envelope", "not a conformance trade trigger")
@@ -147,6 +155,8 @@ def check_trigger(
     cards = {trigger["seller"]["agent_card_url"], trigger["provider"]["agent_card_url"]}
     if len(cards) != 2 or own in cards:
         raise ProtocolError("invalid_envelope", "trigger counterparties must be two distinct other agents")
+    if allowed_senders is not None and trigger["sender"]["agent_card_url"] not in set(allowed_senders):
+        raise ProtocolError("not_a_party", "trigger sender is not on this buyer's harness allowlist")
     jose.verify_detached(signing_payload(trigger), trigger["signature"], lookup_for(keys, trigger["sender"]),
                          TYP_TRIGGER)
     return trigger
@@ -180,27 +190,37 @@ class TriggerGuard:
     """Single-use and one-at-a-time enforcement for triggers (bounded; fails closed when full).
 
     ``reserve`` raises ``replay`` for a trigger id or ``(sender card, nonce)`` seen before (until its expiry
-    plus the clock skew) and ``rate_limited`` while another triggered run is active or the store is full.
+    plus the clock skew) and ``rate_limited`` while another triggered run is active, the store is full, or
+    the sender's card origin already holds ``max_per_sender`` live triggers (v0.1.2).
     """
 
-    def __init__(self, *, max_entries: int = 1024) -> None:
+    def __init__(self, *, max_entries: int = 1024, max_per_sender: int = 32) -> None:
         self._lock = threading.Lock()
         self._seen: dict[tuple[str, str], datetime] = {}
+        self._by_origin: dict[str, list[datetime]] = {}
         self._active = False
         self.max_entries = max_entries
+        self.max_per_sender = max_per_sender
 
     def reserve(self, trigger: dict[str, Any], now: datetime | None = None) -> None:
         now = now or utcnow()
         expires = parse_ts(trigger["expires_at"], "expires_at")
         keys = [("id", trigger["id"]), (trigger["sender"]["agent_card_url"], trigger["nonce"])]
+        p = urlsplit(trigger["sender"]["agent_card_url"])
+        origin = f"{p.scheme}://{p.netloc}".lower()
         with self._lock:
             self._seen = {k: v for k, v in self._seen.items() if v + CLOCK_SKEW > now}
+            self._by_origin = {o: kept for o, ts in self._by_origin.items()
+                               if (kept := [t for t in ts if t + CLOCK_SKEW > now])}
             if any(k in self._seen for k in keys):
                 raise ProtocolError("replay", "trigger already used")
             if self._active or len(self._seen) + 2 > self.max_entries:
                 raise ProtocolError("rate_limited", "another triggered run is active")
+            if len(self._by_origin.get(origin, ())) >= self.max_per_sender:
+                raise ProtocolError("rate_limited", "too many triggers from this sender")
             for k in keys:
                 self._seen[k] = expires
+            self._by_origin.setdefault(origin, []).append(expires)
             self._active = True
 
     def finish(self) -> None:

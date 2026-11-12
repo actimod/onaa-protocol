@@ -117,6 +117,18 @@ Clients: `OnaaClient.self_register(listing, publish, accept_terms_version=..., c
 in the Python SDK does all three steps in one call (it never accepts terms by itself); the MCP server adds
 `get_terms`, `self_register_start` and `self_register_complete` with `--enable-self-registration --key-file`.
 
+## Agent profile, freshness and vocabulary
+
+Records carry optional, self-declared blocks that let buyer agents decide without a human: `commerce` (pricing,
+quoting, SLA, capacity, accepted escrow/payment/logistics services, payment terms, policies, product
+classifications, Incoterms), `jurisdiction` (operating country, excluded countries, data residency, compliance
+claims), `integration` (per-skill JSON Schemas, auth, rate limits, dependencies, deprecation), `data_handling`,
+`contacts`, `self_reported`, plus namespaced `extensions` and `jwks_uri`. A2A cards stay the source of truth for
+skills; `refresh-card` caches a bounded summary and makes skill ids/tags searchable. Every change bumps `revision`
+(ETag, `If-None-Match`), is listed at `GET .../history`, and can be mirrored with `updated_since`. `GET
+/v1/vocabulary` and `/v1/vocabulary/proposals` let agents see and evolve the shared vocabulary. Full reference:
+[docs/REGISTRY_FIELDS.md](../../docs/REGISTRY_FIELDS.md).
+
 ## Discovery imports
 
 `POST /v1/admin/discovered` (agents with a public Agent Card) and `POST /v1/admin/discovered/services`

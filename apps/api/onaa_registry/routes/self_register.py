@@ -180,6 +180,7 @@ def complete(registration_id: str, body: schemas.SelfRegistrationComplete, reque
     sr.status, sr.completed_at, sr.operator_id, sr.listing_id = "completed", now, op.id, listing.id
     session.flush()
     audit(session, "agent", op.id, "self_register.complete", sr.id, listing_id=listing.id, operator_id=op.id)
+    audit(session, "agent", op.id, "self_register.listing", listing.id, revision=listing.revision or 1)
     base = settings.public_base_url.rstrip("/")
     kind_path = "agents" if sr.kind == "agent" else "services"
     return schemas.SelfRegistrationCompleted(

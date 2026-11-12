@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "onaa-protocol"
-version = "0.1.1"
+version = "0.1.2"
 description = "ONAA Protocol v0.1 (DRAFT) reference library and conformance suite: an ONAA profile on A2A 1.0 / MCP 2026-07-28, not an official A2A or MCP specification."
 readme = "README.md"
 requires-python = ">=3.12"

@@ -19,7 +19,7 @@ from mcp import Client  # noqa: E402
 
 from onaa_mcp_registry.hosted import allowed_hosts  # noqa: E402
 
-READ_TOOLS = {"search_agents", "search_services", "get_listing", "get_terms"}
+READ_TOOLS = {"search_agents", "search_services", "get_listing", "get_terms", "get_vocabulary"}
 WRITE_TOOLS = {"self_register_start", "self_register_complete"}
 
 
@@ -92,7 +92,7 @@ async def test_remote_client_lists_tools_and_reads_registry(hosted):
 async def test_trailing_slash_also_works(hosted):
     base, _ = hosted
     async with Client(f"{base}/mcp/") as client:
-        assert len((await client.list_tools()).tools) == 6
+        assert len((await client.list_tools()).tools) == 7
 
 
 def test_registry_api_still_served_and_mcp_rejects_foreign_host(hosted):

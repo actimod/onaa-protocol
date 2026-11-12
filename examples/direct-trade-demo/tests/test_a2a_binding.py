@@ -21,7 +21,7 @@ def seller_client():
 
 def _rfq_msg(**overrides):
     env = new_envelope("RFQ", {"items": [{"sku": "widget-std", "quantity": 2}], "currency": "USD"},
-                       sender={"agent_id": "t-buyer"})
+                       sender={"agent_id": "t-buyer", "agent_card_url": "https://t-buyer.example/.well-known/agent-card.json"})
     msg = a2a.make_message(a2a.ROLE_USER, [a2a.data_part(env)], extensions=[EXTENSION_URI])
     msg.update(overrides)
     return msg
