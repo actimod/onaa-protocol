@@ -26,3 +26,49 @@ def test_every_cited_id_exists(cited):
 
 def test_every_catalog_id_is_cited(cited):
     assert set(TESTS) - cited == set()
+
+
+ROLES = ("buyer_agent", "seller_agent", "service_provider", "registry")
+SUITE_040_IDS = {f"C-MUST-0{n}" for n in range(80, 92)}  # added in suite 0.4.0 (buyer trigger tests)
+CELL_ID_RE = re.compile(r"\b([CV]-(?:MUST|SHOULD)-\d{3})\b")
+
+
+def _section(text: str, heading: str) -> str:
+    return text.split(heading, 1)[1].split("\n## ", 1)[0]
+
+
+def _coverage(text: str, drop: set[str]) -> dict[tuple[str, str], tuple[int, int, int]]:
+    """(role, level) -> (applicable rows, rows with a live test, rows with a live or vector test)."""
+    out: dict[tuple[str, str], list[int]] = {}
+    for line in _section(text, "## 3. Traceability matrix").splitlines():
+        if not line.startswith("| R-"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        level = "MUST" if cells[2].startswith("MUST") else "SHOULD"
+        for role, cell in zip(ROLES, cells[4:8], strict=True):
+            if cell == "—":
+                continue
+            ids = set(CELL_ID_RE.findall(cell)) - drop
+            acc = out.setdefault((role, level), [0, 0, 0])
+            acc[0] += 1
+            acc[1] += any(i.startswith("C-") for i in ids)
+            acc[2] += bool(ids)
+    return {k: tuple(v) for k, v in out.items()}
+
+
+def test_summary_2a_matches_the_matrix():
+    if not DOC.is_file():
+        pytest.skip("repository specs/ not available")
+    text = DOC.read_text(encoding="utf-8")
+    before, after = _coverage(text, SUITE_040_IDS), _coverage(text, set())
+
+    def fmt(k: int, n: int) -> str:
+        return f"{k}/{n} ({round(100 * k / n)}%)"
+
+    rows = [line for line in _section(text, "## 2a.").splitlines() if line.startswith(("| buyer", "| seller",
+                                                                                        "| service", "| registry"))]
+    assert len(rows) == len(after)
+    for line in rows:
+        role, level, n, live_b, live_a, any_b, any_a = [c.strip() for c in line.strip().strip("|").split("|")]
+        (nb, lb, ab), (na, la, aa) = before[(role, level)], after[(role, level)]
+        assert (int(n), live_b, live_a, any_b, any_a) == (na, fmt(lb, nb), fmt(la, na), fmt(ab, nb), fmt(aa, na)), role

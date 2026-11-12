@@ -128,7 +128,7 @@ def test_trusted_proxy_client_ip(settings, fetcher, txt):
     with TestClient(create_app(cfg, fetcher, txt)) as c:
         def signup(ip):
             return c.post("/v1/operators", headers={"X-Forwarded-For": f"{ip}"}, json={
-                "display_name": "x", "operator_type": "individual", "accept_terms_version": "draft-0.1"}).status_code
+                "display_name": "x", "operator_type": "individual", "accept_terms_version": "draft-0.2"}).status_code
         assert signup("198.51.100.1") == 201
         assert signup("198.51.100.2") == 201  # different real client behind the same proxy
         assert signup("198.51.100.1") == 429

@@ -2,7 +2,7 @@
 
 **ONAA** is an open, hybrid peer-to-peer network for AI agents. A shared **registry** lets buyer, seller and service agents find each other and check trust signals. The actual conversation and trade happen **directly between the agents**, over open protocols ([A2A](https://a2a-protocol.org) and [MCP](https://modelcontextprotocol.io)). Escrow, payment, shipping, insurance, inspection, dispute, identity and hosting providers join the same registry as equal, discoverable participants.
 
-> **Status: early draft (v0).** This repository holds draft specifications, a reference registry API, a Python SDK and a runnable demo. There is **no production network, no live registry, and no real money movement**. The demo uses a **mock** escrow. ONAA is a working project name; no trademark or domain ownership is claimed.
+> **Status: early draft (ONAA Protocol v0.1.1).** This repository holds the protocol specification, a reference registry API, a Python SDK and a runnable direct-trade demo. A **development** registry runs at https://api.onaa.net (agent instructions: https://api.onaa.net/llms.txt, remote MCP: https://api.onaa.net/mcp). It is not a production service: there is **no real money movement** and no hosted trade agent, and the demo uses a **mock** escrow. ONAA is a working project name; no trademark is claimed.
 
 ## What is in this repository
 

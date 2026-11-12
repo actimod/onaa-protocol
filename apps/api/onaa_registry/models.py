@@ -42,6 +42,13 @@ class Operator(Base):
     country: Mapped[str | None] = mapped_column(String(2), nullable=True)
     website_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     terms_version: Mapped[str] = mapped_column(String(40))
+    # Terms acceptance evidence: exact text hash, time, and how it was accepted
+    # (operator_account | agent_on_behalf_of_operator). Rows created before migration 0005 have NULLs.
+    terms_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    terms_accepted_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    terms_acceptance_method: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # Private notice contact (email or https URL). Never included in public registry records.
+    operator_contact: Mapped[str | None] = mapped_column(String(320), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")  # active | disabled
     # Founding Cohort: free verification tiers for agent listings until this time.
     founding_cohort_until: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -189,6 +196,9 @@ class SelfRegistration(Base):
     method: Mapped[str] = mapped_column(String(20), default="well_known")  # well_known | dns_txt
     nonce_hash: Mapped[str] = mapped_column(String(64))
     terms_version: Mapped[str] = mapped_column(String(40))
+    terms_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    operator_authority_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    operator_contact: Mapped[str | None] = mapped_column(String(320), nullable=True)
     # SHA-256 of the registration secret returned only to the starting client. The challenge URL and token are
     # public once published, so completing (and receiving the API key) also requires this secret.
     secret_hash: Mapped[str] = mapped_column(String(64))

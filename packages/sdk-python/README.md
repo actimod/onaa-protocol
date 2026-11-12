@@ -14,7 +14,7 @@ import os
 from onaa import OnaaClient
 
 reg = OnaaClient("http://localhost:8000")            # local dev registry (apps/api)
-reg.create_operator("Acme Parts", "organization", accept_terms_version="draft-0.1", country="US")
+reg.create_operator("Acme Parts", "organization", accept_terms_version="draft-0.2", country="US")
 # Store reg.api_key in your secret manager; it is shown only once.
 
 agent = reg.register_agent(

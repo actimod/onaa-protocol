@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import datetime as dt
 import re
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
 
 TOKEN_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,119}$")
 REGION_RE = re.compile(r"^([A-Z]{2}|GLOBAL)$")
@@ -25,8 +25,30 @@ ServiceType = Literal[
 ]
 CertScheme = Literal["endpoint_verified", "operator_verified", "protocol_certified", "commerce_certified",
                      "service_certified"]
-ReportCategory = Literal["impersonation", "fraud", "malicious_content", "prompt_injection", "spam",
-                         "privacy", "broken_endpoint", "other"]
+ReportCategory = Literal["impersonation", "unauthorized_registration", "fraud", "malicious_content",
+                         "prompt_injection", "spam", "privacy", "broken_endpoint", "other"]
+
+_EMAIL = re.compile(r"^[^@\s/]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9-]{1,63})+$")
+
+
+def check_operator_contact(value: str | None) -> str | None:
+    """Private notice contact: an email address or an https URL. Never published in registry records."""
+    if value is None:
+        return None
+    if value.lower().startswith("https://"):
+        return value
+    if _EMAIL.match(value):
+        return value
+    raise ValueError("operator_contact must be an email address or an https:// URL")
+
+
+OperatorContact = Annotated[str | None, Field(
+    max_length=320,
+    description="Optional private contact for legal, security and terms-change notices (email or https URL). "
+                "Never shown in public listings; not used for marketing."), AfterValidator(check_operator_contact)]
+TermsSha256 = Annotated[str | None, Field(
+    pattern=r"^[0-9a-f]{64}$",
+    description="Optional SHA-256 (hex) of the terms text from GET /v1/terms. If sent, it must match.")]
 
 
 def _tokens(values: list[str], field: str) -> list[str]:
@@ -66,6 +88,8 @@ class OperatorCreate(StrictModel):
     country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
     website_url: str | None = Field(default=None, max_length=2048)
     accept_terms_version: str = Field(min_length=1, max_length=40)
+    accept_terms_sha256: TermsSha256 = None
+    operator_contact: OperatorContact = None
 
 
 class OperatorUpdate(StrictModel):
@@ -76,6 +100,7 @@ class OperatorUpdate(StrictModel):
     operator_type: Literal["individual", "organization"] | None = None
     country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
     website_url: str | None = Field(default=None, max_length=2048)
+    operator_contact: OperatorContact = None
 
 
 class OperatorOut(BaseModel):
@@ -308,9 +333,17 @@ class ChallengeResult(BaseModel):
 
 # ---------- agent self-registration ----------
 class SelfRegistrationStart(StrictModel):
-    """Exactly one of `agent` or `service`. No human account fields: the registering agent is the principal."""
+    """Exactly one of `agent` or `service`. No human account is needed, but the agent registers FOR its operator:
+    the operator (the person or organisation responsible for the agent) is the party bound by the terms."""
 
-    accept_terms_version: str = Field(min_length=1, max_length=40)
+    accept_terms_version: str = Field(
+        min_length=1, max_length=40,
+        description="Current terms version from GET /v1/terms. Sending it accepts those terms for your operator.")
+    confirm_operator_authority: Literal[True] = Field(
+        description="Must be true: you state that your operator authorised you to register this endpoint and to "
+                    "accept the terms on its behalf, and that your operator controls the endpoint host.")
+    accept_terms_sha256: TermsSha256 = None
+    operator_contact: OperatorContact = None
     method: Literal["well_known", "dns_txt"] = "well_known"
     agent: AgentCreate | None = None
     service: ServiceCreate | None = None

@@ -25,7 +25,7 @@
       "properties": {
         "alg": { "enum": ["EdDSA", "Ed25519"] },
         "kid": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
-        "typ": { "enum": ["onaa-envelope+jws", "onaa-attestation+jws", "onaa-attestation-status+jws"] }
+        "typ": { "enum": ["onaa-envelope+jws", "onaa-attestation+jws", "onaa-attestation-status+jws", "onaa-conformance-trigger+jws"] }
       },
       "not": {
         "anyOf": [

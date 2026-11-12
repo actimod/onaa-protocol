@@ -12,6 +12,7 @@ from .db import Base, make_engine, make_sessionmaker
 from .netsafety import Fetcher, SafeFetcher
 from .routes import certifications, listings, misc, operators, self_register
 from .security import RateLimiter
+from .terms import load_terms
 from .verification import TxtResolver, system_txt_resolver
 
 SCHEMA_PATH = Path(__file__).resolve().parent / "registry-record.schema.json"
@@ -20,6 +21,11 @@ SCHEMA_PATH = Path(__file__).resolve().parent / "registry-record.schema.json"
 def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
                txt_resolver: TxtResolver | None = None) -> FastAPI:
     settings = settings or Settings()
+    try:
+        load_terms(settings.terms_version)
+    except LookupError as exc:
+        raise RuntimeError(f"ONAA_TERMS_VERSION={settings.terms_version!r} has no bundled terms text "
+                           "(onaa_registry/terms/<version>.md); agents could not see what they accept") from exc
     app = FastAPI(
         title="ONAA Registry API",
         version=__version__,

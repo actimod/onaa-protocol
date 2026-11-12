@@ -242,7 +242,7 @@ def test_rate_limit(settings, fetcher):
     from onaa_registry.main import create_app
     with TestClient(create_app(replace(settings, write_rate_limit_per_minute=3), fetcher)) as c:
         codes = [c.post("/v1/operators", json={"display_name": "x", "operator_type": "individual",
-                                                "accept_terms_version": "draft-0.1"}).status_code for _ in range(4)]
+                                                "accept_terms_version": "draft-0.2"}).status_code for _ in range(4)]
     assert codes == [201, 201, 201, 429]
 
 

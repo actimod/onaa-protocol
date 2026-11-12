@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-SUITE_VERSION = "0.3.0"  # 0.2.0: coverage review added tests; 0.3.0: v0.1.1 security errata tests; ids unchanged
+SUITE_VERSION = "0.4.0"  # 0.2.0: coverage review; 0.3.0: v0.1.1 errata; 0.4.0: buyer trigger tests; ids unchanged
 SELLER, BUYER, SERVICE, REGISTRY = "seller_agent", "buyer_agent", "service_provider", "registry"
 AGENTS = (SELLER, BUYER, SERVICE)
 
@@ -151,6 +151,34 @@ _DEFS = [
     CheckDef("ONAA-C-MUST-078", "MUST", "7.1", AGENTS, "Signed envelope addressed to another agent's card URL is "
              "answered with REJECT recipient_mismatch, and one without a recipient with invalid_envelope or "
              "recipient_mismatch"),
+    # ---- buyer client-side duties via the opt-in conformance trade trigger (section 12.1; added in suite
+    # 0.4.0). n/a when the buyer does not declare params.conformance.trade_trigger.
+    CheckDef("ONAA-C-MUST-080", "MUST", "12.1", (BUYER,), "A valid conformance trigger runs one mock trade "
+             "against the harness seller and provider (RFQ, signed ORDER_PROPOSE, handoff; outcome completed)"),
+    CheckDef("ONAA-C-MUST-081", "MUST", "12.1", (BUYER,), "Unsigned, forged, misaddressed, expired, over-long, "
+             "live, non-test, replayed or unmarked-counterparty triggers are refused and cause no trade traffic"),
+    CheckDef("ONAA-C-MUST-082", "MUST", "9.2", (BUYER,), "Every envelope the buyer sends is valid at the "
+             "receiver; MUST-sign types are signed (EdDSA) under the tested card and signed requests name the "
+             "receiver's card URL"),
+    CheckDef("ONAA-C-MUST-083", "MUST", "7.1", (BUYER,), "Every envelope the buyer sends has a fresh id, "
+             "idempotency_key and nonce and a valid created_at/expires_at window"),
+    CheckDef("ONAA-C-MUST-084", "MUST", "4.2", (BUYER,), "The buyer fetches the counterparty card first, never "
+             "uses a cross-origin card interface, sends the A2A headers and keeps contextId = RFQ id"),
+    CheckDef("ONAA-C-MUST-085", "MUST", "13.5", (BUYER,), "ORDER_PROPOSE carries the verified QUOTE's id, "
+             "revision, terms_hash, rfq_id, seller, currency and total"),
+    CheckDef("ONAA-C-MUST-086", "MUST", "7.5.2", (BUYER,), "No ORDER_PROPOSE after a QUOTE with bad arithmetic, "
+             "a wrong terms_hash, a forged signature or another recipient"),
+    CheckDef("ONAA-C-MUST-087", "MUST", "7.5.4", (BUYER,), "No service handoff before a valid signed "
+             "ORDER_CONFIRM, nor after a wrong order_terms_hash, unsigned or forged ORDER_CONFIRM"),
+    CheckDef("ONAA-C-MUST-088", "MUST", "8.3", (BUYER,), "SERVICE_HANDOFF_REQUEST names the provider card, is "
+             "mock, binds the order id, amount, currency and terms, and carries no payment or personal data"),
+    CheckDef("ONAA-C-MUST-089", "MUST", "8.4", (BUYER,), "An ACK from another card, a mock SECURED, amount-"
+             "mismatched or unlabelled ACK stops the triggered run there (reported stopped_on) unused"),
+    CheckDef("ONAA-C-MUST-090", "MUST", "8.4", (BUYER,), "In a triggered deal the seller's SECURED claim, an "
+             "unsigned state change and a second card for the seller are refused without effect (n/a when "
+             "ORDER_STATUS is not accepted)"),
+    CheckDef("ONAA-C-MUST-091", "MUST", "13.1", (BUYER,), "URLs and instructions in counterparty free text are "
+             "never acted on"),
     # ---- SHOULD
     CheckDef("ONAA-C-SHOULD-001", "SHOULD", "9.2", (SELLER,), "QUOTE is signed and verifies against the seller JWKS"),
     CheckDef("ONAA-C-SHOULD-002", "SHOULD", "5.2", (SELLER, SERVICE), "ONAA extension is declared required=true"),

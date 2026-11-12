@@ -38,7 +38,7 @@ def env():
 
 
 def _seller(reg: OnaaClient) -> dict:
-    reg.create_operator("Acme Parts", "organization", accept_terms_version="draft-0.1", country="US")
+    reg.create_operator("Acme Parts", "organization", accept_terms_version="draft-0.2", country="US")
     return reg.register_agent(display_name="Acme Parts Seller", roles=["seller_agent"], agent_card_url=CARD,
                               capabilities=["commerce.quote.issue"], regions=["US"], currencies=["USD"],
                               supported_protocols=["a2a-1.x"])
@@ -66,7 +66,7 @@ def test_register_search_verify_flow(env):
 
 def test_dns_txt_and_services(env):
     reg, _, txt, _ = env
-    reg.create_operator("Escrow Co", "organization", accept_terms_version="draft-0.1")
+    reg.create_operator("Escrow Co", "organization", accept_terms_version="draft-0.2")
     svc = reg.register_service(display_name="Sandbox Escrow", service_type="escrow",
                                endpoint_url="https://api.escrow.example.net/v1", regions=["US"], currencies=["USD"],
                                sandbox_available=True)
@@ -82,7 +82,7 @@ def test_update_delete_and_errors(env):
     agent = _seller(reg)
     assert reg.update("agents", agent["id"], regions=["US", "KR"])["regions"] == ["KR", "US"]
     other = OnaaClient("http://testserver", http_client=http)
-    other.create_operator("Other", "individual", accept_terms_version="draft-0.1")
+    other.create_operator("Other", "individual", accept_terms_version="draft-0.2")
     with pytest.raises(OnaaError) as ei:
         other.delete("agents", agent["id"])
     assert ei.value.status_code == 403
@@ -94,7 +94,7 @@ def test_update_delete_and_errors(env):
 
 def test_iter_search_paginates(env):
     reg, _, _, _ = env
-    reg.create_operator("Many", "organization", accept_terms_version="draft-0.1")
+    reg.create_operator("Many", "organization", accept_terms_version="draft-0.2")
     for i in range(5):
         reg.register_agent(display_name=f"Agent {i}", roles=["buyer_agent"],
                            agent_card_url=f"https://a{i}.example.com/.well-known/agent-card.json")
@@ -123,8 +123,15 @@ def test_agent_self_registers_in_one_call(env):
         published.append(chl)
         fetcher.routes[chl["challenge_url"]] = (200, chl["token"])
 
+    terms = reg.terms()
+    assert terms["version"] == "draft-0.2" and len(terms["sha256"]) == 64
+    with pytest.raises(ValueError):
+        reg.start_self_registration({"display_name": "x", "roles": ["seller_agent"], "agent_card_url": CARD},
+                                    accept_terms_version=terms["version"], confirm_operator_authority=False)
     out = reg.self_register({"display_name": "Self Seller", "roles": ["seller_agent"], "agent_card_url": CARD,
-                             "capabilities": ["commerce.quote.issue"]}, publish)
+                             "capabilities": ["commerce.quote.issue"]}, publish,
+                            accept_terms_version=terms["version"], accept_terms_sha256=terms["sha256"],
+                            confirm_operator_authority=True, operator_contact="ops@seller.example.com")
     assert published and out["operator"]["operator_type"] == "agent"
     assert reg.api_key == out["api_key"]
     assert out["listing"]["trust"]["registration_method"] == "agent_self_registration"
@@ -138,6 +145,7 @@ def test_self_register_retries_then_fails(env):
     reg, _, txt, _ = env
     with pytest.raises(OnaaError) as ei:
         reg.self_register({"display_name": "X", "roles": ["seller_agent"], "agent_card_url": CARD},
-                          lambda chl: None, method="dns_txt", attempts=2, retry_delay=0)
+                          lambda chl: None, method="dns_txt", attempts=2, retry_delay=0,
+                          accept_terms_version=reg.current_terms_version(), confirm_operator_authority=True)
     assert ei.value.status_code == 422 and ei.value.body["error"] == "txt_record_not_found"
     assert reg.api_key is None

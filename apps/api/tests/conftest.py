@@ -51,7 +51,7 @@ def settings():
         eng.dispose()
     return Settings(database_url=TEST_DB, auto_create_schema=True, require_verification_entitlement=False,
                     admin_token=ADMIN, write_rate_limit_per_minute=0,
-                    terms_version="draft-0.1", challenge_ttl_seconds=3600)
+                    terms_version="draft-0.2", challenge_ttl_seconds=3600)
 
 
 class FakeTxt:
@@ -78,7 +78,7 @@ def client(settings, fetcher, txt):
 
 def make_operator(client, name="Acme Seller Ltd"):
     r = client.post("/v1/operators", json={"display_name": name, "operator_type": "organization",
-                                           "country": "US", "accept_terms_version": "draft-0.1"})
+                                           "country": "US", "accept_terms_version": "draft-0.2"})
     assert r.status_code == 201, r.text
     data = r.json()
     return data["operator"]["id"], {"Authorization": f"Bearer {data['api_key']}"}

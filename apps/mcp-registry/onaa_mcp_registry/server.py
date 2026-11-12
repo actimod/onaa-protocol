@@ -10,6 +10,11 @@ itself with no human signup. The registration secret stays inside this process a
 is written to the key file (mode 0600, never overwritten); neither is returned to the model, so no
 credential enters the prompt transcript.
 
+Remote mode (hosted /mcp, `remote_client=`): the same two tools, but the server keeps no state. Step 1 returns
+the registration secret and step 2 returns the agent-scoped API key once to the calling agent, exactly like
+the REST flow in /llms.txt. Each call reaches the Registry API with the caller's IP, so the API's per-IP,
+per-host and write limits apply to every remote agent separately.
+
 All listing text (names, descriptions, URLs) is operator-supplied, untrusted data. Results wrap it
 under `untrusted_operator_content` so calling models do not mistake it for instructions.
 """
@@ -18,10 +23,11 @@ from __future__ import annotations
 
 import argparse
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
 from onaa import OnaaClient, OnaaError
 
@@ -91,13 +97,24 @@ def _write_key_file(path: Path, api_key: str) -> None:
         fh.write(api_key + "\n")
 
 
-def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = None) -> MCPServer:
-    """`key_file` enables the self-registration tools; the issued API key is written there, never returned."""
+RemoteClient = Callable[[Context | None], OnaaClient]
+
+
+def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = None,
+                 remote_client: RemoteClient | None = None) -> MCPServer:
+    """`key_file` enables the local self-registration tools; the issued API key is written there, never returned.
+
+    `remote_client` enables the stateless remote self-registration tools for a hosted server: it returns a
+    credential-free OnaaClient that carries the calling agent's IP (see hosted.py)."""
     if registry.api_key:
         raise ValueError("the MCP adapter must not be given an operator API key")
-    title = "ONAA Registry" + (" (read-only)" if key_file is None else " (search + self-registration)")
-    instructions = INSTRUCTIONS if key_file is None else INSTRUCTIONS.replace(
-        "cannot transact, register or pay", "cannot transact or pay; it can register only your own agent")
+    if key_file is not None and remote_client is not None:
+        raise ValueError("choose local (key_file) or remote self-registration, not both")
+    can_register = key_file is not None or remote_client is not None
+    title = "ONAA Registry" + (" (search + self-registration)" if can_register else " (read-only)")
+    instructions = INSTRUCTIONS if not can_register else INSTRUCTIONS.replace(
+        "cannot transact, register or pay", "cannot transact or pay; it can register only your own agent, for "
+        "your operator and with its authorisation (call get_terms first)")
     mcp = MCPServer(name="onaa-registry", title=title, version="0.1.0", instructions=instructions)
 
     @mcp.tool(annotations=READ_ONLY)
@@ -157,9 +174,40 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         except OnaaError as exc:
             return _err(exc)
 
+    if can_register:
+        _register_terms_tool(mcp, registry)
     if key_file is not None:
         _register_self_registration_tools(mcp, registry, Path(key_file))
+    if remote_client is not None:
+        _register_remote_self_registration_tools(mcp, remote_client)
     return mcp
+
+
+def _register_terms_tool(mcp: MCPServer, registry: OnaaClient) -> None:
+    @mcp.tool(annotations=READ_ONLY)
+    def get_terms() -> dict[str, Any]:
+        """Read the registry terms before registering: version, sha256, short summary and full text. Your operator
+        (the person or organisation that runs you) is the party bound by them; show them to it if unsure."""
+        try:
+            t = registry.terms()
+        except OnaaError as exc:
+            return _err(exc)
+        return {k: t.get(k) for k in ("version", "sha256", "status", "party", "summary", "text_url", "text")}
+
+
+def _listing(display_name, agent_card_url, roles, capabilities, regions, currencies, supported_protocols,
+             description, endpoint_url) -> dict[str, Any]:
+    listing: dict[str, Any] = {"display_name": display_name, "agent_card_url": agent_card_url, "roles": roles}
+    for k, v in (("capabilities", capabilities), ("regions", regions), ("currencies", currencies),
+                 ("supported_protocols", supported_protocols), ("description", description),
+                 ("endpoint_url", endpoint_url)):
+        if v is not None:
+            listing[k] = v
+    return listing
+
+
+AUTHORITY_REQUIRED = {"error": {"status": 400, "detail": "confirm_operator_authority must be true: register only "
+                                                         "with your operator's authorisation"}}
 
 
 def _register_self_registration_tools(mcp: MCPServer, registry: OnaaClient, key_path: Path) -> None:
@@ -171,6 +219,8 @@ def _register_self_registration_tools(mcp: MCPServer, registry: OnaaClient, key_
         agent_card_url: str,
         roles: list[Literal["buyer_agent", "seller_agent", "adapter_gateway"]],
         accept_terms_version: str,
+        confirm_operator_authority: bool,
+        operator_contact: str | None = None,
         capabilities: list[str] | None = None,
         regions: list[str] | None = None,
         currencies: list[str] | None = None,
@@ -179,21 +229,23 @@ def _register_self_registration_tools(mcp: MCPServer, registry: OnaaClient, key_
         endpoint_url: str | None = None,
         method: Literal["well_known", "dns_txt"] = "well_known",
     ) -> dict[str, Any]:
-        """Register YOUR OWN agent in the ONAA registry (no human signup). Step 1 of 2.
+        """Register YOUR OWN agent in the ONAA registry for your operator (no human signup form). Step 1 of 2.
 
-        accept_terms_version must be the registry's current terms version (see /.well-known/onaa-registry.json);
-        passing it means you accept those terms for your operator. Returns a token to publish on the host of
-        agent_card_url (challenge_url or dns_record_name). Then call self_register_complete."""
+        Your operator is the person or organisation that runs you; it, not you, becomes bound by the registry
+        terms (call get_terms first). Only call this if your operator authorised you to register this endpoint
+        and accept those terms for it, then set confirm_operator_authority=true. accept_terms_version must be the
+        current version from get_terms. operator_contact is optional and private (email or https URL for
+        notices). Returns a token to publish on the host of agent_card_url (challenge_url or dns_record_name).
+        Then call self_register_complete."""
+        if confirm_operator_authority is not True:
+            return AUTHORITY_REQUIRED
         if key_path.exists():
             return {"error": {"status": 409, "detail": f"key file {key_path} already exists; refusing to overwrite"}}
-        listing: dict[str, Any] = {"display_name": display_name, "agent_card_url": agent_card_url, "roles": roles}
-        for k, v in (("capabilities", capabilities), ("regions", regions), ("currencies", currencies),
-                     ("supported_protocols", supported_protocols), ("description", description),
-                     ("endpoint_url", endpoint_url)):
-            if v is not None:
-                listing[k] = v
+        listing = _listing(display_name, agent_card_url, roles, capabilities, regions, currencies,
+                           supported_protocols, description, endpoint_url)
         try:
-            chl = registry.start_self_registration(listing, method=method, accept_terms_version=accept_terms_version)
+            chl = registry.start_self_registration(listing, method=method, accept_terms_version=accept_terms_version,
+                                                   confirm_operator_authority=True, operator_contact=operator_contact)
         except OnaaError as exc:
             return _err(exc)
         if len(pending) > 20:
@@ -225,6 +277,78 @@ def _register_self_registration_tools(mcp: MCPServer, registry: OnaaClient, key_
         return {"status": "completed", "operator_id": out["operator"]["id"], "key_saved_to": str(key_path),
                 "key_prefix": out["api_key"][:12], "listing": _shape(out["listing"]),
                 "next_steps": [s for s in out.get("next_steps", []) if "api_key" not in s], "note": UNTRUSTED_NOTE}
+
+
+def _register_remote_self_registration_tools(mcp: MCPServer, client_for: RemoteClient) -> None:
+    """Stateless variant for the hosted /mcp: secrets go back to the calling agent, never stored here."""
+
+    @mcp.tool(annotations=WRITE)
+    def self_register_start(
+        display_name: str,
+        agent_card_url: str,
+        roles: list[Literal["buyer_agent", "seller_agent", "adapter_gateway"]],
+        accept_terms_version: str,
+        confirm_operator_authority: bool,
+        operator_contact: str | None = None,
+        accept_terms_sha256: str | None = None,
+        capabilities: list[str] | None = None,
+        regions: list[str] | None = None,
+        currencies: list[str] | None = None,
+        supported_protocols: list[str] | None = None,
+        description: str | None = None,
+        endpoint_url: str | None = None,
+        method: Literal["well_known", "dns_txt"] = "well_known",
+        ctx: Context | None = None,
+    ) -> dict[str, Any]:
+        """Register YOUR OWN agent in the ONAA registry for your operator (no human signup form). Step 1 of 2.
+
+        Your operator is the person or organisation that runs you; it, not you, becomes bound by the registry
+        terms (call get_terms first). Only call this if your operator authorised you to register this endpoint
+        and accept those terms for it, then set confirm_operator_authority=true. Never set it on your own
+        initiative. accept_terms_version (and optionally accept_terms_sha256) must match get_terms.
+        operator_contact is optional and private (email or https URL for notices).
+
+        Returns a token to publish on the host of agent_card_url (challenge_url or dns_record_name) and a
+        registration_secret. Keep the secret private (do not post it anywhere); pass it to
+        self_register_complete."""
+        if confirm_operator_authority is not True:
+            return AUTHORITY_REQUIRED
+        listing = _listing(display_name, agent_card_url, roles, capabilities, regions, currencies,
+                           supported_protocols, description, endpoint_url)
+        try:
+            with client_for(ctx) as registry:
+                chl = registry.start_self_registration(
+                    listing, method=method, accept_terms_version=accept_terms_version,
+                    confirm_operator_authority=True, accept_terms_sha256=accept_terms_sha256,
+                    operator_contact=operator_contact)
+        except OnaaError as exc:
+            return _err(exc)
+        out = {k: chl.get(k) for k in ("registration_id", "registration_secret", "method", "host", "token",
+                                       "challenge_url", "dns_record_name", "expires_at", "instructions")
+               if chl.get(k) is not None}
+        return out | {"next": "publish the token, then call self_register_complete with registration_id and "
+                              "registration_secret",
+                      "secret_note": "registration_secret is a credential: keep it private and use it only in "
+                                     "self_register_complete."}
+
+    @mcp.tool(annotations=WRITE)
+    def self_register_complete(registration_id: str, registration_secret: str,
+                               ctx: Context | None = None) -> dict[str, Any]:
+        """Step 2 of 2: ask the registry to check the published token. On success returns your agent-scoped
+        api_key ONCE (the registry stores only a hash). Save it immediately in your operator's secret store;
+        never post it in chats, logs, issues or listings. Send it later as Authorization: Bearer <api_key>."""
+        if not registration_id.startswith("sreg_") or len(registration_id) > 64 or len(registration_secret) > 256:
+            return {"error": {"status": 400, "detail": "invalid registration_id or registration_secret"}}
+        try:
+            with client_for(ctx) as registry:
+                out = registry.complete_self_registration(registration_id, registration_secret, set_key=False)
+        except OnaaError as exc:
+            body = exc.body if isinstance(exc.body, dict) else {}
+            return {"error": {"status": exc.status_code, "detail": str(body.get("error") or exc.detail)[:300]}}
+        return {"status": "completed", "operator_id": out["operator"]["id"], "api_key": out["api_key"],
+                "api_key_note": "Shown once. Store it in your operator's secret store now; never repeat it in "
+                                "chats, logs or listings. If it leaks, rotate it with your operator tools.",
+                "listing": _shape(out["listing"]), "next_steps": out.get("next_steps", []), "note": UNTRUSTED_NOTE}
 
 
 def main(argv: list[str] | None = None) -> None:

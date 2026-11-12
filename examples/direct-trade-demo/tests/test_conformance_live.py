@@ -13,13 +13,15 @@ from onaa_demo.a2a import AGENT_CARD_PATH
 
 
 def _fails(report):
-    return {r["id"]: r["detail"] for r in report["results"] if r["outcome"] != "pass"}
+    """Tests that did not pass and are applicable (n/a is not a failure)."""
+    return {r["id"]: r["detail"] for r in report["results"] if r["outcome"] not in ("pass", "n/a")}
 
 
 @pytest.mark.parametrize("node,role", [("seller", "seller_agent"), ("escrow", "service_provider"),
                                        ("buyer", "buyer_agent")])
-def test_reference_agents_pass(network, node, role):
-    url = getattr(network, node).base_url + AGENT_CARD_PATH
+def test_reference_agents_pass(trigger_network, node, role):
+    """The buyer runs with its conformance trade trigger enabled, so its client-side tests apply."""
+    url = getattr(trigger_network, node).base_url + AGENT_CARD_PATH
     report = run_live(url, role, allow_loopback=True)
     assert report["summary"]["verdict"] == "pass", _fails(report)
     assert report["summary"]["must"]["failed"] == report["summary"]["must"]["skipped"] == 0
@@ -176,6 +178,7 @@ def test_buyer_without_inbound_endpoint_types_is_not_applicable(network, monkeyp
     report = run_live(buyer.base_url + AGENT_CARD_PATH, "buyer_agent", allow_loopback=True)
     na = {r["id"] for r in report["results"] if r["outcome"] == "n/a"}
     assert {"ONAA-C-MUST-060", "ONAA-C-MUST-062", "ONAA-C-MUST-065"} <= na, na
+    assert {f"ONAA-C-MUST-0{n}" for n in range(80, 92)} <= na, na  # trigger not enabled: client tests n/a
     assert report["summary"]["verdict"] == "pass", _fails(report)
 
 

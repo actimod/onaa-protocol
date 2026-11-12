@@ -69,6 +69,7 @@ An implementation claims one or more roles. Role tokens match the registry API `
 | Report only `mock`/`sandbox` handoffs and never claim SECURED without provider confirmation (§8.4) | MUST (refuse otherwise) | MUST (refuse otherwise) | MUST | — |
 | Expose records with distinct trust levels (§6) | — | — | — | MUST |
 | Fetch untrusted URLs only through an SSRF-safe fetcher (§13) | MUST | MUST | MUST | MUST |
+| Conformance trade trigger (§12.1; conformance-only) | MAY (opt-in; MUST rules apply once declared) | — | — | — |
 
 Each role is tested by the conformance suite (§12). "Protocol Conformance Certified" (ONAA certification policy) requires 100% of the applicable MUST tests and at least 80% of the applicable SHOULD tests.
 
@@ -128,6 +129,8 @@ Declaration (the standard A2A `AgentExtension` object, A2A §4.4.4):
 | `regions`, `currencies` | SHOULD | ISO 3166-1 alpha-2 or `GLOBAL`; ISO 4217 alpha-3. These are self-declared claims and may be narrower than the registry listing. |
 | `registry_record_ids`, `attestation_urls` | MAY | Back-pointers. They are claims only: relying parties verify the registry record and the signed attestation (§10). |
 | `conformance.rfq` | MAY (sellers) | A sample RFQ body that the seller guarantees to quote during conformance runs (§12) |
+| `conformance.trade_trigger` | MAY (buyers; conformance-only) | Present only while the operator has explicitly enabled the conformance trade trigger (§12.1). Absent means disabled. |
+| `conformance.harness_counterparty` | harness test counterparties only | Marks a conformance-harness seller or provider and names the harness allowed to use it (§12.1). Production agents never declare it. |
 
 Unknown params **MUST** be ignored. Params are operator claims and never trust facts. Trust comes from the registry's checks (§6) and from signed attestations (§10).
 
@@ -473,7 +476,7 @@ BASE64URL is unpadded base64url (RFC 7515 §2). Verifiers **MUST** accept only t
 3. Resolve the key (§9.4): `jwks_unavailable`, `key_not_found`, `key_revoked`, `signer_mismatch`.
 4. Recompute `signing_input` from the received object and verify (`signature_invalid`).
 
-The `typ` value separates envelope signatures from attestation signatures, so a signature made for one kind cannot be replayed as the other. `signatures.json` has a worked example (`payload_jcs`, `payload_b64url`, `protected_b64url`, `signature_b64url`).
+The `typ` value separates envelope signatures from attestation signatures (and from conformance triggers, `onaa-conformance-trigger+jws`, §12.1), so a signature made for one kind cannot be replayed as another. `signatures.json` has a worked example (`payload_jcs`, `payload_b64url`, `protected_b64url`, `signature_b64url`).
 
 ### 9.6 Rotation, revocation and test keys
 
@@ -594,7 +597,71 @@ v0.1 defines no payment, mandate or checkout object. `references[{scheme, ref}]`
 * **Vectors** (`specs/test-vectors/v0.1/`; `TEST_VECTORS.md`) include valid and invalid envelopes with expected codes, a full signed transcript, signature cases including tampering and header attacks, the RFC 8037 known answer, JCS cases, attestations, card params and registry trust-level cases. They are generated deterministically by `python -m onaa_protocol.vectors write`. `check` exits 1 if the committed files differ.
 * **Suite** (`python -m onaa_protocol.conformance`). Offline mode (`--offline`) checks the vectors (`ONAA-V-*`). Live mode (`--agent-card-url URL --role seller|buyer|service [--service-type escrow]`, or `--registry-url URL --role registry`) runs `ONAA-C-*` tests against a live endpoint. Test ids are stable and each maps to a section of this document (`onaa_protocol/conformance/catalog.py`).
 * **Verdict** (CERTIFICATION_POLICY §3.3). `pass` requires 100% of the applicable MUST tests and ≥ 80% of the applicable SHOULD tests. `n/a` tests are excluded. A skipped MUST makes the run `incomplete`, and a skipped SHOULD counts as not passed. The JSON report is evidence for review, not a certificate.
-* **Live harness.** The suite acts as an ephemeral buyer with a fresh key per run. Positive signed tests need the target to reach the harness card and JWKS: on loopback with the explicit `--allow-loopback` demo flag, or through an operator-provided public `--harness-base-url`. Otherwise those tests are `skip` and the verdict cannot be `pass`.
+* **Live harness.** The suite acts as an ephemeral buyer with a fresh key per run. Positive signed tests need the target to reach the harness card and JWKS: on loopback with the explicit `--allow-loopback` demo flag, or through an operator-provided public `--harness-base-url`. Otherwise those tests are `skip` and the verdict cannot be `pass`. The card-binding tests also need a second harness origin (`--harness-alt-base-url`).
+* **Buyer client-side tests.** For a buyer that declares the conformance trade trigger (§12.1), the suite also plays a harness seller and a harness service provider, each on its own origin (loopback automatically; remotely `--harness-seller-base-url` and `--harness-provider-base-url`). Tests `ONAA-C-MUST-080` to `091` are `n/a` for buyers that do not declare the trigger.
+
+### 12.1 Conformance trade trigger (buyers; CONFORMANCE-ONLY, OPTIONAL)
+
+A black-box suite cannot observe the duties a buyer has when *it* starts a trade (checking a QUOTE, signing and addressing ORDER_PROPOSE, binding a handoff to its order and provider) unless something makes the buyer start one. The trigger is that hook. It is **additive and conformance-only**: it defines no commerce message, changes no envelope, type or code, and agents that do not opt in are unaffected. It never causes a real order or payment: the only possible counterparties are harness-controlled test agents, and handoffs are `mock`.
+
+Schema: [`conformance-trigger.schema.json`](schemas/onaa/v0.1/conformance-trigger.schema.json). Reference: `onaa_protocol.trigger`.
+
+#### 12.1.1 Opt-in
+
+1. A buyer **MAY** declare `params.conformance.trade_trigger` = `{"version": "0.1", "modes": ["mock"], "service_types": [...]}`. The declaration **MUST** be absent unless the agent's operator has explicitly enabled the trigger (it is off by default). Operators **SHOULD** enable it only for the duration of a conformance run, and **SHOULD** run conformance against a staging instance that shares the production code but holds no real purchasing authority.
+2. A buyer that does not declare the trigger **MUST NOT** act on triggers. It answers them like any message without an envelope (`REJECT invalid_envelope`, §7.2 step 1).
+3. Once declared, every **MUST** in §12.1 applies to the buyer and is tested.
+
+#### 12.1.2 Trigger object and transport
+
+The harness sends `SendMessage` (§4, same headers) with exactly one `data` part: the trigger. A trigger is not an ONAA envelope. A message that carries a trigger together with an envelope, or two triggers, is `invalid_envelope`.
+
+| Field | Rule |
+|---|---|
+| `spec`, `type`, `trigger_version` | `"onaa.conformance-trigger/v0"`, `"CONFORMANCE_TRADE_TRIGGER"`, `"0.1"` |
+| `id`, `nonce` | as §7.1 (`nonce` ≥ 128 bits); single-use |
+| `created_at`, `expires_at` | RFC 3339; lifetime > 0 and **at most 10 minutes**; `created_at` at most 5 min in the future |
+| `sender` | `{agent_id, agent_card_url}` of the harness; its card and JWKS verify the signature (§9.4) |
+| `recipient` | `{agent_id, agent_card_url}`; `agent_card_url` is the buyer's own Agent Card URL |
+| `test_only` | `true` |
+| `seller` | `{agent_id, agent_card_url}` of the harness seller |
+| `provider` | `{agent_id, agent_card_url, service_type, mode: "mock"}` of the harness service provider |
+| `rfq` | an RFQ body (§7.5.1) with fictional items |
+| `signature` | detached JWS (§9.5) with `typ: "onaa-conformance-trigger+jws"` |
+
+No other members are allowed. The trigger carries no scenario label: the buyer cannot tell a hostile test run from a well-behaved one and must treat every triggered run like a real trade.
+
+#### 12.1.3 Buyer processing
+
+A buyer that declared the trigger **MUST** process a trigger in this order and answer the first failure with a REJECT envelope (§7.8, `in_reply_to` = trigger `id`), sending nothing to any counterparty:
+
+1. `spec`/`type` (`invalid_envelope`); `signature` present (`signature_missing`); `provider.mode` = `live` (`live_mode_not_supported`); JSON Schema, which also enforces `test_only: true` and `mode: "mock"` (`invalid_envelope`);
+2. time window as in §12.1.2 (`invalid_envelope`, or `expired` when `now ≥ expires_at`);
+3. `recipient.agent_card_url` equals its own card URL (`recipient_mismatch`); `seller` and `provider` are two distinct agents other than itself (`invalid_envelope`);
+4. signature verification (§9.5, §9.7 codes) with `typ: onaa-conformance-trigger+jws`;
+5. single use: a trigger `id` or `(sender.agent_card_url, nonce)` seen before → `replay`; at most one triggered run at a time → `rate_limited`;
+6. fetch **both** counterparty cards through the SSRF-safe fetcher with the §6.1 checks, and require `params.conformance.harness_counterparty` = `{"test_only": true, "trigger_sender": <trigger sender.agent_card_url>}` on each (`not_a_party`). Only then may it send the first message.
+
+The buyer then runs **one** trade with the code, checks and policies it uses for real trades:
+
+* It sends an RFQ to the seller with the trigger's `rfq` items and currency. On a valid QUOTE it sends ORDER_PROPOSE. On a valid ORDER_CONFIRM it sends a SERVICE_HANDOFF_REQUEST of `provider.service_type` in mode `mock` to the provider, and it **MAY** query the handoff status.
+* It stops at the first counterparty message it refuses (§7.2, §7.5, §8.4, §9) and sends nothing further for that run.
+* It **MUST NOT** contact any agent other than the two named counterparties (card and key fetches aside), use a registry, payment instrument, human-approval prompt, real inventory or funds, or treat the run as a real purchase. It **MUST** keep triggered deals apart from real deals. Inbound notifications about a triggered deal are processed like those of any other deal (§7.4).
+
+When the run has ended, and before sending anything else for it, the buyer answers the trigger (within 60 s) with one `data` part, the result object (`$defs/result`): `{spec, type: "CONFORMANCE_TRADE_RESULT", trigger_id, outcome: "completed" | "stopped", stopped_on?, code?}`. When it stopped because it refused a counterparty message, `stopped_on` **MUST** be that message's `type` and `code` **SHOULD** be the §7.8/§9.7 code. The result is a self-report: the suite judges primarily what the buyer sent on the wire, and relies on the result as the main evidence only where nothing is observable (`ONAA-C-MUST-089`, refused ACKs).
+
+#### 12.1.4 Harness counterparties
+
+A harness seller or provider serves its own card, JWKS and A2A endpoint on its own origin, with a fresh key per run, and declares `params.conformance.harness_counterparty` naming the harness that triggers it. Harness counterparties are TEST-ONLY: they hold no funds, deliver nothing, are never listed in a registry, and send only fictional data. The suite's harness deliberately misbehaves in some runs (bad QUOTE arithmetic or `terms_hash`, forged or misaddressed signatures, wrong `order_terms_hash`, ACKs from another card, mock SECURED, unlabelled or amount-mismatched ACKs, a card interface on another origin, prompt-injection text with a canary URL) to check that the buyer stops.
+
+#### 12.1.5 Security considerations
+
+1. **Off by default, opt-in per operator.** A buyer that never declares the trigger has no new surface. Declaring it is an operator decision, recorded on the card.
+2. **Signed and recipient-bound.** Like every signed request (§7.1, v0.1.1), the trigger names its recipient's card URL, so a trigger captured by one agent cannot be replayed to another opted-in buyer. The dedicated `typ` keeps trigger signatures apart from envelope, attestation and status signatures. The short lifetime, the single-use rule and one run at a time bound replay and load.
+3. **No real counterparties.** Without the marker rule a trigger could make a buyer send a signed ORDER_PROPOSE (a commitment, §7.5.3) to a real seller of the attacker's choosing. The marker must name the trigger sender, and real agents never declare it. A marker on an attacker's own server only lets the attacker trade, in `mock` mode, with itself.
+4. **Residual exposure.** Anyone who can reach an opted-in buyer can make it fetch two cards and JWKS on public addresses (the §13.2 SSRF rules still apply) and run mock trades against servers the attacker controls. Buyers **SHOULD** additionally rate-limit triggers and **SHOULD** let the operator restrict trigger senders to an allowlist of harness card URLs.
+5. **No authority.** A trigger is not a purchase instruction, a payment authorization or human approval (§13.8). Everything in it and everything the harness counterparties send is untrusted data (§13.1).
+6. **No secrets or personal data.** Triggers, results and triggered envelopes carry only fictional sample data (§13.3).
 
 ## 13. Security and privacy considerations
 
@@ -610,6 +677,7 @@ v0.1 defines no payment, mandate or checkout object. `references[{scheme, ref}]`
 8. **Authority.** A signed ORDER_PROPOSE proves which agent key signed. It does not prove that a human approved the purchase (Blueprint §25). High-value or sensitive purchases need out-of-band human approval.
 9. **Metadata.** `contextId` and handoff references link deals across a buyer's counterparties. Agents **SHOULD** use fresh random ids and **SHOULD NOT** reuse ids across deals.
 10. **Registry neutrality.** Trust levels come from checks, not payment. The registry relays nothing (§6.4).
+13. **Conformance trigger.** The optional buyer trade trigger is conformance-only and off by default. Its own security considerations are in §12.1.5.
 
 ## 14. Open questions
 
@@ -631,6 +699,7 @@ v0.1 defines no payment, mandate or checkout object. `references[{scheme, ref}]`
 |---|---|---|
 | 0.1 (envelope 0.2.0) | 2026-11-12 | First protocol profile: roles, card params, trust view, ORDER and DISPUTE lifecycle, generic service handoff, JWS/JCS/Ed25519 signing, attestations, conformance suite. Supersedes `commerce-extension.md` (envelope 0.1.0). |
 | 0.1.1 errata (envelope 0.2.0, unchanged) | 2026-11-12 | Security errata after a security review of the reference library and demo. **Stricter (may refuse previously accepted traffic):** signed envelopes other than REJECT carry `recipient`, with `agent_card_url` on requests, and receivers reject misaddressed ones with the new code `recipient_mismatch` (§7.1, §7.2 step 7a). ORDER_STATUS is MUST-sign when it changes state, and a bound party's state-changing envelopes must be signed (§7.4, §9.2). SERVICE_HANDOFF_ACK is bound to the request's `recipient.agent_card_url`, handoff references are single-use, and SECURED needs a `sandbox` handoff (§8.4.5). Quote expiry uses the receiver's clock (§7.5.3). A reused RFQ id never resets a deal (§7.4). Signatures accept only canonical base64url, and duplicate JSON members are refused (§7.1, §9.5). Status records are not used after `next_update` (§10.5). REJECT messages do not disclose resolution results (§7.8). Replay stores are atomic and bounded (§7.6.7). SSRF and resource-exhaustion rules are extended (§13.2, §13.11, §13.12). New vectors: `recipient.json`; new tests `ONAA-C-MUST-077`, `ONAA-C-MUST-078`, `ONAA-V-MUST-013` (suite 0.3.0; no id renumbered). The wire format, `spec_version` and extension URI are unchanged. |
+| 0.1.1 + conformance trade trigger (envelope 0.2.0, unchanged) | 2026-11-12 | **Additive, conformance-only.** New §12.1: an OPTIONAL, opt-in buyer hook (`params.conformance.trade_trigger`) through which a conformance harness starts one signed, recipient-bound, single-use, mock-only test trade against harness counterparties that mark themselves with `params.conformance.harness_counterparty`. New schema `conformance-trigger.schema.json`; `jws-signature` lists the `typ` `onaa-conformance-trigger+jws`; the params schema describes the two `conformance` members. New buyer tests `ONAA-C-MUST-080` to `ONAA-C-MUST-091` (suite 0.4.0; `n/a` without the opt-in; no id renumbered). Agents that do not opt in are unaffected: no envelope type, code or wire rule changed. |
 
 ## Appendix A. Minimal seller Agent Card (illustrative)
 

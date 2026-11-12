@@ -71,7 +71,7 @@ def test_offline_replay_vectors_catch_a_guard_without_nonce_tracking(monkeypatch
 
 
 def test_new_catalog_ids_exist_with_roles():
-    assert SUITE_VERSION == "0.3.0"  # 0.3.0 added v0.1.1 errata tests
+    assert SUITE_VERSION == "0.4.0"  # 0.3.0 added v0.1.1 errata tests; 0.4.0 the buyer trigger tests
     assert NEW_LIVE <= set(TESTS)
     assert {"ONAA-V-MUST-011", "ONAA-V-MUST-012"} <= set(TESTS)
     buyer = {t.id for t in for_role("buyer_agent")}

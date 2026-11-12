@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import schemas
 from ..db import get_session
-from ..logic import audit, aware, normalise_url
+from ..logic import audit, aware, check_terms_acceptance, normalise_url
 from ..models import ApiKey, Listing, Operator, utcnow
 from ..security import current_operator, issue_api_key, write_limit
 
@@ -22,12 +22,11 @@ def _out(op: Operator) -> schemas.OperatorOut:
 @router.post("", status_code=201, response_model=schemas.OperatorCreated, dependencies=[Depends(write_limit)],
              summary="Create an operator account and receive an API key (shown once)")
 def create_operator(body: schemas.OperatorCreate, request: Request, session: Session = Depends(get_session)):
-    settings = request.app.state.settings
-    if body.accept_terms_version != settings.terms_version:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            f"accept_terms_version must equal current terms version '{settings.terms_version}'")
+    terms = check_terms_acceptance(request.app.state.settings, body.accept_terms_version, body.accept_terms_sha256)
     op = Operator(display_name=body.display_name, operator_type=body.operator_type, country=body.country,
-                  website_url=normalise_url(body.website_url, "website_url"), terms_version=body.accept_terms_version)
+                  website_url=normalise_url(body.website_url, "website_url"), terms_version=terms.version,
+                  terms_sha256=terms.sha256, terms_accepted_at=utcnow(), terms_acceptance_method="operator_account",
+                  operator_contact=body.operator_contact)
     plaintext, digest, prefix = issue_api_key()
     op.keys.append(ApiKey(key_hash=digest, prefix=prefix))
     session.add(op)
@@ -49,9 +48,10 @@ def update_me(body: schemas.OperatorUpdate, op: Operator = Depends(current_opera
     data = body.model_dump(exclude_unset=True)
     if "website_url" in data:
         data["website_url"] = normalise_url(data["website_url"], "website_url")
-    for field in ("display_name", "operator_type", "country", "website_url"):
-        if field in data and (data[field] is not None or field in ("country", "website_url")):
+    for field in ("display_name", "operator_type", "country", "website_url", "operator_contact"):
+        if field in data and (data[field] is not None or field in ("country", "website_url", "operator_contact")):
             setattr(op, field, data[field])
+    # Field names only: the contact value itself never goes to the audit log.
     audit(session, "operator", op.id, "operator.update", op.id, fields=sorted(data))
     return _out(op)
 
