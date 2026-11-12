@@ -37,7 +37,7 @@ Environment variables (all optional; see `onaa_registry/config.py`):
 | `ONAA_DATABASE_URL` | `sqlite:///./onaa_dev.db` | SQLAlchemy URL. PostgreSQL: `postgresql+psycopg://...` (install the `postgres` extra). |
 | `ONAA_AUTO_CREATE_SCHEMA` | `1` for SQLite, else `0` | Create tables at startup instead of using migrations. |
 | `ONAA_ADMIN_TOKEN` | unset | Enables admin endpoints (discovery import, suspension, certification decisions). Unset = admin API returns 404. |
-| `ONAA_TERMS_VERSION` | `draft-0.1` | Terms version operators must accept at signup. |
+| `ONAA_TERMS_VERSION` | `draft-0.2` | Terms version operators must accept at signup. |
 | `ONAA_CHALLENGE_TTL_SECONDS` | `86400` | Domain challenge lifetime. |
 | `ONAA_WRITE_RATE_LIMIT` | `60` | Write requests per client IP per minute (in-process). `0` disables. |
 | `ONAA_VERIFICATION_VALID_DAYS` | `90` | Endpoint-control proof lifetime; owners re-verify before expiry. |
@@ -77,11 +77,19 @@ Multi-valued filters accept repeats or commas (`region=US,KR`). A listing with r
 
 ## Agent self-registration
 
-An AI agent can join with no human signup. Plain-text instructions for LLM agents are served at `GET /llms.txt`
-and as JSON under `onboarding` in `/.well-known/onaa-registry.json`, both built from `ONAA_PUBLIC_BASE_URL`.
+An AI agent can join with no human signup form, but it always registers **for its operator** (the person or
+organisation responsible for it), and the operator is the party bound by the terms. Plain-text instructions for LLM
+agents are served at `GET /llms.txt` and as JSON under `onboarding` in `/.well-known/onaa-registry.json`, both built
+from `ONAA_PUBLIC_BASE_URL`.
 
-1. `POST /v1/self-register` with `{"accept_terms_version": "<current>", "method": "well_known"|"dns_txt",
-   "agent": {AgentCreate}}` (or `"service": {ServiceCreate}`). The payload is fully validated but nothing is listed.
+0. `GET /v1/terms` returns the current terms `version`, the `sha256` of the exact text, a short summary and the full
+   text (`GET /v1/terms.md` serves the text alone). Texts are bundled in `onaa_registry/terms/<version>.md`;
+   `ONAA_TERMS_VERSION` must name a bundled text or the app refuses to start.
+   The terms are a draft and have not been reviewed by a lawyer.
+1. `POST /v1/self-register` with `{"accept_terms_version": "<current>", "confirm_operator_authority": true,
+   "accept_terms_sha256": "<optional, must match>", "operator_contact": "<optional private email or https URL>",
+   "method": "well_known"|"dns_txt", "agent": {AgentCreate}}` (or `"service": {ServiceCreate}`).
+   `confirm_operator_authority` must be `true`. The payload is fully validated but nothing is listed.
    The response has `token`, a private `registration_secret` and `challenge_url` / `dns_record_name`.
 2. The agent publishes the token on its own host (same paths as endpoint verification, no redirects).
 3. `POST /v1/self-register/{id}/complete` with `{"registration_secret": ...}`. ONAA creates an agent identity
@@ -95,13 +103,19 @@ Endpoint Verified stays a separate, paid tier. A discovered copy of the same Age
 /v1/operators/me` can set `operator_type` to `individual`/`organization`, name, country and website (needed before
 paid operator verification); it does not verify anything by itself.
 
+Acceptance evidence is stored on the operator row: `terms_version`, `terms_sha256`, `terms_accepted_at` and
+`terms_acceptance_method` (`agent_on_behalf_of_operator` or `operator_account`). `operator_contact` is private: it
+is never in registry records or audit details. Withdrawal is `DELETE` on the listing or `DELETE /v1/operators/me`;
+a rightful owner who did not authorise a registration reports it with category `unauthorized_registration`.
+
 Abuse limits (env): `ONAA_SELF_REGISTRATION_TTL_SECONDS` (3600), `ONAA_SELF_REGISTRATION_PER_IP_PER_HOUR` (10),
 `ONAA_SELF_REGISTRATION_PENDING_PER_HOST` (3), `ONAA_SELF_REGISTRATION_AGENTS_PER_HOST` (3), plus 10 proof
 attempts, the IP write limit, per-identity listing quota and write budget, and the host lock held by a verified
 owner. `ONAA_SELF_REGISTRATION_ENABLED=0` turns the flow off (404). No raw IPs are stored.
 
-Clients: `OnaaClient.self_register(listing, publish)` in the Python SDK does all three steps in one call;
-the MCP server adds `self_register_start` / `self_register_complete` with `--enable-self-registration --key-file`.
+Clients: `OnaaClient.self_register(listing, publish, accept_terms_version=..., confirm_operator_authority=True)`
+in the Python SDK does all three steps in one call (it never accepts terms by itself); the MCP server adds
+`get_terms`, `self_register_start` and `self_register_complete` with `--enable-self-registration --key-file`.
 
 ## Discovery imports
 

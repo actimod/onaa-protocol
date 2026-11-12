@@ -56,7 +56,7 @@ class OnaaClient:
     """
 
     def __init__(self, base_url: str, api_key: str | None = None, *, timeout: float = 10.0,
-                 http_client: httpx.Client | None = None):
+                 http_client: httpx.Client | None = None, headers: dict[str, str] | None = None):
         parts = urlsplit(base_url)
         if parts.scheme not in ("https", "http"):
             raise ValueError("base_url must be http(s)")
@@ -64,7 +64,7 @@ class OnaaClient:
             raise ValueError("refusing to send an API key over plain HTTP to a non-local host")
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
-        self._http = http_client or httpx.Client(timeout=timeout)
+        self._http = http_client or httpx.Client(timeout=timeout, headers=headers)
         self._owns_http = http_client is None
 
     # ---- plumbing ----
@@ -130,17 +130,34 @@ class OnaaClient:
         return self._request("PATCH", "/v1/operators/me", auth=True, json=fields)
 
     # ---- agent self-registration (no human signup) ----
-    def current_terms_version(self) -> str:
-        return self.discovery_metadata()["onboarding"]["terms_version"]
+    def terms(self) -> dict:
+        """Current registry terms: version, sha256, summary and full text. Read (and show your operator) first."""
+        return self._request("GET", "/v1/terms")
 
-    def start_self_registration(self, listing: dict, *, kind: Literal["agent", "service"] = "agent",
+    def current_terms_version(self) -> str:
+        return self.terms()["version"]
+
+    def start_self_registration(self, listing: dict, *, accept_terms_version: str,
+                                confirm_operator_authority: bool, kind: Literal["agent", "service"] = "agent",
                                 method: Literal["well_known", "dns_txt"] = "well_known",
-                                accept_terms_version: str | None = None) -> dict:
+                                accept_terms_sha256: str | None = None,
+                                operator_contact: str | None = None) -> dict:
         """Step 1. Returns the challenge: token (to publish), registration_secret (keep private), challenge_url
-        or dns_record_name. Nothing is listed until step 2 succeeds."""
-        tv = accept_terms_version or self.current_terms_version()
-        return self._request("POST", "/v1/self-register",
-                             json={"accept_terms_version": tv, "method": method, kind: listing})
+        or dns_record_name. Nothing is listed until step 2 succeeds.
+
+        The agent registers FOR its operator. `accept_terms_version` (from `terms()`) accepts the terms for the
+        operator, and `confirm_operator_authority=True` states that the operator authorised this. Both are
+        explicit on purpose: the SDK never accepts terms on its own."""
+        if confirm_operator_authority is not True:
+            raise ValueError("confirm_operator_authority must be True: register only with your operator's "
+                             "authorisation")
+        body: dict = {"accept_terms_version": accept_terms_version, "confirm_operator_authority": True,
+                      "method": method, kind: listing}
+        if accept_terms_sha256:
+            body["accept_terms_sha256"] = accept_terms_sha256
+        if operator_contact:
+            body["operator_contact"] = operator_contact
+        return self._request("POST", "/v1/self-register", json=body)
 
     def complete_self_registration(self, registration_id: str, registration_secret: str, *,
                                    set_key: bool = True) -> dict:
@@ -153,19 +170,24 @@ class OnaaClient:
         return data
 
     def self_register(self, listing: dict, publish: Callable[[dict], None], *,
+                      accept_terms_version: str, confirm_operator_authority: bool,
                       kind: Literal["agent", "service"] = "agent",
                       method: Literal["well_known", "dns_txt"] = "well_known",
-                      accept_terms_version: str | None = None, attempts: int = 3,
-                      retry_delay: float = 2.0) -> dict:
+                      accept_terms_sha256: str | None = None, operator_contact: str | None = None,
+                      attempts: int = 3, retry_delay: float = 2.0) -> dict:
         """Register this agent end to end in one call.
 
         `publish(challenge)` must make the token visible on the agent's own host: serve challenge['token'] at
         challenge['challenge_url'] (well_known) or set the TXT record challenge['dns_record_name'] (dns_txt).
         The proof is retried up to `attempts` times (the server allows 10) to absorb propagation delay.
-        Always passing the current terms version is the caller's acceptance of those terms.
+        Passing the terms version and confirm_operator_authority=True accepts the terms for your operator; see
+        start_self_registration.
         """
         chl = self.start_self_registration(listing, kind=kind, method=method,
-                                           accept_terms_version=accept_terms_version)
+                                           accept_terms_version=accept_terms_version,
+                                           confirm_operator_authority=confirm_operator_authority,
+                                           accept_terms_sha256=accept_terms_sha256,
+                                           operator_contact=operator_contact)
         publish(chl)
         for i in range(max(1, attempts)):
             try:

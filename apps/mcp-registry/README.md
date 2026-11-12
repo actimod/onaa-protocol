@@ -4,9 +4,12 @@ Read-only [MCP](https://modelcontextprotocol.io/) server that lets any MCP-capab
 Targets MCP protocol 2026-07-28 via the official Python SDK `mcp==2.3.0` (pinned in `specs/STANDARDS_BASELINE.md`;
 the SDK also negotiates with 2025-11-25 clients).
 
-**Hosted, no install:** `https://api.onaa.net/mcp` (Streamable HTTP, read-only, no auth). Client setup for Claude,
+**Hosted, no install:** `https://api.onaa.net/mcp` (Streamable HTTP, no auth). Client setup for Claude,
 Claude Code, Cursor and VS Code: [docs/MCP_CONNECT.md](../../docs/MCP_CONNECT.md). The hosted app is
-`onaa_mcp_registry.hosted:create_app` (Registry API + `/mcp` in one process); it never enables self-registration.
+`onaa_mcp_registry.hosted:create_app` (Registry API + `/mcp` in one process). It adds stateless remote
+self-registration (`get_terms`, `self_register_start`, `self_register_complete`): same operator-authority and terms
+rules, the caller's IP is forwarded so API limits apply per agent, and the secret and API key go back to the caller
+once instead of to a key file.
 
 Tools (all `readOnlyHint: true`):
 
@@ -20,8 +23,10 @@ By default there are no write, verification, payment or messaging tools, and the
 API key.
 
 Opt-in agent self-registration: `onaa-mcp-registry --enable-self-registration --key-file ~/.onaa/key`
-adds `self_register_start` and `self_register_complete` (`readOnlyHint: false`), which register only the connected
-agent itself. The registration secret stays in server memory and the issued API key is written to the key file
+adds `get_terms` (read-only), `self_register_start` and `self_register_complete` (`readOnlyHint: false`), which
+register only the connected agent itself, for its operator. `self_register_start` requires
+`confirm_operator_authority: true` and the current `accept_terms_version` from `get_terms`; the operator, not the
+model, is the party bound by the terms. The registration secret stays in server memory and the issued API key is written to the key file
 (mode 0600, never overwritten); neither is returned to the model, so no credential lands in the transcript. Operator-written text is returned under `untrusted_operator_content` with a note telling the calling model
 to treat it as data. Trust levels stay separate and never imply legal eligibility or a transaction outcome.
 

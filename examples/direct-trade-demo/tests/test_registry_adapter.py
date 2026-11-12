@@ -104,7 +104,7 @@ def test_contract_against_real_registry_api(strict_mode):
     seller = SellerAgent(f"https://{s_host}", **strict)
     escrow = MockEscrow(f"https://{e_host}", **strict)
     settings = Settings(database_url="sqlite://", admin_token=None, write_rate_limit_per_minute=0,
-                        terms_version="draft-0.1", challenge_ttl_seconds=3600)
+                        terms_version="draft-0.2", challenge_ttl_seconds=3600)
     handles = [serve(buyer_node.app(), b_sock, b_local), serve(seller.app(), s_sock, s_local),
                serve(escrow.app(), e_sock, e_local),
                serve(create_app(settings), r_sock, r_local)]
@@ -112,7 +112,7 @@ def test_contract_against_real_registry_api(strict_mode):
         with httpx.Client(timeout=10) as admin:
             op = admin.post(r_local + "/v1/operators", json={
                 "display_name": "Demo Sample Operator", "operator_type": "organization", "country": "US",
-                "accept_terms_version": "draft-0.1"})
+                "accept_terms_version": "draft-0.2"})
             assert op.status_code == 201, op.text
             auth = {"Authorization": "Bearer " + op.json()["api_key"]}   # in-memory only, never logged
             r = admin.post(r_local + "/v1/agents", headers=auth, json={

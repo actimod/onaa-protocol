@@ -75,6 +75,14 @@
           "type": "object",
           "description": "An RFQ body (items + currency) that the seller guarantees to answer with a QUOTE during conformance runs. Must be sample/test data.",
           "required": ["items", "currency"]
+        },
+        "trade_trigger": {
+          "$ref": "urn:onaa:schema:v0.1:conformance-trigger#/$defs/declaration",
+          "description": "CONFORMANCE ONLY (buyers, OPTIONAL, section 12.1). Present only while the operator has explicitly enabled the conformance trade trigger. Absent means disabled."
+        },
+        "harness_counterparty": {
+          "$ref": "urn:onaa:schema:v0.1:conformance-trigger#/$defs/counterpartyMarker",
+          "description": "CONFORMANCE ONLY (section 12.1). Declared by harness-controlled test counterparties, never by production agents."
         }
       }
     }

@@ -4,19 +4,22 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import hashlib
 import json
 
+import pytest
 from conftest import AGENT, SERVICE, admin_headers, make_operator, verify_listing
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from onaa_registry.main import create_app
-from onaa_registry.models import SelfRegistration
+from onaa_registry.models import AuditEvent, Operator, SelfRegistration
 
-TERMS = "draft-0.1"
+TERMS = "draft-0.2"
 
 
 def start(client, *, agent=None, service=None, method="well_known"):
-    body = {"accept_terms_version": TERMS, "method": method}
+    body = {"accept_terms_version": TERMS, "confirm_operator_authority": True, "method": method}
     if agent is not None:
         body["agent"] = agent
     if service is not None:
@@ -146,10 +149,73 @@ def test_input_validation(client):
     assert start(client, agent=bad).status_code == 422
     other_host = dict(AGENT, endpoint_url="https://elsewhere.example.org/a2a")
     assert start(client, agent=other_host).status_code == 422
-    # Human-account fields are not accepted: the agent is the principal.
-    r = client.post("/v1/self-register", json={"accept_terms_version": TERMS, "agent": AGENT,
-                                                "operator_contact": "someone"})
+    # Fields outside the schema are rejected.
+    r = client.post("/v1/self-register", json={"accept_terms_version": TERMS, "confirm_operator_authority": True,
+                                               "agent": AGENT, "operator_name": "someone"})
     assert r.status_code == 422
+
+
+def test_operator_authority_must_be_confirmed(client):
+    base = {"accept_terms_version": TERMS, "agent": AGENT}
+    assert client.post("/v1/self-register", json=base).status_code == 422  # missing
+    r = client.post("/v1/self-register", json=dict(base, confirm_operator_authority=False))
+    assert r.status_code == 422 and "confirm_operator_authority" in r.text
+
+
+def test_terms_endpoint_and_hash_binding(client, fetcher):
+    t = client.get("/v1/terms").json()
+    assert t["version"] == TERMS and len(t["sha256"]) == 64
+    assert hashlib.sha256(t["text"].encode()).hexdigest() == t["sha256"]
+    assert "Operator" in t["text"] and "confirm_operator_authority" in t["text"]
+    assert t["how_to_accept"] == {"accept_terms_version": TERMS, "accept_terms_sha256": t["sha256"],
+                                  "confirm_operator_authority": True}
+    md = client.get("/v1/terms.md")
+    assert md.text == t["text"] and md.headers["x-onaa-terms-sha256"] == t["sha256"]
+    body = {"accept_terms_version": TERMS, "confirm_operator_authority": True, "agent": AGENT}
+    r = client.post("/v1/self-register", json=dict(body, accept_terms_sha256="0" * 64))
+    assert r.status_code == 422 and "sha256" in r.text
+    r = client.post("/v1/self-register", json=dict(body, accept_terms_sha256=t["sha256"]))
+    assert r.status_code == 201, r.text
+
+
+def test_acceptance_evidence_and_private_contact(client, fetcher, settings):
+    r = client.post("/v1/self-register", json={"accept_terms_version": TERMS, "confirm_operator_authority": True,
+                                               "operator_contact": "ops@seller.example.com", "agent": AGENT})
+    assert r.status_code == 201, r.text
+    done = publish_and_complete(client, fetcher, r.json()).json()
+    assert "ops@seller.example.com" not in json.dumps(done)
+    listing_id, op_id = done["listing"]["id"], done["operator"]["id"]
+    assert "ops@seller.example.com" not in client.get(f"/v1/agents/{listing_id}").text
+    assert any("DELETE" in s for s in done["next_steps"]) and any("/v1/terms" in s for s in done["next_steps"])
+    with client.app.state.sessionmaker() as s:
+        op = s.get(Operator, op_id)
+        assert op.operator_contact == "ops@seller.example.com"
+        assert op.terms_version == TERMS and op.terms_acceptance_method == "agent_on_behalf_of_operator"
+        assert op.terms_sha256 == client.get("/v1/terms").json()["sha256"] and op.terms_accepted_at is not None
+        sr = s.get(SelfRegistration, done["registration_id"])
+        assert sr.operator_authority_confirmed is True
+        assert "ops@seller.example.com" not in json.dumps([e.detail for e in s.scalars(select(AuditEvent))],
+                                                         default=str)
+
+
+def test_operator_contact_validation(client):
+    body = {"accept_terms_version": TERMS, "confirm_operator_authority": True, "agent": AGENT}
+    for bad in ("someone", "http://insecure.example.com/contact", "a@b"):
+        assert client.post("/v1/self-register", json=dict(body, operator_contact=bad)).status_code == 422, bad
+    assert client.post("/v1/self-register",
+                       json=dict(body, operator_contact="https://seller.example.com/contact")).status_code == 201
+
+
+def test_unauthorized_registration_report_category(client, fetcher):
+    done = self_register(client, fetcher)
+    r = client.post("/v1/reports", json={"subject_id": done["listing"]["id"], "category": "unauthorized_registration",
+                                         "description": "We did not authorise this agent to register our host."})
+    assert r.status_code == 201 and r.json()["category"] == "unauthorized_registration"
+
+
+def test_unbundled_terms_version_fails_at_startup(settings, fetcher, txt):
+    with pytest.raises(RuntimeError, match="no bundled terms text"):
+        create_app(dataclasses.replace(settings, terms_version="draft-9.9"), fetcher, txt)
 
 
 def test_host_verified_by_another_operator_is_refused(client, fetcher):
@@ -244,9 +310,25 @@ def test_llms_txt_and_onboarding_block(settings, fetcher, txt):
         wk = c.get("/.well-known/onaa-registry.json").json()
         ob = wk["onboarding"]
         assert ob["terms_version"] == TERMS and ob["self_registration_enabled"] is True
-        assert [st["step"] for st in ob["steps"]] == [1, 2, 3]
-        assert ob["steps"][0]["call"] == "POST https://api.onaa.net/v1/self-register"
+        assert [st["step"] for st in ob["steps"]] == [0, 1, 2, 3]
+        assert ob["steps"][0]["call"] == "GET https://api.onaa.net/v1/terms"
+        assert ob["steps"][1]["body"]["confirm_operator_authority"] is True
+        assert ob["terms_url"] == "https://api.onaa.net/v1/terms" and "operator" in ob["operator_authority"]
+        assert '"confirm_operator_authority": true' in body and "Register for your operator" in body
+        assert "unauthorized_registration" in body
+        assert ob["steps"][1]["call"] == "POST https://api.onaa.net/v1/self-register"
         assert ob["llms_txt"] == "https://api.onaa.net/llms.txt"
+
+
+def test_operator_account_records_acceptance_evidence(client):
+    r = client.post("/v1/operators", json={"display_name": "Acme", "operator_type": "organization",
+                                           "accept_terms_version": TERMS, "operator_contact": "legal@acme.example.com"})
+    assert r.status_code == 201, r.text
+    assert "legal@acme.example.com" not in r.text
+    with client.app.state.sessionmaker() as s:
+        op = s.get(Operator, r.json()["operator"]["id"])
+        assert op.terms_acceptance_method == "operator_account" and op.operator_contact == "legal@acme.example.com"
+        assert op.terms_sha256 and op.terms_accepted_at is not None
 
 
 DISCOVERED_SVC = {"display_name": "Example Escrow Co", "service_type": "escrow",

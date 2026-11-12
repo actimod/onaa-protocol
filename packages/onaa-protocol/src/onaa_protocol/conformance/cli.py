@@ -45,6 +45,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--harness-alt-base-url", help="second public https base URL (another origin) tunnelling to the "
                                                   "alt harness server; enables the card-binding test remotely")
     p.add_argument("--harness-alt-port", type=int, default=0, help="local port for the alt harness server")
+    p.add_argument("--harness-seller-base-url", help="buyer trigger tests (spec 12.1): public https base URL "
+                                                     "tunnelling to the harness seller server")
+    p.add_argument("--harness-seller-port", type=int, default=0, help="local port for the harness seller server")
+    p.add_argument("--harness-provider-base-url", help="buyer trigger tests: public https base URL tunnelling to the "
+                                                       "harness service-provider server")
+    p.add_argument("--harness-provider-port", type=int, default=0, help="local port for the harness provider server")
     p.add_argument("--out", type=Path, help="write the JSON report here (default: stdout)")
     a = p.parse_args(argv)
 
@@ -61,7 +67,11 @@ def main(argv: list[str] | None = None) -> int:
         rfq = json.loads(a.rfq_json) if a.rfq_json else None
         report = run_live(a.agent_card_url, role, allow_loopback=a.allow_loopback, service_type=a.service_type,
                           probe_rfq=rfq, harness_base_url=a.harness_base_url, harness_port=a.harness_port,
-                          harness_alt_base_url=a.harness_alt_base_url, harness_alt_port=a.harness_alt_port)
+                          harness_alt_base_url=a.harness_alt_base_url, harness_alt_port=a.harness_alt_port,
+                          harness_seller_base_url=a.harness_seller_base_url,
+                          harness_seller_port=a.harness_seller_port,
+                          harness_provider_base_url=a.harness_provider_base_url,
+                          harness_provider_port=a.harness_provider_port)
     text = json.dumps(report, indent=2)
     if a.out:
         a.out.write_text(text + "\n", encoding="utf-8")

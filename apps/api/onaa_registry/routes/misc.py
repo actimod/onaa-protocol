@@ -22,6 +22,7 @@ from ..logic import (
 )
 from ..models import AbuseReport, Listing, Operator, utcnow
 from ..security import optional_operator, require_admin, write_limit
+from ..terms import load_terms
 
 router = APIRouter()
 
@@ -43,17 +44,64 @@ def specs(request: Request):
     }
 
 
+AUTHORITY_NOTE = ("You register FOR your operator: the person or organisation that runs you and is responsible for "
+                  "you. Only register if your operator authorised you to register this endpoint and to accept the "
+                  "terms on its behalf. Your operator, not you, is bound by the terms.")
+
+
+@router.get("/v1/terms", tags=["meta"], summary="Current registry terms: version, SHA-256 and full text")
+def terms(request: Request):
+    settings = request.app.state.settings
+    t = load_terms(settings.terms_version)
+    base = settings.public_base_url.rstrip("/")
+    return {
+        "version": t.version,
+        "sha256": t.sha256,
+        "status": "draft - not reviewed by a lawyer; public test service",
+        "party": "The operator of the registering agent or service (a person or organisation), not the software.",
+        "how_to_accept": {"accept_terms_version": t.version, "accept_terms_sha256": t.sha256,
+                          "confirm_operator_authority": True},
+        "summary": [
+            "You accept for your operator, and only if your operator authorised you to.",
+            "ONAA is a discovery registry only: not a party to transactions, never holds funds.",
+            "Listings are public; the optional operator_contact is private and used only for notices.",
+            "Delete anytime: DELETE the listing, or DELETE /v1/operators/me.",
+            "Unauthorised registrations can be reported: POST /v1/reports, category unauthorized_registration.",
+            "Free listing; no warranty; liability limited where the law allows. The full text below controls.",
+        ],
+        "text_url": f"{base}/v1/terms.md",
+        "text": t.text,
+    }
+
+
+@router.get("/v1/terms.md", response_class=PlainTextResponse, tags=["meta"], summary="Current registry terms text")
+def terms_text(request: Request):
+    t = load_terms(request.app.state.settings.terms_version)
+    return PlainTextResponse(t.text, media_type="text/markdown; charset=utf-8",
+                             headers={"X-ONAA-Terms-Version": t.version, "X-ONAA-Terms-SHA256": t.sha256})
+
+
 def onboarding(settings) -> dict:
     """Machine-readable self-registration steps for AI agents (no human signup)."""
     base = settings.public_base_url.rstrip("/")
+    t = load_terms(settings.terms_version)
     return {
-        "audience": "AI agents registering themselves; no human account is required",
+        "audience": "AI agents registering on behalf of their operator; no human account is required",
         "self_registration_enabled": settings.self_registration_enabled,
         "terms_version": settings.terms_version,
-        "terms_note": "Draft terms; send this exact value as accept_terms_version.",
+        "terms_sha256": t.sha256,
+        "terms_url": f"{base}/v1/terms",
+        "terms_note": ("Draft terms. Read them at terms_url first. Sending accept_terms_version accepts them for "
+                       "your operator."),
+        "operator_authority": AUTHORITY_NOTE,
         "steps": [
+            {"step": 0, "call": f"GET {base}/v1/terms",
+             "action": "Read the terms. If your operator has not authorised you to accept them, stop and ask it."},
             {"step": 1, "call": f"POST {base}/v1/self-register",
-             "body": {"accept_terms_version": settings.terms_version, "method": "well_known | dns_txt",
+             "body": {"accept_terms_version": settings.terms_version, "accept_terms_sha256": t.sha256,
+                      "confirm_operator_authority": True,
+                      "operator_contact": "optional, private: email or https URL for notices",
+                      "method": "well_known | dns_txt",
                       "agent": "AgentCreate (or 'service': ServiceCreate), see openapi"},
              "returns": "registration_id, token, registration_secret, challenge_url or dns_record_name"},
             {"step": 2, "action": "Publish the token on your own endpoint host",
@@ -74,10 +122,16 @@ def onboarding(settings) -> dict:
         },
         "trust_note": ("Signup proof gates abuse only. New listings are 'registered' with "
                        "endpoint_control_verified=false; Endpoint Verified and certifications are separate tiers."),
-        "operator_linkage": f"Optional, later: PATCH {base}/v1/operators/me",
+        "operator_linkage": f"Recommended: name your operator and a private contact: PATCH {base}/v1/operators/me",
+        "withdraw": "DELETE the listing, or DELETE /v1/operators/me to remove the identity and all its listings",
+        "unauthorized_registration": f"POST {base}/v1/reports with category unauthorized_registration",
         "clients": {
             "remote_mcp": {"url": f"{base}/mcp", "transport": "streamable-http", "auth": "none",
-                           "tools": ["search_agents", "search_services", "get_listing"], "read_only": True},
+                           "tools": ["search_agents", "search_services", "get_listing"] + (
+                               ["get_terms", "self_register_start", "self_register_complete"]
+                               if settings.self_registration_enabled else []),
+                           "note": "Self-registration over MCP returns the registration secret and the API key "
+                                   "to the calling agent once, like this REST flow."},
             "python_sdk": "packages/sdk-python (onaa.OnaaClient.self_register)",
             "mcp_server": "apps/mcp-registry (read-only search tools by default; self_register_start and "
                           "self_register_complete with --enable-self-registration --key-file PATH)",
@@ -97,7 +151,7 @@ def well_known(request: Request):
         "api_base": f"{base}/v1",
         "openapi": f"{base}/openapi.json",
         "search": {"agents": f"{base}/v1/agents", "services": f"{base}/v1/services"},
-        "mcp": {"url": f"{base}/mcp", "transport": "streamable-http", "auth": "none", "read_only": True},
+        "mcp": {"url": f"{base}/mcp", "transport": "streamable-http", "auth": "none"},
         "trust_levels": ["discovered", "registered", "endpoint_verified", "operator_verified", "certified"],
         "transactions": "Not relayed. Buyers, sellers and providers transact directly over their own endpoints.",
         "onboarding": onboarding(settings),
@@ -111,6 +165,7 @@ def llms_txt(request: Request):
     settings = request.app.state.settings
     base = settings.public_base_url.rstrip("/")
     tv = settings.terms_version
+    sha = load_terms(tv).sha256
     ttl_min = settings.self_registration_ttl_seconds // 60
     per_ip = settings.self_registration_per_ip_per_hour
     per_host = settings.self_registration_agents_per_host
@@ -127,14 +182,22 @@ Base URL: {base}
 API: {base}/v1
 OpenAPI: {base}/openapi.json
 Registry metadata (JSON, includes these steps): {base}/.well-known/onaa-registry.json
-Remote MCP server (read-only search, no auth, Streamable HTTP): {base}/mcp
-Current terms version: {tv}
+Remote MCP server (no auth, Streamable HTTP): {base}/mcp
+Terms: {base}/v1/terms (version {tv}, draft, sha256 {sha})
 
-## Register yourself (an agent, no human signup)
+## Register for your operator (no human signup form)
+
+You register FOR your operator: the person or organisation that runs you and is responsible for you.
+Your operator, not you, becomes bound by the ONAA terms. Only continue if your operator has authorised you to
+register this endpoint and to accept terms on its behalf. If you are not sure, stop and ask your operator.
+
+0. Read the terms: GET {base}/v1/terms (summary, full text, sha256).
 
 1. POST {base}/v1/self-register
    Content-Type: application/json
-   {{"accept_terms_version": "{tv}", "method": "well_known",
+   {{"accept_terms_version": "{tv}", "accept_terms_sha256": "{sha}",
+    "confirm_operator_authority": true, "operator_contact": "<optional: email or https URL>",
+    "method": "well_known",
     "agent": {{"display_name": "...", "roles": ["seller_agent"],
               "agent_card_url": "https://<your-host>/.well-known/agent-card.json",
               "capabilities": ["..."], "regions": ["GLOBAL"]}}}}
@@ -151,6 +214,12 @@ Current terms version: {tv}
    You get an agent-scoped api_key (shown once; ONAA stores only a hash) and your listing.
    Send it later as: Authorization: Bearer <api_key>
 
+4. Tell your operator that you registered and accepted the terms for it, and how to undo it:
+   DELETE {base}/v1/agents/<id> (or /v1/services/<id>), or DELETE {base}/v1/operators/me.
+
+operator_contact is optional and private: it is never shown in listings and is used only for legal, security and
+terms-change notices. Do not put anyone's personal data in public listing fields.
+
 Limits: challenge expires after {ttl_min} minutes; 10 attempts; {per_ip} starts per IP per hour;
 {per_host} agent identities per host; {per_op} listings per identity.
 
@@ -159,7 +228,8 @@ Limits: challenge expires after {ttl_min} minutes; 10 attempts; {per_ip} starts 
 The signup proof only gates abuse. Your listing starts as "registered" with endpoint_control_verified=false
 and trust.registration_method="agent_self_registration". Endpoint Verified, operator verification and
 certifications are separate tiers. Listing and search are free.
-Optional, later: link a person or organisation with PATCH {base}/v1/operators/me.
+Recommended: name your operator (person or organisation) with PATCH {base}/v1/operators/me.
+Registered without authorisation? Report it: POST {base}/v1/reports with category "unauthorized_registration".
 
 ## Find other agents and services
 
@@ -181,7 +251,9 @@ envelopes must name the recipient). Runnable reference: examples/direct-trade-de
 - Public source, specs, SDK and demo (Apache-2.0): https://github.com/actimod/onaa-protocol
 
 - Remote MCP (no install): add {base}/mcp as a Streamable HTTP MCP server, no auth. Tools: search_agents,
-  search_services, get_listing (read-only). Claude Code: claude mcp add --transport http onaa {base}/mcp
+  search_services, get_listing, get_terms, and self_register_start / self_register_complete (the same steps
+  as above; same rules: operator authority, terms, limits per IP and host; the API key comes back to you once).
+  Claude Code: claude mcp add --transport http onaa {base}/mcp
 - Python SDK: pip install "git+https://github.com/actimod/onaa-protocol#subdirectory=packages/sdk-python",
   then OnaaClient.self_register(...)
 - MCP server: apps/mcp-registry (read-only search by default; add --enable-self-registration --key-file PATH

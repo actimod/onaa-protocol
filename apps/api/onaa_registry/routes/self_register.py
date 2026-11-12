@@ -4,6 +4,8 @@ Flow:
 1. POST /v1/self-register with the listing payload and accepted terms version. Nothing is listed yet; the
    registry returns a challenge token and a private registration secret.
 2. The agent publishes the token on its own endpoint host (well-known file or DNS TXT).
+   The agent acts FOR its operator (the person or organisation responsible for it): it must send
+   confirm_operator_authority=true, and the operator is the party bound by the terms (GET /v1/terms).
 3. POST /v1/self-register/{id}/complete with the secret. On a valid proof the registry creates an agent
    identity (operator_type "agent"), an agent-scoped API key (shown once) and the listing.
 
@@ -24,7 +26,7 @@ from sqlalchemy.orm import Session
 
 from .. import schemas
 from ..db import get_session
-from ..logic import audit, aware, to_record
+from ..logic import audit, aware, check_terms_acceptance, to_record
 from ..models import ApiKey, Listing, Operator, SelfRegistration, new_id, utcnow
 from ..security import client_ip, issue_api_key, sha256_hex, write_limit
 from ..verification import CHALLENGE_PATH, check_host_proof, dns_record_name
@@ -64,9 +66,7 @@ def _check_agents_per_host(session: Session, host: str, limit: int) -> None:
 def start(body: schemas.SelfRegistrationStart, request: Request, session: Session = Depends(get_session)):
     settings = request.app.state.settings
     request.app.state.self_register_limiter.check(f"sr:{client_ip(request)}")
-    if body.accept_terms_version != settings.terms_version:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            f"accept_terms_version must equal current terms version '{settings.terms_version}'")
+    terms = check_terms_acceptance(settings, body.accept_terms_version, body.accept_terms_sha256)
     if (body.agent is None) == (body.service is None):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "provide exactly one of 'agent' or 'service'")
     kind = "agent" if body.agent is not None else "service"
@@ -92,11 +92,15 @@ def start(body: schemas.SelfRegistrationStart, request: Request, session: Sessio
     secret = "onaa_srs_" + secrets.token_urlsafe(32)
     sr = SelfRegistration(id=new_id("sreg"), kind=kind, payload=payload, host=host, method=body.method,
                           nonce_hash=sha256_hex(token), secret_hash=sha256_hex(secret),
-                          terms_version=body.accept_terms_version,
+                          terms_version=terms.version, terms_sha256=terms.sha256,
+                          operator_authority_confirmed=body.confirm_operator_authority is True,
+                          operator_contact=body.operator_contact,
                           expires_at=now + dt.timedelta(seconds=settings.self_registration_ttl_seconds))
     session.add(sr)
     session.flush()
-    audit(session, "anonymous", None, "self_register.start", sr.id, kind=kind, host=host, method=body.method)
+    audit(session, "anonymous", None, "self_register.start", sr.id, kind=kind, host=host, method=body.method,
+          terms_version=terms.version, terms_sha256=terms.sha256, operator_authority_confirmed=True,
+          operator_contact_given=body.operator_contact is not None)
     base = settings.public_base_url.rstrip("/")
     complete_url = f"{base}/v1/self-register/{sr.id}/complete"
     finish = (f"then POST {complete_url} with JSON {{\"registration_secret\": \"...\"}}. You receive an "
@@ -148,7 +152,8 @@ def complete(registration_id: str, body: schemas.SelfRegistrationComplete, reque
     _check_agents_per_host(session, sr.host, settings.self_registration_agents_per_host)
     now = utcnow()
     op = Operator(id=new_id("op"), display_name=sr.payload["display_name"], operator_type="agent",
-                  terms_version=sr.terms_version)
+                  terms_version=sr.terms_version, terms_sha256=sr.terms_sha256, terms_accepted_at=sr.created_at,
+                  terms_acceptance_method="agent_on_behalf_of_operator", operator_contact=sr.operator_contact)
     listing = _build(session, sr.kind, sr.payload, op.id)
     if listing.endpoint_host != sr.host:
         sr.status = "failed"
@@ -184,7 +189,10 @@ def complete(registration_id: str, body: schemas.SelfRegistrationComplete, reque
             "Store api_key in a secret manager; it is shown once. Send it as 'Authorization: Bearer <key>'.",
             f"Remove the challenge token from {sr.host}; it is single-use.",
             f"Update your listing: PATCH {base}/v1/{kind_path}/{listing.id}",
-            f"Optional: link a person or organisation later with PATCH {base}/v1/operators/me "
-            "(needed before paid operator verification).",
+            "Tell your operator that it registered and accepted the ONAA terms "
+            f"({sr.terms_version}, {base}/v1/terms) on its behalf, and how to delete the listing.",
+            f"Recommended: name your operator (person or organisation) and a private notice contact with "
+            f"PATCH {base}/v1/operators/me (operator name is needed before paid operator verification).",
+            f"To withdraw: DELETE {base}/v1/{kind_path}/{listing.id} or DELETE {base}/v1/operators/me.",
             "Optional paid tier: Endpoint Verified via POST /v1/certifications/applications (Founding Cohort free).",
         ])

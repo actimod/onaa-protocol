@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:onaa:schema:v0.1:conformance-trigger",
+  "title": "ONAA Protocol v0.1 conformance trade trigger (CONFORMANCE ONLY; DRAFT ONAA profile, not an official A2A schema)",
+  "description": "A signed, recipient-bound request from a conformance harness asking a buyer agent that has explicitly opted in (params.conformance.trade_trigger) to run one TEST-ONLY trade against harness-controlled counterparties, in mock mode only. It is not a commerce envelope, carries no payment data and authorizes no purchase. See specs/onaa-protocol-v0.1.md section 12.1.",
+  "type": "object",
+  "required": ["spec", "type", "trigger_version", "id", "nonce", "created_at", "expires_at", "sender", "recipient",
+               "test_only", "seller", "provider", "rfq", "signature"],
+  "properties": {
+    "spec": { "const": "onaa.conformance-trigger/v0" },
+    "type": { "const": "CONFORMANCE_TRADE_TRIGGER" },
+    "trigger_version": { "const": "0.1" },
+    "id": { "$ref": "urn:onaa:schema:v0.1:envelope#/$defs/id" },
+    "nonce": { "type": "string", "pattern": "^[A-Za-z0-9_-]{22,128}$" },
+    "created_at": { "$ref": "urn:onaa:schema:v0.1:envelope#/$defs/ts" },
+    "expires_at": { "$ref": "urn:onaa:schema:v0.1:envelope#/$defs/ts" },
+    "sender": { "$ref": "#/$defs/boundParty", "description": "The conformance harness. Its card and JWKS verify the signature." },
+    "recipient": { "$ref": "#/$defs/boundParty", "description": "The buyer under test. agent_card_url MUST equal the buyer's own Agent Card URL." },
+    "test_only": { "const": true },
+    "seller": { "$ref": "#/$defs/boundParty", "description": "Harness-controlled seller. Its card MUST carry params.conformance.harness_counterparty naming the trigger sender." },
+    "provider": {
+      "type": "object",
+      "required": ["agent_id", "agent_card_url", "service_type", "mode"],
+      "properties": {
+        "agent_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "agent_card_url": { "type": "string", "format": "uri", "maxLength": 2048 },
+        "service_type": { "$ref": "urn:onaa:schema:v0.1:service-handoff#/$defs/serviceType" },
+        "mode": { "const": "mock", "description": "Triggered trades are mock-only. 'live' and 'sandbox' are refused." }
+      },
+      "additionalProperties": false,
+      "description": "Harness-controlled service provider, same marker rule as seller."
+    },
+    "rfq": { "$ref": "urn:onaa:schema:v0.1:envelope#/$defs/rfq", "description": "Fictional RFQ body the buyer sends to the harness seller." },
+    "signature": { "$ref": "urn:onaa:schema:v0.1:jws-signature", "description": "Detached JWS (section 9.5) with typ onaa-conformance-trigger+jws." }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "boundParty": {
+      "type": "object",
+      "required": ["agent_id", "agent_card_url"],
+      "properties": {
+        "agent_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "agent_card_url": { "type": "string", "format": "uri", "maxLength": 2048 }
+      },
+      "additionalProperties": false
+    },
+    "declaration": {
+      "type": "object",
+      "description": "Value of params.conformance.trade_trigger in a buyer's ONAA extension params. Presence means the operator has enabled the trigger.",
+      "required": ["version", "modes"],
+      "properties": {
+        "version": { "const": "0.1" },
+        "modes": { "type": "array", "items": { "const": "mock" }, "minItems": 1, "uniqueItems": true },
+        "service_types": { "type": "array", "uniqueItems": true, "items": { "$ref": "urn:onaa:schema:v0.1:service-handoff#/$defs/serviceType" } }
+      }
+    },
+    "counterpartyMarker": {
+      "type": "object",
+      "description": "Value of params.conformance.harness_counterparty in a harness-controlled counterparty's ONAA extension params.",
+      "required": ["test_only", "trigger_sender"],
+      "properties": {
+        "test_only": { "const": true },
+        "trigger_sender": { "type": "string", "format": "uri", "maxLength": 2048, "description": "Agent Card URL of the harness allowed to name this counterparty in a trigger." }
+      }
+    },
+    "result": {
+      "type": "object",
+      "description": "Reply data part when the buyer accepted the trigger and the triggered run has ended.",
+      "required": ["spec", "type", "trigger_id", "outcome"],
+      "properties": {
+        "spec": { "const": "onaa.conformance-trigger/v0" },
+        "type": { "const": "CONFORMANCE_TRADE_RESULT" },
+        "trigger_id": { "$ref": "urn:onaa:schema:v0.1:envelope#/$defs/id" },
+        "outcome": { "enum": ["completed", "stopped"] },
+        "stopped_on": { "type": "string", "maxLength": 64, "description": "Type of the counterparty message the buyer refused, if any." },
+        "code": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

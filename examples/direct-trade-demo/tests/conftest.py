@@ -31,6 +31,16 @@ def network(allow_localhost):
         net.stop()
 
 
+@pytest.fixture
+def trigger_network(allow_localhost):
+    """Demo network whose buyer has explicitly opted in to the conformance trade trigger (spec 12.1)."""
+    net = start_network(buyer_conformance_trigger=True)
+    try:
+        yield net
+    finally:
+        net.stop()
+
+
 @pytest.fixture(scope="session")
 def envelope_validator():
     """ONAA Protocol v0.1 envelope schema (specs/schemas/onaa/v0.1/envelope.schema.json, bundled)."""

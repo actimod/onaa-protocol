@@ -26,7 +26,7 @@ postgres = ["psycopg[binary]>=3.2,<4"]
 include = ["onaa_registry*"]
 
 [tool.setuptools.package-data]
-onaa_registry = ["registry-record.schema.json", "migrations/*.py", "migrations/*.mako", "migrations/versions/*.py"]
+onaa_registry = ["registry-record.schema.json", "terms/*.md", "migrations/*.py", "migrations/*.mako", "migrations/versions/*.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -115,7 +115,8 @@ def fake_self_register():
         calls.append(request)
         body = json.loads(request.content or b"{}")
         if request.url.path == "/v1/self-register":
-            assert body["accept_terms_version"] == "draft-0.1" and body["agent"]["roles"] == ["seller_agent"]
+            assert body["accept_terms_version"] == "draft-0.2" and body["agent"]["roles"] == ["seller_agent"]
+            assert body["confirm_operator_authority"] is True
             return httpx.Response(201, json={
                 "registration_id": "sreg_1", "method": "well_known", "host": "s1.example.com", "token": "tok",
                 "registration_secret": SECRET, "complete_url": "https://registry.example.com/x",
@@ -148,13 +149,15 @@ async def test_self_registration_tools_are_opt_in_and_keep_secrets_out_of_result
         assert tools["self_register_start"].annotations.read_only_hint is False
         started = await client.call_tool("self_register_start", {
             "display_name": "Seller", "agent_card_url": "https://s1.example.com/.well-known/agent-card.json",
-            "roles": ["seller_agent"], "accept_terms_version": "draft-0.1"})
+            "roles": ["seller_agent"], "accept_terms_version": "draft-0.2",
+            "confirm_operator_authority": True})
         first = await client.call_tool("self_register_complete", {"registration_id": "sreg_1"})
         done = await client.call_tool("self_register_complete", {"registration_id": "sreg_1"})
         again = await client.call_tool("self_register_complete", {"registration_id": "sreg_1"})
         blocked = await client.call_tool("self_register_start", {
             "display_name": "Seller", "agent_card_url": "https://s1.example.com/.well-known/agent-card.json",
-            "roles": ["seller_agent"], "accept_terms_version": "draft-0.1"})
+            "roles": ["seller_agent"], "accept_terms_version": "draft-0.2",
+            "confirm_operator_authority": True})
     s, f, d = _payload(started), _payload(first), _payload(done)
     assert s["token"] == "tok" and "registration_secret" not in s
     assert f["error"]["detail"] == "token_mismatch"
@@ -183,3 +186,35 @@ def test_refuses_operator_key():
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+@pytest.mark.anyio
+async def test_remote_self_registration_returns_secret_and_key_to_the_caller_only(fake_self_register):
+    reg, calls = fake_self_register
+    seen_ctx = []
+
+    def client_for(ctx):
+        seen_ctx.append(ctx)
+        return reg
+
+    with pytest.raises(ValueError):
+        build_server(reg, key_file="/tmp/x", remote_client=client_for)
+    async with Client(build_server(reg, remote_client=client_for)) as client:
+        tools = {t.name for t in (await client.list_tools()).tools}
+        assert {"get_terms", "self_register_start", "self_register_complete"} <= tools
+        args = {"display_name": "Seller", "agent_card_url": "https://s1.example.com/.well-known/agent-card.json",
+                "roles": ["seller_agent"], "accept_terms_version": "draft-0.2"}
+        refused = _payload(await client.call_tool("self_register_start", args | {"confirm_operator_authority": False}))
+        started = _payload(await client.call_tool("self_register_start", args | {"confirm_operator_authority": True}))
+        pending = _payload(await client.call_tool("self_register_complete", {
+            "registration_id": "sreg_1", "registration_secret": SECRET}))
+        done = _payload(await client.call_tool("self_register_complete", {
+            "registration_id": "sreg_1", "registration_secret": SECRET}))
+    assert refused["error"]["status"] == 400
+    assert started["registration_secret"] == SECRET and started["token"] == "tok"
+    assert pending["error"]["detail"] == "token_mismatch" and "api_key" not in pending
+    assert done["api_key"] == KEY and "Shown once" in done["api_key_note"]
+    assert done["listing"]["untrusted_operator_content"]["description"] == INJECTED
+    assert seen_ctx and all(c is not None for c in seen_ctx)
+    assert reg._http.is_closed is False  # injected client is not closed per call
+    assert not any("authorization" in c.headers for c in calls)

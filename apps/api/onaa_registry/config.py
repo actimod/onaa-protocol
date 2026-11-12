@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
+from .terms import CURRENT_TERMS_VERSION
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -47,7 +49,9 @@ class Settings:
     require_verification_entitlement: bool = field(
         default_factory=lambda: os.environ.get("ONAA_REQUIRE_VERIFICATION_ENTITLEMENT", "1") == "1")
     founding_cohort_size: int = field(default_factory=lambda: int(os.environ.get("ONAA_FOUNDING_COHORT_SIZE", "50")))
-    terms_version: str = field(default_factory=lambda: os.environ.get("ONAA_TERMS_VERSION", "draft-0.1"))
+    # Must name a text bundled in onaa_registry/terms/ (checked at startup); the default is the newest bundled text.
+    terms_version: str = field(
+        default_factory=lambda: os.environ.get("ONAA_TERMS_VERSION", CURRENT_TERMS_VERSION))
     public_base_url: str = field(
         default_factory=lambda: os.environ.get("ONAA_PUBLIC_BASE_URL", "http://localhost:8000")
     )

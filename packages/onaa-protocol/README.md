@@ -14,7 +14,7 @@ python -m onaa_protocol.conformance --registry-url https://registry.example.com 
 python -m onaa_protocol.vectors check ../../specs/test-vectors/v0.1  # vectors up to date?
 ```
 
-The live mode fetches only public `https` targets through the SSRF-safe fetcher. `--allow-loopback` is the explicit demo flag: it is the only way to reach 127.0.0.1 or ::1, and it never unlocks other private ranges. It also lets the suite serve its ephemeral harness card and JWKS on loopback, which the target needs for the signed-order and handoff tests. For remote targets, pass `--harness-base-url` (a public tunnel to `--harness-port`); otherwise those tests are reported `skip` and the verdict is `incomplete` at best. Exit codes: 0 pass, 1 fail, 3 incomplete, 2 usage error. The JSON report (`--out`) lists every test id with its outcome, plus the CERTIFICATION_POLICY §3.3 verdict (100% MUST, ≥ 80% SHOULD). The report is evidence for review, not a certificate.
+The live mode fetches only public `https` targets through the SSRF-safe fetcher. `--allow-loopback` is the explicit demo flag: it is the only way to reach 127.0.0.1 or ::1, and it never unlocks other private ranges. It also lets the suite serve its ephemeral harness card and JWKS on loopback, which the target needs for the signed-order and handoff tests. For remote targets, pass `--harness-base-url` (a public tunnel to `--harness-port`); otherwise those tests are reported `skip` and the verdict is `incomplete` at best. Buyers that opt in to the conformance trade trigger (below) also need the harness seller and provider reachable: automatic on loopback, remotely `--harness-seller-base-url`/`--harness-seller-port` and `--harness-provider-base-url`/`--harness-provider-port`. Exit codes: 0 pass, 1 fail, 3 incomplete, 2 usage error. The JSON report (`--out`) lists every test id with its outcome, plus the CERTIFICATION_POLICY §3.3 verdict (100% MUST, ≥ 80% SHOULD). The report is evidence for review, not a certificate.
 
 ## Public API (stable within 0.x minor releases)
 
@@ -38,7 +38,8 @@ Everything below is importable from `onaa_protocol`. Other modules are internal 
 | Attestations | `build_attestation(...)` (refuses `test_only=False`), `sign_attestation`, `verify_attestation(att, issuer_jwks, *, trusted_issuers, now=None, status_record=None, max_status_age=7d, allow_test_only=False) -> AttestationResult`, `build_status_record`, `sign_status_record`, `verify_status_record` | §10 |
 | Errors | `ProtocolError(code, message)`, `SignatureError`, `AttestationError`, `public_message(code)`; code registries in `onaa_protocol.errors` | §7.8, §9.7 |
 | Text | `sanitize(value, limit=300)` | Escapes C0/C1 and bidi controls in untrusted text before display or logging (§13) |
-| Conformance | `onaa_protocol.conformance.run_offline(dir=None)`, `run_live(card_url, role, *, http=None, allow_loopback=False, resolver=None, service_type=None, probe_rfq=None, harness_base_url=None, harness_port=0)`, `run_registry_live(base_url, ...)`, `TESTS`, `verdict(results)` | §12 |
+| Conformance | `onaa_protocol.conformance.run_offline(dir=None)`, `run_live(card_url, role, *, http=None, allow_loopback=False, resolver=None, service_type=None, probe_rfq=None, harness_base_url=None, harness_port=0, harness_alt_base_url=None, harness_alt_port=0, harness_seller_base_url=None, harness_seller_port=0, harness_provider_base_url=None, harness_provider_port=0)`, `run_registry_live(base_url, ...)`, `TESTS`, `verdict(results)` | §12 |
+| Conformance trigger (buyers, opt-in) | `onaa_protocol.trigger`: `trigger_declaration()`, `declared_trigger(params)`, `find_trigger(message)`, `check_trigger(trigger, keys, *, expected_recipient, now=None)`, `check_counterparty(card_params, trigger)`, `TriggerGuard()` (`.reserve(trigger)` / `.finish()`), `trigger_result(trigger, outcome, *, code=None, stopped_on=None)`; harness side `build_trigger(...)`, `sign_trigger`, `counterparty_marker(url)`; `TYP_TRIGGER` | §12.1; conformance-only, off by default |
 | Transport helpers | `onaa_protocol.a2a` (client subset: `make_message`, `data_part`, `send_message`, `validate_agent_card`, `select_jsonrpc_interface`, error codes), `onaa_protocol.safe_fetch` (`validate_url`, `fetch_json(..., deadline=10)`, `request_bytes`, `loads_json`, `same_origin`, `PinnedTransport`, `safe_client`); `send_message`/`rpc_call` take `deadline=15` | Used by the demo and the SDK |
 
 ### Minimal receiver
@@ -91,6 +92,34 @@ Version 0.1.1 follows an internal security review. The spec change log (§15) li
 | `StaticKeyResolver(revoked_kids=...)` accepts `(card_url, kid)` pairs, so revoking one signer's kid does not revoke the same kid string for other signers. | A bare string still revokes globally |
 | Conformance suite 0.3.0 adds `ONAA-C-MUST-077` (signed ORDER_STATUS), `ONAA-C-MUST-078` (recipient check) and `ONAA-V-MUST-013` (`recipient.json`). Report details are sanitized. | |
 
+## Conformance trade trigger (buyers, opt-in, conformance-only)
+
+Spec §12.1. A buyer's client-side duties (checking a QUOTE, signing and addressing ORDER_PROPOSE, binding a handoff) can only be tested if the suite can make it start a trade. A buyer whose operator explicitly enables it declares `params.conformance.trade_trigger` (`trigger_declaration()`). The suite then sends signed, recipient-bound triggers (`typ: onaa-conformance-trigger+jws`, at most 10 minutes, single-use) and plays a harness seller and provider on their own origins. Each counterparty card carries `params.conformance.harness_counterparty` naming the harness, so a trigger can never point the buyer at a real seller or provider. Handoffs are `mock` only.
+
+Buyer side, in the A2A handler, before normal envelope processing:
+
+```python
+from onaa_protocol import reject, reply_recipient
+from onaa_protocol.trigger import TriggerGuard, check_counterparty, check_trigger, find_trigger, trigger_result
+
+guard = TriggerGuard()
+if trigger_enabled and (trigger := find_trigger(message)) is not None:
+    try:
+        check_trigger(trigger, keys, expected_recipient=my_sender)   # signature, recipient, window, mode
+        guard.reserve(trigger)                                       # replay / one run at a time
+    except ProtocolError as exc:
+        return reject(trigger, my_sender, exc.code, signer=my_signer, recipient=reply_recipient(trigger))
+    try:
+        # fetch both counterparty cards, check_counterparty(params, trigger) on each (not_a_party -> REJECT),
+        # then run the SAME trade code as for real trades; stop at the first refused message
+        ...
+        result = trigger_result(trigger, "completed")   # or "stopped", stopped_on=<refused type>, code=...
+    finally:
+        guard.finish()
+```
+
+Tests `ONAA-C-MUST-080`–`091` (suite 0.4.0) are `n/a` for buyers that do not declare the trigger. Leave the trigger off outside conformance runs; see spec §12.1.5 for the security considerations.
+
 ## For the SDK / MCP thread
 
 * Build the registry SDK on `trust_levels`/`validate_record`, the A2A client on `onaa_protocol.a2a`, and every URL fetch on `onaa_protocol.safe_fetch`.
@@ -109,4 +138,5 @@ Version 0.1.1 follows an internal security review. The spec change log (§15) li
 | `registry.py` / `attestation.py` | Trust view; attestations and status records |
 | `schemas.py` + `schemas/` | Bundled JSON Schemas (copies of `specs/schemas/onaa/v0.1`) |
 | `vectors.py` | Deterministic generator for `specs/test-vectors/v0.1` (TEST-ONLY keys) |
-| `conformance/` | Test catalog, offline and live runners, report and verdict, CLI |
+| `trigger.py` | Conformance trade trigger (spec §12.1): declaration, verification, counterparty marker, single-use guard, result |
+| `conformance/` | Test catalog, offline and live runners (`buyer_trigger.py`: harness seller/provider and the buyer client-side tests), report and verdict, CLI |

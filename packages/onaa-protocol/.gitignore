@@ -3,3 +3,4 @@
 .ruff_cache/
 # CI/local conformance reports (evidence artifacts, not source)
 conformance-*.json
+!src/onaa_protocol/schemas/conformance-trigger.schema.json

@@ -67,7 +67,9 @@ from ..safe_fetch import (
     validate_url,
 )
 from ..state import TradeLedger, check_transition
+from .buyer_trigger import BuyerTriggerTests, Counterparties
 from .catalog import BUYER, REGISTRY, SELLER, SERVICE, for_role
+from .outcomes import Fail, NotApplicable, Skip
 from .report import FAIL, NA, PASS, SKIP, Result, build_report
 
 HARNESS_AGENT_ID = "onaa-conformance-harness"
@@ -80,16 +82,6 @@ STRUCTURAL_CODES = frozenset({"invalid_envelope", "invalid_body", "unsupported_s
                               "unexpected_type"})
 
 
-class Fail(Exception):
-    pass
-
-
-class Skip(Exception):
-    pass
-
-
-class NotApplicable(Exception):
-    pass
 
 
 # ------------------------------------------------------------------ harness identity
@@ -108,6 +100,7 @@ class Harness:
         self.revoked_kid = "conformance-revoked-" + secrets.token_hex(6)
         self.agent_id = HARNESS_AGENT_ID
         self.get_log: list[str] = []  # paths the target fetched from the harness (section 7.5.6 test)
+        self.requests: list[tuple[str, str, str]] = []  # (origin, method, path) of every request received
         self._servers: list[ThreadingHTTPServer] = []
         self.base_url: str | None = None
         self.alt_base_url: str | None = None
@@ -171,6 +164,7 @@ class Harness:
 
             def do_GET(self) -> None:  # noqa: N802
                 harness.get_log.append(self.path)
+                harness.requests.append((base, "GET", self.path))
                 if self.path == a2a.AGENT_CARD_PATH:
                     self._json(harness.card(base))
                 elif self.path == JWKS_PATH:
@@ -179,6 +173,7 @@ class Harness:
                     self._json({"detail": "not found"}, 404)
 
             def do_POST(self) -> None:  # noqa: N802
+                harness.requests.append((base, "POST", self.path))
                 self._json({"jsonrpc": "2.0", "id": None,
                             "error": {"code": a2a.METHOD_NOT_FOUND, "message": "harness accepts no requests"}})
 
@@ -193,10 +188,10 @@ class Harness:
 # ------------------------------------------------------------------ runner
 
 
-class LiveRun:
+class LiveRun(BuyerTriggerTests):
     def __init__(self, card_url: str, role: str, *, http: httpx.Client, harness: Harness, allow_loopback: bool,
                  resolver: Resolver | None = None, service_type: str | None = None,
-                 probe_rfq: dict[str, Any] | None = None) -> None:
+                 probe_rfq: dict[str, Any] | None = None, counterparties: Counterparties | None = None) -> None:
         self.card_url = card_url
         self.role = role
         self.http = http
@@ -213,6 +208,7 @@ class LiveRun:
         self.target: dict[str, str] = {"agent_id": "unknown", "agent_card_url": card_url}
         self.state: dict[str, Any] = {}
         self.signed_replies: list[dict[str, Any]] = []
+        self.cps = counterparties
 
     # ------------------------------------------------------------ plumbing
 
@@ -220,6 +216,9 @@ class LiveRun:
         if rid not in {t.id for t in for_role(self.role)}:
             return
         for dep in needs:
+            if dep in self.results and self.results[dep].outcome == NA:
+                self.results[rid] = Result(rid, NA, f"prerequisite {dep} is not applicable")
+                return
             if dep in self.results and self.results[dep].outcome != PASS:
                 self.results[rid] = Result(rid, SKIP, f"prerequisite {dep} did not pass")
                 return
@@ -439,6 +438,20 @@ class LiveRun:
             self.check("ONAA-C-MUST-064", self.t_buyer_reply_shape, needs=base)
             self.check("ONAA-C-MUST-065", self.t_buyer_dedup, needs=base)
             self.check("ONAA-C-MUST-056", self.t_forward_minor, needs=base)
+            # client-side duties through the opt-in conformance trade trigger (section 12.1)
+            self.check("ONAA-C-MUST-080", self.t_trigger_happy, needs=base)
+            trig = ("ONAA-C-MUST-080",)
+            self.check("ONAA-C-MUST-081", self.t_trigger_safety, needs=trig)
+            self.check("ONAA-C-MUST-086", self.t_trigger_quote_refusals, needs=trig)
+            self.check("ONAA-C-MUST-087", self.t_trigger_confirm_refusals, needs=trig)
+            self.check("ONAA-C-MUST-089", self.t_trigger_ack_refusals, needs=trig)
+            self.check("ONAA-C-MUST-084", self.t_trigger_transport, needs=trig)
+            self.check("ONAA-C-MUST-082", self.t_trigger_signing, needs=trig)
+            self.check("ONAA-C-MUST-083", self.t_trigger_freshness, needs=trig)
+            self.check("ONAA-C-MUST-085", self.t_trigger_order_echo, needs=trig)
+            self.check("ONAA-C-MUST-088", self.t_trigger_handoff, needs=trig)
+            self.check("ONAA-C-MUST-090", self.t_trigger_inbound, needs=trig)
+            self.check("ONAA-C-MUST-091", self.t_trigger_untrusted_text, needs=trig)
         if self.role == SELLER:
             after_quote = ("ONAA-C-MUST-020",)
             self.check("ONAA-C-MUST-020", self.t_quote, needs=base)
@@ -1136,20 +1149,34 @@ def run_live(card_url: str, role: str, *, http: httpx.Client | None = None, allo
              resolver: Resolver | None = None, service_type: str | None = None,
              probe_rfq: dict[str, Any] | None = None, harness_base_url: str | None = None,
              harness_port: int = 0, harness_alt_base_url: str | None = None,
-             harness_alt_port: int = 0) -> dict[str, Any]:
-    """Run the live suite for ``role`` against the agent whose card is at ``card_url``; returns the report."""
+             harness_alt_port: int = 0, harness_seller_base_url: str | None = None, harness_seller_port: int = 0,
+             harness_provider_base_url: str | None = None, harness_provider_port: int = 0) -> dict[str, Any]:
+    """Run the live suite for ``role`` against the agent whose card is at ``card_url``; returns the report.
+
+    For buyers that opt in to the conformance trade trigger (spec section 12.1) the suite also serves a
+    harness seller and provider: on loopback automatically, remotely only when both
+    ``harness_seller_base_url`` and ``harness_provider_base_url`` (public tunnels to the given ports) are set.
+    """
     own = http is None
     http = http or safe_client(allow_localhost=allow_loopback, resolver=resolver)
     harness = Harness(serve=allow_loopback or harness_base_url is not None, public_base_url=harness_base_url,
                       bind_port=harness_port, alt_public_base_url=harness_alt_base_url,
                       alt_bind_port=harness_alt_port)
+    cps = None
+    remote_cps = harness_seller_base_url is not None and harness_provider_base_url is not None
+    if role == BUYER and harness.reachable and (allow_loopback or remote_cps):
+        cps = Counterparties(harness, seller_base_url=harness_seller_base_url, seller_port=harness_seller_port,
+                             provider_base_url=harness_provider_base_url, provider_port=harness_provider_port)
     notes = []
     if not harness.reachable:
         notes.append("Harness card/JWKS not served: signed positive tests are skipped (verdict cannot be 'pass').")
     try:
         results = LiveRun(card_url, role, http=http, harness=harness, allow_loopback=allow_loopback,
-                          resolver=resolver, service_type=service_type, probe_rfq=probe_rfq).run()
+                          resolver=resolver, service_type=service_type, probe_rfq=probe_rfq,
+                          counterparties=cps).run()
     finally:
+        if cps is not None:
+            cps.close()
         harness.close()
         if own:
             http.close()

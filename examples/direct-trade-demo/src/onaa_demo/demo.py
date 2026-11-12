@@ -75,12 +75,14 @@ class DemoNetwork:
             h.stop()
 
 
-def start_network(registry_url: str | None = None) -> DemoNetwork:
+def start_network(registry_url: str | None = None, *, buyer_conformance_trigger: bool = False) -> DemoNetwork:
+    """Start the SAMPLE nodes. ``buyer_conformance_trigger`` is the explicit opt-in for the buyer's conformance
+    trade trigger (spec section 12.1); it is used only by the conformance tests and is off by default."""
     handles: list[ServerHandle] = []
     b_sock, b_url = bind_ephemeral()
     s_sock, s_url = bind_ephemeral()
     e_sock, e_url = bind_ephemeral()
-    buyer = BuyerNode(b_url)
+    buyer = BuyerNode(b_url, conformance_trigger=buyer_conformance_trigger)
     seller = SellerAgent(s_url)
     escrow = MockEscrow(e_url)
     handles.append(serve(buyer.app(), b_sock, b_url))

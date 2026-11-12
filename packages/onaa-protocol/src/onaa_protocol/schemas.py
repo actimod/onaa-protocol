@@ -21,6 +21,7 @@ SCHEMA_FILES = {
     "registry-trust-view": "registry-trust-view.schema.json",
     "attestation": "attestation.schema.json",
     "jws-signature": "jws-signature.schema.json",
+    "conformance-trigger": "conformance-trigger.schema.json",
 }
 ID_PREFIX = "urn:onaa:schema:v0.1:"
 

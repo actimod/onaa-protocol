@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from . import schemas
 from .models import AuditEvent, Listing, ListingFacet, Operator, new_id, utcnow
 from .netsafety import Fetcher, FetchError, UnsafeURLError, validate_public_url
+from .terms import Terms, load_terms
 
 # Statuses visible in public search/get. Deleted is never visible; suspended only on direct GET.
 PUBLIC_STATUSES = ("discovered", "claim_pending", "registered", "endpoint_verified", "certified")
@@ -267,3 +268,16 @@ def refresh_card(listing: Listing, fetcher: Fetcher) -> None:
 
 def make_listing_id(listing_type: str) -> str:
     return new_id({"agent": "agt", "service": "svc", "hosting": "hst"}[listing_type])
+
+
+def check_terms_acceptance(settings, version: str, sha256: str | None) -> Terms:
+    """Acceptance must name the current version and, if a hash is sent, the exact current text."""
+    if version != settings.terms_version:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            f"accept_terms_version must equal current terms version '{settings.terms_version}' "
+                            "(read it first at GET /v1/terms)")
+    terms = load_terms(settings.terms_version)
+    if sha256 is not None and sha256 != terms.sha256:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            "accept_terms_sha256 does not match the current terms text; fetch GET /v1/terms again")
+    return terms
