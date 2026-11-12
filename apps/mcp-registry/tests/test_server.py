@@ -103,6 +103,78 @@ async def test_search_services_and_get_listing(fake_registry):
     assert all("authorization" not in c.headers for c in calls)
 
 
+SECRET = "onaa_srs_secret_value"
+KEY = "onaa_sk_issued_key_value_xyz"
+
+
+@pytest.fixture
+def fake_self_register():
+    calls = []
+
+    def handler(request: httpx.Request):
+        calls.append(request)
+        body = json.loads(request.content or b"{}")
+        if request.url.path == "/v1/self-register":
+            assert body["accept_terms_version"] == "draft-0.1" and body["agent"]["roles"] == ["seller_agent"]
+            return httpx.Response(201, json={
+                "registration_id": "sreg_1", "method": "well_known", "host": "s1.example.com", "token": "tok",
+                "registration_secret": SECRET, "complete_url": "https://registry.example.com/x",
+                "challenge_url": "https://s1.example.com/.well-known/onaa-verification/sreg_1.txt",
+                "expires_at": "2026-11-12T08:00:00Z", "instructions": "publish"})
+        if request.url.path == "/v1/self-register/sreg_1/complete":
+            if body["registration_secret"] != SECRET:
+                return httpx.Response(404, json={"detail": "not found"})
+            if len([c for c in calls if c.url.path.endswith("/complete")]) == 1:
+                return httpx.Response(422, json={"registration_id": "sreg_1", "status": "pending", "attempts": 1,
+                                                 "error": "token_mismatch"})
+            return httpx.Response(201, json={
+                "registration_id": "sreg_1", "status": "completed", "api_key": KEY,
+                "operator": {"id": "op_1", "operator_type": "agent"},
+                "listing": _record(1, status="registered"),
+                "next_steps": ["Store api_key in a secret manager", "Remove the challenge token"]})
+        return httpx.Response(404, json={"detail": "nope"})
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    return OnaaClient("https://registry.example.com", http_client=http), calls
+
+
+@pytest.mark.anyio
+async def test_self_registration_tools_are_opt_in_and_keep_secrets_out_of_results(fake_self_register, tmp_path):
+    reg, calls = fake_self_register
+    key_file = tmp_path / "onaa.key"
+    async with Client(build_server(reg, key_file=key_file)) as client:
+        tools = {t.name: t for t in (await client.list_tools()).tools}
+        assert {"self_register_start", "self_register_complete"} <= set(tools)
+        assert tools["self_register_start"].annotations.read_only_hint is False
+        started = await client.call_tool("self_register_start", {
+            "display_name": "Seller", "agent_card_url": "https://s1.example.com/.well-known/agent-card.json",
+            "roles": ["seller_agent"], "accept_terms_version": "draft-0.1"})
+        first = await client.call_tool("self_register_complete", {"registration_id": "sreg_1"})
+        done = await client.call_tool("self_register_complete", {"registration_id": "sreg_1"})
+        again = await client.call_tool("self_register_complete", {"registration_id": "sreg_1"})
+        blocked = await client.call_tool("self_register_start", {
+            "display_name": "Seller", "agent_card_url": "https://s1.example.com/.well-known/agent-card.json",
+            "roles": ["seller_agent"], "accept_terms_version": "draft-0.1"})
+    s, f, d = _payload(started), _payload(first), _payload(done)
+    assert s["token"] == "tok" and "registration_secret" not in s
+    assert f["error"]["detail"] == "token_mismatch"
+    assert d["status"] == "completed" and d["key_prefix"] == KEY[:12]
+    everything = json.dumps([s, f, d, _payload(again)])
+    assert SECRET not in everything and KEY not in everything  # no credential enters the model context
+    assert key_file.read_text().strip() == KEY and (key_file.stat().st_mode & 0o777) == 0o600
+    assert _payload(again)["error"]["status"] == 404
+    assert _payload(blocked)["error"]["status"] == 409  # never overwrite an existing key file
+    assert all("authorization" not in c.headers for c in calls)
+
+
+@pytest.mark.anyio
+async def test_self_registration_tools_absent_by_default(fake_registry):
+    reg, _ = fake_registry
+    async with Client(build_server(reg)) as client:
+        names = {t.name for t in (await client.list_tools()).tools}
+    assert not any(n.startswith("self_register") for n in names)
+
+
 def test_refuses_operator_key():
     with pytest.raises(ValueError):
         build_server(OnaaClient("https://registry.example.com", api_key="onaa_sk_x"))

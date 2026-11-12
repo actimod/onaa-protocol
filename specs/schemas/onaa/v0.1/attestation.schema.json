@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:onaa:schema:v0.1:attestation",
+  "title": "ONAA Protocol v0.1 signed trust attestation (DRAFT; no real issuance until certification issuance is approved)",
+  "description": "A signed statement that a named subject met a published, versioned set of criteria for a stated scope and period. Verifiable offline with the issuer's public JWKS. NOT a government approval, licence, guarantee or insurance. v0.1 attestations MUST set test_only=true. See specs/onaa-protocol-v0.1.md section 10.",
+  "type": "object",
+  "required": ["attestation_version", "id", "issuer", "subject", "level", "scope", "criteria_version", "issued_at", "expires_at", "status", "status_at", "status_url", "evidence", "test_only", "limitations", "signature"],
+  "properties": {
+    "attestation_version": { "const": "0.1.0" },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+    "issuer": {
+      "type": "object",
+      "required": ["id", "jwks_uri"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "name": { "type": "string", "maxLength": 200 },
+        "jwks_uri": { "type": "string", "format": "uri" }
+      },
+      "additionalProperties": false
+    },
+    "subject": {
+      "type": "object",
+      "required": ["subject_type", "subject_id"],
+      "properties": {
+        "subject_type": { "enum": ["agent", "service", "operator"] },
+        "subject_id": { "type": "string", "minLength": 1, "maxLength": 64, "description": "Registry record id (agt_/svc_) or operator id." },
+        "operator_id": { "type": "string", "maxLength": 64 },
+        "agent_card_url": { "type": "string", "format": "uri" },
+        "agent_card_sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$", "description": "SHA-256 of the JCS form of the Agent Card that was tested." },
+        "jwk_thumbprints": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" }, "description": "RFC 7638 thumbprints of the subject keys that were tested." }
+      },
+      "additionalProperties": false
+    },
+    "level": {
+      "enum": ["endpoint_verified", "operator_verified", "protocol_certified", "commerce_certified", "service_certified", "security_reviewed"],
+      "description": "Matches registry API CertScheme values plus endpoint_verified and security_reviewed. One attestation = one level; levels never imply each other."
+    },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "roles": { "type": "array", "items": { "enum": ["buyer_agent", "seller_agent", "service_provider"] }, "uniqueItems": true },
+        "service_type": { "$ref": "urn:onaa:schema:v0.1:service-handoff#/$defs/serviceType" },
+        "jurisdictions": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z]{2}$|^EU$" }, "uniqueItems": true },
+        "protocols": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "version"],
+            "properties": { "name": { "enum": ["a2a", "mcp", "onaa"] }, "version": { "type": "string", "maxLength": 32 } },
+            "additionalProperties": false
+          }
+        },
+        "conformance": {
+          "type": "object",
+          "required": ["suite_version", "must_passed", "must_total", "should_passed", "should_total", "verdict"],
+          "properties": {
+            "suite_version": { "type": "string" },
+            "must_passed": { "type": "integer", "minimum": 0 },
+            "must_total": { "type": "integer", "minimum": 0 },
+            "should_passed": { "type": "integer", "minimum": 0 },
+            "should_total": { "type": "integer", "minimum": 0 },
+            "verdict": { "enum": ["pass", "fail", "incomplete"] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "criteria_version": { "type": "string", "pattern": "^\\d+\\.\\d+(\\.\\d+)?$" },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "status": { "$ref": "#/$defs/status" },
+    "status_at": { "type": "string", "format": "date-time" },
+    "status_reason": { "type": "string", "maxLength": 500 },
+    "status_url": { "type": "string", "format": "uri" },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "sha256"],
+        "properties": {
+          "type": { "enum": ["conformance_report", "endpoint_challenge", "register_extract", "idv_result_reference", "review_record", "security_report"] },
+          "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+          "uri": { "type": "string", "format": "uri", "description": "Optional; may be access-controlled. Never contains personal data." }
+        },
+        "additionalProperties": false
+      }
+    },
+    "test_only": { "type": "boolean", "description": "v0.1: MUST be true. Production verifiers MUST reject test_only attestations." },
+    "limitations": { "type": "string", "minLength": 1 },
+    "signature": { "$ref": "urn:onaa:schema:v0.1:jws-signature" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "status": { "enum": ["active", "conditional", "suspended", "revoked", "expired", "superseded"] },
+    "statusRecord": {
+      "description": "Signed, short-lived status statement returned by GET status_url (section 10.5).",
+      "type": "object",
+      "required": ["attestation_status_version", "attestation_id", "issuer_id", "status", "status_at", "next_update", "test_only", "signature"],
+      "properties": {
+        "attestation_status_version": { "const": "0.1.0" },
+        "attestation_id": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+        "issuer_id": { "type": "string" },
+        "status": { "$ref": "#/$defs/status" },
+        "status_at": { "type": "string", "format": "date-time" },
+        "next_update": { "type": "string", "format": "date-time" },
+        "reason": { "type": "string", "maxLength": 500 },
+        "superseded_by": { "type": "string" },
+        "test_only": { "type": "boolean" },
+        "signature": { "$ref": "urn:onaa:schema:v0.1:jws-signature" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

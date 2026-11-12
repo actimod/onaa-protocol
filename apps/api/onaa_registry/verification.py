@@ -13,6 +13,7 @@ from .models import Listing, utcnow
 
 TxtResolver = Callable[[str], list[str]]
 DNS_LABEL = "_onaa-challenge"
+CHALLENGE_PATH = "/.well-known/onaa-verification/{cid}.txt"
 EXPIRY_SWEEP_INTERVAL_SECONDS = 60
 
 
@@ -45,6 +46,38 @@ def system_txt_resolver(name: str) -> list[str]:
 
 def dns_record_name(host: str) -> str:
     return f"{DNS_LABEL}.{host}"
+
+
+def check_host_proof(fetcher, txt_resolver: TxtResolver, *, host: str, method: str, challenge_id: str,
+                     nonce_hash: str) -> str | None:
+    """Return None if `host` publishes the token whose SHA-256 is `nonce_hash`, else an error category.
+
+    The well-known fetch never follows redirects: a redirect to another host must not prove control of this one.
+    """
+    import hmac
+
+    from .netsafety import FetchError, UnsafeURLError
+    from .security import sha256_hex
+
+    if method == "dns_txt":
+        try:
+            values = txt_resolver(dns_record_name(host))
+        except DnsLookupError as exc:
+            return exc.category
+        if any(hmac.compare_digest(sha256_hex(v.strip()), nonce_hash) for v in values):
+            return None
+        return "token_mismatch" if values else "txt_record_not_found"
+    try:
+        res = fetcher.fetch(f"https://{host}" + CHALLENGE_PATH.format(cid=challenge_id), allow_redirects=False)
+    except UnsafeURLError:
+        return "unsafe_url"
+    except FetchError as exc:
+        return exc.category
+    if res.status_code != 200:
+        return f"http_{res.status_code}"
+    if not hmac.compare_digest(sha256_hex(res.body.strip()), nonce_hash):
+        return "token_mismatch"
+    return None
 
 
 def is_currently_verified(listing: Listing) -> bool:

@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:onaa:schema:v0.1:agent-card-extension-params",
+  "title": "ONAA Protocol v0.1 Agent Card extension params (DRAFT ONAA profile, not an official A2A schema)",
+  "description": "Value of `params` in the standard A2A 1.0 AgentExtension object (spec section 4.4.4) whose `uri` is `urn:onaa:a2a-ext:commerce:v0`, inside `capabilities.extensions[]`. ONAA adds NO top-level Agent Card fields. All values are self-declared claims of the agent operator and are untrusted until verified. See specs/onaa-protocol-v0.1.md section 5.",
+  "type": "object",
+  "required": ["onaa_protocol", "spec", "spec_versions", "roles", "message_types", "jwks_uri"],
+  "properties": {
+    "onaa_protocol": { "type": "string", "pattern": "^0\\.[0-9]+$", "description": "ONAA Protocol document version, e.g. \"0.1\"." },
+    "spec": { "const": "onaa.commerce/v0" },
+    "spec_versions": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^0\\.[0-9]+\\.[0-9]+$" },
+      "description": "Envelope spec_version values the agent accepts, highest first. v0.1 agents MUST include \"0.2.0\"."
+    },
+    "roles": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "enum": ["buyer_agent", "seller_agent", "service_provider"] },
+      "description": "Same tokens as the registry API Role values (apps/api). hosting_provider/adapter_gateway are registry roles without ONAA message duties."
+    },
+    "message_types": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {
+        "enum": [
+          "RFQ", "QUOTE", "ORDER_PROPOSE", "ORDER_CONFIRM", "ORDER_REJECT", "ORDER_CANCEL", "ORDER_STATUS",
+          "DISPUTE_OPEN", "SERVICE_HANDOFF_REQUEST", "SERVICE_HANDOFF_ACK", "SERVICE_STATUS_QUERY", "SERVICE_STATUS",
+          "RECEIPT", "REJECT", "ESCROW_HANDOFF_REQUEST", "ESCROW_HANDOFF_ACK"
+        ]
+      },
+      "description": "Envelope types this agent ACCEPTS as inbound requests."
+    },
+    "service_types": {
+      "type": "array", "uniqueItems": true,
+      "items": { "$ref": "urn:onaa:schema:v0.1:service-handoff#/$defs/serviceType" },
+      "description": "Required when roles contains service_provider."
+    },
+    "service_modes": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": { "$ref": "urn:onaa:schema:v0.1:service-handoff#/$defs/mode" },
+      "description": "v0.1: only mock and/or sandbox. Required when roles contains service_provider."
+    },
+    "jwks_uri": {
+      "type": "string", "format": "uri", "maxLength": 2048,
+      "description": "https URL of the agent's RFC 7517 JWK Set. MUST be same-origin with the Agent Card URL. RECOMMENDED path /.well-known/onaa/jwks.json."
+    },
+    "revoked_kids": {
+      "type": "array", "uniqueItems": true, "maxItems": 64,
+      "items": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+      "description": "Key ids the operator has revoked (compromise). Verifiers MUST reject signatures by these kids."
+    },
+    "regions": {
+      "type": "array", "uniqueItems": true, "maxItems": 64,
+      "items": { "type": "string", "pattern": "^([A-Z]{2}|GLOBAL)$" },
+      "description": "ISO 3166-1 alpha-2 or GLOBAL (same tokens as the registry API)."
+    },
+    "currencies": {
+      "type": "array", "uniqueItems": true, "maxItems": 32,
+      "items": { "type": "string", "pattern": "^[A-Z]{3}$" }
+    },
+    "registry_record_ids": {
+      "type": "array", "uniqueItems": true, "maxItems": 8,
+      "items": { "type": "string", "maxLength": 64 },
+      "description": "Optional back-pointers to ONAA registry record ids. A claim only; verifiers check the registry record's agent_card_url points back to this card."
+    },
+    "attestation_urls": {
+      "type": "array", "uniqueItems": true, "maxItems": 8,
+      "items": { "type": "string", "format": "uri", "maxLength": 2048 },
+      "description": "Optional status URLs of ONAA attestations about this agent. A claim only; relying parties verify the signed attestation."
+    },
+    "conformance": {
+      "type": "object",
+      "description": "Optional inputs for the live conformance suite.",
+      "properties": {
+        "rfq": {
+          "type": "object",
+          "description": "An RFQ body (items + currency) that the seller guarantees to answer with a QUOTE during conformance runs. Must be sample/test data.",
+          "required": ["items", "currency"]
+        }
+      }
+    }
+  },
+  "additionalProperties": true,
+  "allOf": [
+    {
+      "if": { "properties": { "roles": { "contains": { "const": "service_provider" } } } },
+      "then": { "required": ["service_types", "service_modes"], "properties": { "service_types": { "minItems": 1 } } }
+    },
+    {
+      "if": { "properties": { "roles": { "contains": { "const": "seller_agent" } } } },
+      "then": { "properties": { "message_types": { "allOf": [{ "contains": { "const": "RFQ" } }, { "contains": { "const": "ORDER_PROPOSE" } }] } } }
+    },
+    {
+      "if": { "properties": { "roles": { "contains": { "const": "service_provider" } } } },
+      "then": { "properties": { "message_types": { "allOf": [{ "contains": { "const": "SERVICE_HANDOFF_REQUEST" } }, { "contains": { "const": "SERVICE_STATUS_QUERY" } }] } } }
+    }
+  ]
+}

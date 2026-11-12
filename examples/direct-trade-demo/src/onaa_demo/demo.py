@@ -18,11 +18,11 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-import httpx
 import uvicorn
+from onaa_protocol import safe_client
 
 from .a2a import AGENT_CARD_PATH
-from .buyer import BuyerAgent, TradeError, TradeResult
+from .buyer import BuyerAgent, BuyerNode, TradeError, TradeResult
 from .mock_escrow import MockEscrow
 from .registry_client import RegistryClient
 from .registry_stub import RegistryStub, sample_record
@@ -63,6 +63,7 @@ def serve(app: Any, sock: socket.socket, base_url: str) -> ServerHandle:
 
 @dataclass
 class DemoNetwork:
+    buyer: BuyerNode
     seller: SellerAgent
     escrow: MockEscrow
     stub: RegistryStub | None
@@ -76,10 +77,13 @@ class DemoNetwork:
 
 def start_network(registry_url: str | None = None) -> DemoNetwork:
     handles: list[ServerHandle] = []
+    b_sock, b_url = bind_ephemeral()
     s_sock, s_url = bind_ephemeral()
     e_sock, e_url = bind_ephemeral()
+    buyer = BuyerNode(b_url)
     seller = SellerAgent(s_url)
     escrow = MockEscrow(e_url)
+    handles.append(serve(buyer.app(), b_sock, b_url))
     handles.append(serve(seller.app(), s_sock, s_url))
     handles.append(serve(escrow.app(), e_sock, e_url))
     stub = None
@@ -102,7 +106,7 @@ def start_network(registry_url: str | None = None) -> DemoNetwork:
         r_sock, r_url = bind_ephemeral()
         handles.append(serve(stub.app, r_sock, r_url))
         registry_url = r_url
-    return DemoNetwork(seller, escrow, stub, registry_url, handles)
+    return DemoNetwork(buyer, seller, escrow, stub, registry_url, handles)
 
 
 def run_demo(registry_url: str | None = None, out=sys.stdout) -> TradeResult:
@@ -113,11 +117,12 @@ def run_demo(registry_url: str | None = None, out=sys.stdout) -> TradeResult:
 
         p("=== ONAA direct-trade demo (SAMPLE nodes, MOCK escrow, no real funds) ===")
         p(f"registry : {net.registry_url}" + ("  (local stub)" if net.stub else "  (REGISTRY_URL)"))
+        p(f"buyer    : {net.buyer.base_url}{AGENT_CARD_PATH}  (card + JWKS only; signs its messages)")
         p(f"seller   : {net.seller.base_url}{AGENT_CARD_PATH}")
         p(f"escrow   : {net.escrow.base_url}{AGENT_CARD_PATH}  (MOCK)")
         p()
-        with httpx.Client(timeout=10.0) as http:
-            buyer = BuyerAgent(RegistryClient(net.registry_url, client=http), http_client=http)
+        with safe_client() as http:  # pins checked addresses, total deadlines, ignores proxy env vars
+            buyer = BuyerAgent(RegistryClient(net.registry_url, client=http), net.buyer, http_client=http)
             try:
                 result = buyer.run()
             finally:
@@ -133,6 +138,11 @@ def run_demo(registry_url: str | None = None, out=sys.stdout) -> TradeResult:
             p(f"  commerce messages seen by registry: {len(relayed)}")
         p(f"--- seller received {len(net.seller.request_log)} A2A request(s) directly from buyer; "
           f"escrow received {len(net.escrow.request_log)} ---")
+        p("--- ONAA Protocol v0.1: ORDER_PROPOSE, ORDER_CONFIRM, SERVICE_HANDOFF_REQUEST/ACK and SERVICE_STATUS "
+          "were JWS-signed (Ed25519, JCS) and verified against each sender's same-origin JWKS ---")
+        p(f"--- buyer ledger: quote={result.ledger.quote_state} order="
+          f"{next(iter(result.ledger.orders.values())).state} handoff="
+          f"{next(iter(result.ledger.handoffs.values())).state} (local view; registry holds no trade state) ---")
         p("RESULT: OK (mock handoff only; no funds moved, no merchant-of-record role)")
         return result
     finally:

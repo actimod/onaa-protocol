@@ -1,0 +1,5 @@
+.venv/
+*.egg-info/
+.ruff_cache/
+# CI/local conformance reports (evidence artifacts, not source)
+conformance-*.json

@@ -58,9 +58,10 @@ python scripts/export_openapi.py         # writes ../../specs/openapi.json
 
 | Method | Path | Auth |
 |---|---|---|
-| GET | `/v1/health`, `/v1/specs`, `/.well-known/onaa-registry.json` | public |
+| GET | `/v1/health`, `/v1/specs`, `/.well-known/onaa-registry.json` (includes `onboarding`), `/llms.txt` | public |
+| POST | `/v1/self-register`, `/v1/self-register/{id}/complete` | public: agent self-registration (key once) |
 | POST | `/v1/operators` | public (returns API key once) |
-| GET/DELETE | `/v1/operators/me` ; POST `/v1/operators/me/keys/rotate` | operator |
+| GET/PATCH/DELETE | `/v1/operators/me` ; POST `/v1/operators/me/keys/rotate` | operator |
 | GET | `/v1/agents?q=&role=&capability=&region=&currency=&protocol=&language=&category=&verified_only=&certified_only=&claimed_only=&status=&limit=&offset=` | public |
 | GET | `/v1/agents/{id}`, `/v1/agents/{id}/trust` | public |
 | POST / PATCH / DELETE | `/v1/agents`, `/v1/agents/{id}` | operator (owner) |
@@ -70,9 +71,47 @@ python scripts/export_openapi.py         # writes ../../specs/openapi.json
 | POST / PATCH / DELETE | `/v1/services`, `/v1/services/{id}` (+ verify-domain, verification-complete) | operator (owner) |
 | POST / GET | `/v1/certifications/applications`, `/v1/certifications/{id}` | operator |
 | POST | `/v1/reports` | public or operator |
-| POST | `/v1/admin/discovered`, `/v1/admin/listings/{id}/suspend`, `/v1/admin/certifications/{id}/decision` | admin token |
+| POST | `/v1/admin/discovered`, `/v1/admin/discovered/services`, `/v1/admin/listings/{id}/suspend`, `/v1/admin/certifications/{id}/decision` | admin token |
 
 Multi-valued filters accept repeats or commas (`region=US,KR`). A listing with region `GLOBAL` matches any region filter.
+
+## Agent self-registration
+
+An AI agent can join with no human signup. Plain-text instructions for LLM agents are served at `GET /llms.txt`
+and as JSON under `onboarding` in `/.well-known/onaa-registry.json`, both built from `ONAA_PUBLIC_BASE_URL`.
+
+1. `POST /v1/self-register` with `{"accept_terms_version": "<current>", "method": "well_known"|"dns_txt",
+   "agent": {AgentCreate}}` (or `"service": {ServiceCreate}`). The payload is fully validated but nothing is listed.
+   The response has `token`, a private `registration_secret` and `challenge_url` / `dns_record_name`.
+2. The agent publishes the token on its own host (same paths as endpoint verification, no redirects).
+3. `POST /v1/self-register/{id}/complete` with `{"registration_secret": ...}`. ONAA creates an agent identity
+   (`operator_type: "agent"`), an agent-scoped `onaa_sk_` key (shown once, SHA-256 stored) and the listing.
+
+The secret exists because the challenge URL and token become public once published; without it anyone watching the
+host could finish the signup and take the key. The signup proof is an anti-abuse gate only: the listing starts
+`registered` with `endpoint_control_verified: false` and `trust.registration_method: "agent_self_registration"`.
+Endpoint Verified stays a separate, paid tier. A discovered copy of the same Agent Card is retired
+(`status_reason: claimed_via_self_registration:<id>`). Operator linkage is optional and later: `PATCH
+/v1/operators/me` can set `operator_type` to `individual`/`organization`, name, country and website (needed before
+paid operator verification); it does not verify anything by itself.
+
+Abuse limits (env): `ONAA_SELF_REGISTRATION_TTL_SECONDS` (3600), `ONAA_SELF_REGISTRATION_PER_IP_PER_HOUR` (10),
+`ONAA_SELF_REGISTRATION_PENDING_PER_HOST` (3), `ONAA_SELF_REGISTRATION_AGENTS_PER_HOST` (3), plus 10 proof
+attempts, the IP write limit, per-identity listing quota and write budget, and the host lock held by a verified
+owner. `ONAA_SELF_REGISTRATION_ENABLED=0` turns the flow off (404). No raw IPs are stored.
+
+Clients: `OnaaClient.self_register(listing, publish)` in the Python SDK does all three steps in one call;
+the MCP server adds `self_register_start` / `self_register_complete` with `--enable-self-registration --key-file`.
+
+## Discovery imports
+
+`POST /v1/admin/discovered` (agents with a public Agent Card) and `POST /v1/admin/discovered/services`
+(providers with official docs; `endpoint_url` optional) create `discovered` listings: `operator_id: null`,
+`claimed: false`, `trust.registration_method: "discovery_import"` and a provenance note saying ONAA observed them
+and they are not registered or endorsed. Search shows them by default; `claimed_only=true` hides them. When the
+provider self-registers on the same host and service type (or the same Agent Card), the discovered copy is retired.
+`scripts/import_discovered.py SEED` validates a seed file offline; `--apply` posts it with `ONAA_ADMIN_TOKEN`.
+Importing into a public registry needs founder approval and a live opt-out page.
 
 ## Endpoint health (ENG-011)
 
@@ -87,7 +126,8 @@ verification; the result is recorded but doesn't block the verification.
 Each level is reported separately in `trust` and never implies another:
 
 1. `discovered` — publicly observed by ONAA, unclaimed (`operator_id: null`, `provenance` shows source).
-2. `registered` — an operator account submitted it and accepted terms.
+2. `registered` — an operator account or a self-registered agent identity submitted it and accepted terms
+   (`trust.registration_method` says which).
 3. `endpoint_control_verified` — operator proved host control with a one-time token, either served at
    `https://<host>/.well-known/onaa-verification/<challenge_id>.txt` (`method: well_known`, default) or published as a
    DNS TXT record at `_onaa-challenge.<host>` (`POST .../verify-domain` with `{"method": "dns_txt"}`).

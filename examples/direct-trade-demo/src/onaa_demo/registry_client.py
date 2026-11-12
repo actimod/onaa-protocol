@@ -18,8 +18,11 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
+from onaa_protocol.registry import trust_label
 
 from .safe_fetch import Resolver, validate_url
+
+__all__ = ["MAX_PAGE", "RegistryClient", "RegistryError", "trust_label"]
 
 MAX_PAGE = 100
 
@@ -83,17 +86,4 @@ def _looks_like_record(r: Any) -> bool:
         and r.get("listing_type") in ("agent", "service", "hosting")
         and isinstance(r.get("status"), str)
         and isinstance(r.get("trust", {}), dict)
-    )
-
-
-def trust_label(record: dict[str, Any]) -> str:
-    """Human-readable, never-merged trust levels (design principle 8)."""
-    t = record.get("trust") or {}
-    certs = t.get("certifications") or []
-    return (
-        f"status={record.get('status')} "
-        f"claimed={t.get('claimed')} "
-        f"endpoint_control_verified={t.get('endpoint_control_verified')} "
-        f"operator_identity_verified={t.get('operator_identity_verified')} "
-        f"certifications={len(certs)}"
     )

@@ -1,0 +1,563 @@
+{
+  "note": "params of the A2A capabilities.extensions[] entry with uri urn:onaa:a2a-ext:commerce:v0.",
+  "valid": [
+    {
+      "name": "seller",
+      "card_url": "https://seller.example.com/.well-known/agent-card.json",
+      "params": {
+        "onaa_protocol": "0.1",
+        "spec": "onaa.commerce/v0",
+        "spec_versions": [
+          "0.2.0",
+          "0.1.0"
+        ],
+        "roles": [
+          "seller_agent"
+        ],
+        "message_types": [
+          "DISPUTE_OPEN",
+          "ORDER_CANCEL",
+          "ORDER_PROPOSE",
+          "ORDER_STATUS",
+          "RFQ",
+          "SERVICE_STATUS"
+        ],
+        "jwks_uri": "https://seller.example.com/.well-known/onaa/jwks.json",
+        "regions": [
+          "US",
+          "DE"
+        ],
+        "currencies": [
+          "USD",
+          "EUR"
+        ],
+        "conformance": {
+          "rfq": {
+            "items": [
+              {
+                "sku": "widget-std",
+                "quantity": 1
+              }
+            ],
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "name": "mock-escrow",
+      "card_url": "https://escrow.example.com/.well-known/agent-card.json",
+      "params": {
+        "onaa_protocol": "0.1",
+        "spec": "onaa.commerce/v0",
+        "spec_versions": [
+          "0.2.0",
+          "0.1.0"
+        ],
+        "roles": [
+          "service_provider"
+        ],
+        "message_types": [
+          "SERVICE_HANDOFF_REQUEST",
+          "SERVICE_STATUS_QUERY"
+        ],
+        "jwks_uri": "https://escrow.example.com/.well-known/onaa/jwks.json",
+        "service_types": [
+          "escrow"
+        ],
+        "service_modes": [
+          "mock"
+        ],
+        "regions": [
+          "GLOBAL"
+        ],
+        "currencies": [
+          "USD",
+          "EUR"
+        ]
+      }
+    },
+    {
+      "name": "unknown-params-are-ignored",
+      "card_url": "https://seller.example.com/.well-known/agent-card.json",
+      "params": {
+        "onaa_protocol": "0.1",
+        "spec": "onaa.commerce/v0",
+        "spec_versions": [
+          "0.2.0",
+          "0.1.0"
+        ],
+        "roles": [
+          "seller_agent"
+        ],
+        "message_types": [
+          "DISPUTE_OPEN",
+          "ORDER_CANCEL",
+          "ORDER_PROPOSE",
+          "ORDER_STATUS",
+          "RFQ",
+          "SERVICE_STATUS"
+        ],
+        "jwks_uri": "https://seller.example.com/.well-known/onaa/jwks.json",
+        "regions": [
+          "US",
+          "DE"
+        ],
+        "currencies": [
+          "USD",
+          "EUR"
+        ],
+        "conformance": {
+          "rfq": {
+            "items": [
+              {
+                "sku": "widget-std",
+                "quantity": 1
+              }
+            ],
+            "currency": "USD"
+          }
+        },
+        "x_future_param": {
+          "note": "unknown params MUST be ignored"
+        }
+      }
+    },
+    {
+      "name": "provider-mock-and-sandbox",
+      "card_url": "https://escrow.example.com/.well-known/agent-card.json",
+      "params": {
+        "onaa_protocol": "0.1",
+        "spec": "onaa.commerce/v0",
+        "spec_versions": [
+          "0.2.0",
+          "0.1.0"
+        ],
+        "roles": [
+          "service_provider"
+        ],
+        "message_types": [
+          "SERVICE_HANDOFF_REQUEST",
+          "SERVICE_STATUS_QUERY"
+        ],
+        "jwks_uri": "https://escrow.example.com/.well-known/onaa/jwks.json",
+        "service_types": [
+          "escrow"
+        ],
+        "service_modes": [
+          "mock",
+          "sandbox"
+        ],
+        "regions": [
+          "GLOBAL"
+        ],
+        "currencies": [
+          "USD",
+          "EUR"
+        ]
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "jwks-cross-origin",
+      "card_url": "https://seller.example.com/.well-known/agent-card.json",
+      "params": {
+        "onaa_protocol": "0.1",
+        "spec": "onaa.commerce/v0",
+        "spec_versions": [
+          "0.2.0",
+          "0.1.0"
+        ],
+        "roles": [
+          "seller_agent"
+        ],
+        "message_types": [
+          "DISPUTE_OPEN",
+          "ORDER_CANCEL",
+          "ORDER_PROPOSE",
+          "ORDER_STATUS",
+          "RFQ",
+          "SERVICE_STATUS"
+        ],
+        "jwks_uri": "https://cdn.example.net/jwks.json",
+        "regions": [
+          "US",
+          "DE"
+        ],
+        "currencies": [
+          "USD",
+          "EUR"
+        ],
+        "conformance": {
+          "rfq": {
+            "items": [
+              {
+                "sku": "widget-std",
+                "quantity": 1
+              }
+            ],
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "name": "missing-jwks-uri",
+      "card_url": "https://seller.example.com/.well-known/agent-card.json",
+      "params": {
+        "onaa_protocol": "0.1",
+        "spec": "onaa.commerce/v0",
+        "spec_versions": [
+          "0.2.0",
+          "0.1.0"
+        ],
+        "roles": [
+          "seller_agent"
+        ],
+        "message_types": [
+          "DISPUTE_OPEN",
+          "ORDER_CANCEL",
+          "ORDER_PROPOSE",
+          "ORDER_STATUS",
+          "RFQ",
+          "SERVICE_STATUS"
+        ],
+        "regions": [
+          "US",
+          "DE"
+        ],
+        "currencies": [
+          "USD",
+          "EUR"
+        ],
+        "conformance": {
+          "rfq": {
+            "items": [
+              {
+                "sku": "widget-std",
+                "quantity": 1
+              }
+            ],
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "name": "service-provider-live-mode",
+      "card_url": "https://escrow.example.com/.well-known/agent-card.json",
+      "params": {
+        "onaa_protocol": "0.1",
+        "spec": "onaa.commerce/v0",
+        "spec_versions": [
+          "0.2.0",
+          "0.1.0"
+        ],
+        "roles": [
+          "service_provider"
+        ],
+        "message_types": [
+          "SERVICE_HANDOFF_REQUEST",
+          "SERVICE_STATUS_QUERY"
+        ],
+        "jwks_uri": "https://escrow.example.com/.well-known/onaa/jwks.json",
+        "service_types": [
+          "escrow"
+        ],
+        "service_modes": [
+          "live"
+        ],
+        "regions": [
+          "GLOBAL"
+        ],
+        "currencies": [
+          "USD",
+          "EUR"
+        ]
+      }
+    },
+    {
+      "name": "service-provider-without-service-types",
+      "card_url": "https://escrow.example.com/.well-known/agent-card.json",
+      "params": {
+        "onaa_protocol": "0.1",
+        "spec": "onaa.commerce/v0",
+        "spec_versions": [
+          "0.2.0",
+          "0.1.0"
+        ],
+        "roles": [
+          "service_provider"
+        ],
+        "message_types": [
+          "SERVICE_HANDOFF_REQUEST",
+          "SERVICE_STATUS_QUERY"
+        ],
+        "jwks_uri": "https://escrow.example.com/.well-known/onaa/jwks.json",
+        "service_modes": [
+          "mock"
+        ],
+        "regions": [
+          "GLOBAL"
+        ],
+        "currencies": [
+          "USD",
+          "EUR"
+        ]
+      }
+    },
+    {
+      "name": "v0-demo-params-only",
+      "card_url": "https://seller.example.com/.well-known/agent-card.json",
+      "params": {
+        "spec": "onaa.commerce/v0",
+        "message_types": [
+          "RFQ",
+          "QUOTE",
+          "REJECT"
+        ]
+      }
+    },
+    {
+      "name": "spec-versions-without-0.2.0",
+      "card_url": "https://seller.example.com/.well-known/agent-card.json",
+      "params": {
+        "onaa_protocol": "0.1",
+        "spec": "onaa.commerce/v0",
+        "spec_versions": [
+          "0.1.0"
+        ],
+        "roles": [
+          "seller_agent"
+        ],
+        "message_types": [
+          "DISPUTE_OPEN",
+          "ORDER_CANCEL",
+          "ORDER_PROPOSE",
+          "ORDER_STATUS",
+          "RFQ",
+          "SERVICE_STATUS"
+        ],
+        "jwks_uri": "https://seller.example.com/.well-known/onaa/jwks.json",
+        "regions": [
+          "US",
+          "DE"
+        ],
+        "currencies": [
+          "USD",
+          "EUR"
+        ],
+        "conformance": {
+          "rfq": {
+            "items": [
+              {
+                "sku": "widget-std",
+                "quantity": 1
+              }
+            ],
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "name": "unknown-role",
+      "card_url": "https://seller.example.com/.well-known/agent-card.json",
+      "params": {
+        "onaa_protocol": "0.1",
+        "spec": "onaa.commerce/v0",
+        "spec_versions": [
+          "0.2.0",
+          "0.1.0"
+        ],
+        "roles": [
+          "registry_admin"
+        ],
+        "message_types": [
+          "DISPUTE_OPEN",
+          "ORDER_CANCEL",
+          "ORDER_PROPOSE",
+          "ORDER_STATUS",
+          "RFQ",
+          "SERVICE_STATUS"
+        ],
+        "jwks_uri": "https://seller.example.com/.well-known/onaa/jwks.json",
+        "regions": [
+          "US",
+          "DE"
+        ],
+        "currencies": [
+          "USD",
+          "EUR"
+        ],
+        "conformance": {
+          "rfq": {
+            "items": [
+              {
+                "sku": "widget-std",
+                "quantity": 1
+              }
+            ],
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "name": "seller-without-rfq-message-type",
+      "card_url": "https://seller.example.com/.well-known/agent-card.json",
+      "params": {
+        "onaa_protocol": "0.1",
+        "spec": "onaa.commerce/v0",
+        "spec_versions": [
+          "0.2.0",
+          "0.1.0"
+        ],
+        "roles": [
+          "seller_agent"
+        ],
+        "message_types": [
+          "ORDER_PROPOSE"
+        ],
+        "jwks_uri": "https://seller.example.com/.well-known/onaa/jwks.json",
+        "regions": [
+          "US",
+          "DE"
+        ],
+        "currencies": [
+          "USD",
+          "EUR"
+        ],
+        "conformance": {
+          "rfq": {
+            "items": [
+              {
+                "sku": "widget-std",
+                "quantity": 1
+              }
+            ],
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "name": "provider-without-handoff-request-type",
+      "card_url": "https://escrow.example.com/.well-known/agent-card.json",
+      "params": {
+        "onaa_protocol": "0.1",
+        "spec": "onaa.commerce/v0",
+        "spec_versions": [
+          "0.2.0",
+          "0.1.0"
+        ],
+        "roles": [
+          "service_provider"
+        ],
+        "message_types": [
+          "SERVICE_STATUS_QUERY"
+        ],
+        "jwks_uri": "https://escrow.example.com/.well-known/onaa/jwks.json",
+        "service_types": [
+          "escrow"
+        ],
+        "service_modes": [
+          "mock"
+        ],
+        "regions": [
+          "GLOBAL"
+        ],
+        "currencies": [
+          "USD",
+          "EUR"
+        ]
+      }
+    },
+    {
+      "name": "region-not-iso-3166",
+      "card_url": "https://seller.example.com/.well-known/agent-card.json",
+      "params": {
+        "onaa_protocol": "0.1",
+        "spec": "onaa.commerce/v0",
+        "spec_versions": [
+          "0.2.0",
+          "0.1.0"
+        ],
+        "roles": [
+          "seller_agent"
+        ],
+        "message_types": [
+          "DISPUTE_OPEN",
+          "ORDER_CANCEL",
+          "ORDER_PROPOSE",
+          "ORDER_STATUS",
+          "RFQ",
+          "SERVICE_STATUS"
+        ],
+        "jwks_uri": "https://seller.example.com/.well-known/onaa/jwks.json",
+        "regions": [
+          "usa"
+        ],
+        "currencies": [
+          "USD",
+          "EUR"
+        ],
+        "conformance": {
+          "rfq": {
+            "items": [
+              {
+                "sku": "widget-std",
+                "quantity": 1
+              }
+            ],
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    {
+      "name": "jwks-uri-other-scheme-same-host",
+      "card_url": "https://seller.example.com/.well-known/agent-card.json",
+      "params": {
+        "onaa_protocol": "0.1",
+        "spec": "onaa.commerce/v0",
+        "spec_versions": [
+          "0.2.0",
+          "0.1.0"
+        ],
+        "roles": [
+          "seller_agent"
+        ],
+        "message_types": [
+          "DISPUTE_OPEN",
+          "ORDER_CANCEL",
+          "ORDER_PROPOSE",
+          "ORDER_STATUS",
+          "RFQ",
+          "SERVICE_STATUS"
+        ],
+        "jwks_uri": "http://seller.example.com/.well-known/onaa/jwks.json",
+        "regions": [
+          "US",
+          "DE"
+        ],
+        "currencies": [
+          "USD",
+          "EUR"
+        ],
+        "conformance": {
+          "rfq": {
+            "items": [
+              {
+                "sku": "widget-std",
+                "quantity": 1
+              }
+            ],
+            "currency": "USD"
+          }
+        }
+      }
+    }
+  ]
+}

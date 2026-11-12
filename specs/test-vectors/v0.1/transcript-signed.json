@@ -1,0 +1,390 @@
+{
+  "description": "Full signed v0.1 trade transcript: RFQ -> QUOTE -> ORDER_PROPOSE -> ORDER_CONFIRM -> SERVICE_HANDOFF_REQUEST(escrow, mock) -> SERVICE_HANDOFF_ACK -> SERVICE_STATUS_QUERY -> SERVICE_STATUS. All messages are sent DIRECTLY between parties; the registry is not involved. MOCK escrow: no funds. TEST-ONLY keys.",
+  "validate_at": "2026-11-12T12:02:00Z",
+  "a2a": {
+    "A2A-Version": "1.0",
+    "A2A-Extensions": "urn:onaa:a2a-ext:commerce:v0",
+    "method": "SendMessage",
+    "contextId": "rfq-0000-4000-8000-000000000001"
+  },
+  "parties": {
+    "buyer": {
+      "agent_id": "sample-buyer-agent",
+      "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json",
+      "jwks": {
+        "keys": [
+          {
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "x": "xhOgc2WsNmPUY7FO52-IROplcnVOhAMY4aTXuC_Uq68",
+            "kid": "buyer-test-2026-11",
+            "use": "sig",
+            "alg": "EdDSA"
+          }
+        ]
+      }
+    },
+    "seller": {
+      "agent_id": "sample-seller-agent",
+      "agent_card_url": "https://seller.example.com/.well-known/agent-card.json",
+      "jwks": {
+        "keys": [
+          {
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "x": "v3ZmPrmMiAASSl4S8pv964-Rq1UdFAXbl0mmqRtdkXw",
+            "kid": "seller-test-2026-11",
+            "use": "sig",
+            "alg": "EdDSA"
+          }
+        ]
+      }
+    },
+    "escrow": {
+      "agent_id": "mock-escrow-service",
+      "agent_card_url": "https://escrow.example.com/.well-known/agent-card.json",
+      "jwks": {
+        "keys": [
+          {
+            "kty": "OKP",
+            "crv": "Ed25519",
+            "x": "-WBb9KBTy00GELD1xiIb2GyQuaIPsM73kEGXwMDAp6k",
+            "kid": "escrow-test-2026-11",
+            "use": "sig",
+            "alg": "EdDSA"
+          }
+        ]
+      }
+    }
+  },
+  "messages": [
+    {
+      "step": 1,
+      "direction": "buyer->seller",
+      "signed": false,
+      "envelope": {
+        "spec": "onaa.commerce/v0",
+        "spec_version": "0.2.0",
+        "type": "RFQ",
+        "id": "rfq-0000-4000-8000-000000000001",
+        "idempotency_key": "idem-rfq-000000000001",
+        "nonce": "nonce-rfq-0000000000000001",
+        "created_at": "2026-11-12T12:00:00Z",
+        "expires_at": "2026-11-12T12:15:00Z",
+        "sender": {
+          "agent_id": "sample-buyer-agent",
+          "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+        },
+        "body": {
+          "items": [
+            {
+              "sku": "widget-std",
+              "quantity": 4
+            }
+          ],
+          "currency": "USD",
+          "delivery_region": "US",
+          "max_total_minor": 10000
+        },
+        "recipient": {
+          "agent_id": "sample-seller-agent",
+          "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+        }
+      }
+    },
+    {
+      "step": 2,
+      "direction": "seller->buyer",
+      "signed": true,
+      "envelope": {
+        "spec": "onaa.commerce/v0",
+        "spec_version": "0.2.0",
+        "type": "QUOTE",
+        "id": "quote-0000-4000-8000-000000000001",
+        "idempotency_key": "idem-quote-000000000001",
+        "nonce": "nonce-quote-0000000000000001",
+        "created_at": "2026-11-12T12:00:05Z",
+        "expires_at": "2026-11-12T12:15:05Z",
+        "sender": {
+          "agent_id": "sample-seller-agent",
+          "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+        },
+        "body": {
+          "rfq_id": "rfq-0000-4000-8000-000000000001",
+          "revision": 1,
+          "seller_agent_id": "sample-seller-agent",
+          "buyer_agent_id": "sample-buyer-agent",
+          "currency": "USD",
+          "line_items": [
+            {
+              "sku": "widget-std",
+              "description": "Standard widget (SAMPLE)",
+              "quantity": 4,
+              "unit_price_minor": 1250,
+              "line_total_minor": 5000
+            }
+          ],
+          "shipping_minor": 0,
+          "tax_policy": "not_included",
+          "total_minor": 5000,
+          "delivery_terms": "DAP",
+          "delivery_region": "US",
+          "settlement": {
+            "escrow_required": true,
+            "accepted_service_types": [
+              "escrow"
+            ]
+          },
+          "sample": true,
+          "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+        },
+        "recipient": {
+          "agent_id": "sample-buyer-agent",
+          "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+        },
+        "in_reply_to": "rfq-0000-4000-8000-000000000001",
+        "signature": {
+          "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
+          "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+        }
+      }
+    },
+    {
+      "step": 3,
+      "direction": "buyer->seller",
+      "signed": true,
+      "envelope": {
+        "spec": "onaa.commerce/v0",
+        "spec_version": "0.2.0",
+        "type": "ORDER_PROPOSE",
+        "id": "order-0000-4000-8000-000000000001",
+        "idempotency_key": "idem-order-000000000001",
+        "nonce": "nonce-order-0000000000000001",
+        "created_at": "2026-11-12T12:00:20Z",
+        "expires_at": "2026-11-12T12:15:20Z",
+        "sender": {
+          "agent_id": "sample-buyer-agent",
+          "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+        },
+        "body": {
+          "quote_id": "quote-0000-4000-8000-000000000001",
+          "quote_revision": 1,
+          "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+          "rfq_id": "rfq-0000-4000-8000-000000000001",
+          "buyer_agent_id": "sample-buyer-agent",
+          "seller_agent_id": "sample-seller-agent",
+          "currency": "USD",
+          "total_minor": 5000,
+          "delivery_region": "US",
+          "settlement": {
+            "service_type": "escrow"
+          },
+          "buyer_authority": {
+            "max_total_minor": 10000,
+            "human_approval": "not_required"
+          }
+        },
+        "recipient": {
+          "agent_id": "sample-seller-agent",
+          "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+        },
+        "signature": {
+          "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
+          "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+        }
+      }
+    },
+    {
+      "step": 4,
+      "direction": "seller->buyer",
+      "signed": true,
+      "envelope": {
+        "spec": "onaa.commerce/v0",
+        "spec_version": "0.2.0",
+        "type": "ORDER_CONFIRM",
+        "id": "confirm-0000-4000-8000-000000000001",
+        "idempotency_key": "idem-confirm-000000000001",
+        "nonce": "nonce-confirm-0000000000000001",
+        "created_at": "2026-11-12T12:00:21Z",
+        "expires_at": "2026-11-12T12:15:21Z",
+        "sender": {
+          "agent_id": "sample-seller-agent",
+          "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+        },
+        "body": {
+          "order_id": "order-0000-4000-8000-000000000001",
+          "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+          "quote_id": "quote-0000-4000-8000-000000000001",
+          "state": "CONFIRMED",
+          "seller_order_reference": "SAMPLE-SO-0001"
+        },
+        "recipient": {
+          "agent_id": "sample-buyer-agent",
+          "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+        },
+        "in_reply_to": "order-0000-4000-8000-000000000001",
+        "signature": {
+          "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
+          "signature": "uL-JSOrA8bASxywu3ZWGRxQ1sPs6zSKXSkjA9e4qee5d28aT90fbvNmyphZY5BkWyR9Enevlp4o9Pte_1Y29Cw"
+        }
+      }
+    },
+    {
+      "step": 5,
+      "direction": "buyer->escrow",
+      "signed": true,
+      "envelope": {
+        "spec": "onaa.commerce/v0",
+        "spec_version": "0.2.0",
+        "type": "SERVICE_HANDOFF_REQUEST",
+        "id": "handoff-0000-4000-8000-000000000001",
+        "idempotency_key": "idem-handoff-000000000001",
+        "nonce": "nonce-handoff-0000000000000001",
+        "created_at": "2026-11-12T12:00:30Z",
+        "expires_at": "2026-11-12T12:15:30Z",
+        "sender": {
+          "agent_id": "sample-buyer-agent",
+          "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+        },
+        "body": {
+          "service_type": "escrow",
+          "mode": "mock",
+          "order_id": "order-0000-4000-8000-000000000001",
+          "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+          "quote_id": "quote-0000-4000-8000-000000000001",
+          "quote_expires_at": "2026-11-12T12:15:05Z",
+          "parties": {
+            "buyer_agent_id": "sample-buyer-agent",
+            "seller_agent_id": "sample-seller-agent"
+          },
+          "currency": "USD",
+          "amount_minor": 5000
+        },
+        "recipient": {
+          "agent_id": "mock-escrow-service",
+          "agent_card_url": "https://escrow.example.com/.well-known/agent-card.json"
+        },
+        "signature": {
+          "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
+          "signature": "zNpUD2NrRI6kuoL6xDpTXbqtIwDiwCwF2vGkS6Yj1cRdSxJV2f9gMkM--WCsPHVl54sq_D36jpXwO-sTY7ruAA"
+        }
+      }
+    },
+    {
+      "step": 6,
+      "direction": "escrow->buyer",
+      "signed": true,
+      "envelope": {
+        "spec": "onaa.commerce/v0",
+        "spec_version": "0.2.0",
+        "type": "SERVICE_HANDOFF_ACK",
+        "id": "ack-0000-4000-8000-000000000001",
+        "idempotency_key": "idem-ack-000000000001",
+        "nonce": "nonce-ack-0000000000000001",
+        "created_at": "2026-11-12T12:00:31Z",
+        "expires_at": "2026-11-12T13:00:31Z",
+        "sender": {
+          "agent_id": "mock-escrow-service",
+          "agent_card_url": "https://escrow.example.com/.well-known/agent-card.json"
+        },
+        "body": {
+          "service_type": "escrow",
+          "mode": "mock",
+          "mock": true,
+          "label": "MOCK ESCROW - NO REAL FUNDS - NOT A LICENSED ESCROW SERVICE",
+          "handoff_reference": "MOCK-ESC-0000000000000001",
+          "state": "CREATED",
+          "provider_state": "MOCK_CREATED",
+          "provider_confirmed": false,
+          "order_id": "order-0000-4000-8000-000000000001",
+          "currency": "USD",
+          "amount_minor": 5000,
+          "funds_held_minor": 0,
+          "next_step": "None. Mock only; no funds move."
+        },
+        "recipient": {
+          "agent_id": "sample-buyer-agent",
+          "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+        },
+        "in_reply_to": "handoff-0000-4000-8000-000000000001",
+        "signature": {
+          "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImVzY3Jvdy10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
+          "signature": "wQXpdnmMB549RGXtq-apgNMvNUYNyKpywdMD3xwv-dBBESWCGe-fXn6-RcU6dTFhklt-jnF9ANSBeHc1elU8Bg"
+        }
+      }
+    },
+    {
+      "step": 7,
+      "direction": "buyer->escrow",
+      "signed": false,
+      "envelope": {
+        "spec": "onaa.commerce/v0",
+        "spec_version": "0.2.0",
+        "type": "SERVICE_STATUS_QUERY",
+        "id": "squery-0000-4000-8000-000000000001",
+        "idempotency_key": "idem-squery-000000000001",
+        "nonce": "nonce-squery-0000000000000001",
+        "created_at": "2026-11-12T12:00:40Z",
+        "expires_at": "2026-11-12T12:15:40Z",
+        "sender": {
+          "agent_id": "sample-buyer-agent",
+          "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+        },
+        "body": {
+          "handoff_reference": "MOCK-ESC-0000000000000001",
+          "service_type": "escrow"
+        },
+        "recipient": {
+          "agent_id": "mock-escrow-service",
+          "agent_card_url": "https://escrow.example.com/.well-known/agent-card.json"
+        }
+      }
+    },
+    {
+      "step": 8,
+      "direction": "escrow->buyer",
+      "signed": true,
+      "envelope": {
+        "spec": "onaa.commerce/v0",
+        "spec_version": "0.2.0",
+        "type": "SERVICE_STATUS",
+        "id": "sstatus-0000-4000-8000-000000000001",
+        "idempotency_key": "idem-sstatus-000000000001",
+        "nonce": "nonce-sstatus-0000000000000001",
+        "created_at": "2026-11-12T12:00:41Z",
+        "expires_at": "2026-11-12T12:15:41Z",
+        "sender": {
+          "agent_id": "mock-escrow-service",
+          "agent_card_url": "https://escrow.example.com/.well-known/agent-card.json"
+        },
+        "body": {
+          "service_type": "escrow",
+          "mode": "mock",
+          "mock": true,
+          "handoff_reference": "MOCK-ESC-0000000000000001",
+          "state": "CREATED",
+          "provider_state": "MOCK_CREATED",
+          "provider_confirmed": false,
+          "order_id": "order-0000-4000-8000-000000000001",
+          "funds_held_minor": 0,
+          "updated_at": "2026-11-12T12:00:31Z"
+        },
+        "recipient": {
+          "agent_id": "sample-buyer-agent",
+          "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+        },
+        "in_reply_to": "squery-0000-4000-8000-000000000001",
+        "signature": {
+          "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImVzY3Jvdy10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
+          "signature": "Y-Xw2XNbjF1zi0g4C64vM2ruOgvv4N7w8irsTCRi2drr-4EfC_KgCC2VoYRMuaxbtZsHDCUG_ll1_Nmf4ynNDw"
+        }
+      }
+    }
+  ],
+  "expected_final": {
+    "quote_state": "ACCEPTED",
+    "order_state": "CONFIRMED",
+    "handoff_state": "CREATED",
+    "funds_held_minor": 0
+  }
+}

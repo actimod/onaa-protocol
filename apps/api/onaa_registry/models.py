@@ -38,7 +38,7 @@ class Operator(Base):
 
     id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("op"))
     display_name: Mapped[str] = mapped_column(String(200))
-    operator_type: Mapped[str] = mapped_column(String(20))  # individual | organization
+    operator_type: Mapped[str] = mapped_column(String(20))  # individual | organization | agent (self-registered)
     country: Mapped[str | None] = mapped_column(String(2), nullable=True)
     website_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     terms_version: Mapped[str] = mapped_column(String(40))
@@ -110,6 +110,8 @@ class Listing(Base):
     verification_entitled_until: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Moderation hints such as "name_collision_review"; never set by operators.
     review_flags: Mapped[list] = mapped_column(JSON, default=list)
+    # How the listing entered the registry: operator_account | agent_self_registration | discovery_import.
+    registration_method: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
     # Discovery provenance (status "discovered" only)
     source_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
@@ -172,6 +174,32 @@ class DomainChallenge(Base):
     expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
     verified_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+
+class SelfRegistration(Base):
+    """Pending agent self-registration (no human signup). The listing payload is held until the agent proves
+    control of its endpoint host; only then are an agent operator, an API key and the listing created."""
+
+    __tablename__ = "self_registrations"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("sreg"))
+    kind: Mapped[str] = mapped_column(String(10))  # agent | service
+    payload: Mapped[dict] = mapped_column(JSON)
+    host: Mapped[str] = mapped_column(String(253), index=True)
+    method: Mapped[str] = mapped_column(String(20), default="well_known")  # well_known | dns_txt
+    nonce_hash: Mapped[str] = mapped_column(String(64))
+    terms_version: Mapped[str] = mapped_column(String(40))
+    # SHA-256 of the registration secret returned only to the starting client. The challenge URL and token are
+    # public once published, so completing (and receiving the API key) also requires this secret.
+    secret_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)  # pending|completed|failed|expired
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    operator_id: Mapped[str | None] = mapped_column(ForeignKey("operators.id", ondelete="SET NULL"), nullable=True)
+    listing_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class CertificationApplication(Base):

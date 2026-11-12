@@ -4,11 +4,12 @@ import json
 from pathlib import Path
 
 import pytest
+from onaa_protocol import schemas
 
 from onaa_demo.demo import start_network
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCHEMA_PATH = REPO_ROOT / "specs" / "commerce-envelope.v0.draft.schema.json"
+V0_SCHEMA_PATH = REPO_ROOT / "specs" / "commerce-envelope.v0.draft.schema.json"
 
 
 @pytest.fixture
@@ -32,8 +33,14 @@ def network(allow_localhost):
 
 @pytest.fixture(scope="session")
 def envelope_validator():
+    """ONAA Protocol v0.1 envelope schema (specs/schemas/onaa/v0.1/envelope.schema.json, bundled)."""
+    return schemas.validator("envelope")
+
+
+@pytest.fixture(scope="session")
+def v0_validator():
+    """Superseded v0 schema: legacy 0.1.0 envelopes must still validate against it."""
     jsonschema = pytest.importorskip("jsonschema")
-    schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    schema = json.loads(V0_SCHEMA_PATH.read_text(encoding="utf-8"))
     cls = jsonschema.validators.validator_for(schema)
-    cls.check_schema(schema)
     return cls(schema, format_checker=cls.FORMAT_CHECKER)

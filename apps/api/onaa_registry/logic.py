@@ -214,6 +214,8 @@ def to_record(listing: Listing, operator: Operator | None = None) -> schemas.Reg
             endpoint_verified_until=aware(listing.endpoint_verified_until) if verified else None,
             endpoint_verification_method=listing.endpoint_verification_method if verified else None,
             review_flags=list(listing.review_flags or []),
+            registration_method=listing.registration_method
+            or ("discovery_import" if listing.source_url and listing.operator_id is None else "operator_account"),
             reachability=listing.reachability or "unknown",
             last_check_result=listing.last_check_result,
             operator_identity_verified=bool(claimed and operator and operator.identity_verified),

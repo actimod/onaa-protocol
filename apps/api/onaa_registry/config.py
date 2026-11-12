@@ -51,3 +51,15 @@ class Settings:
     public_base_url: str = field(
         default_factory=lambda: os.environ.get("ONAA_PUBLIC_BASE_URL", "http://localhost:8000")
     )
+    # Agent self-registration: no human signup; the agent proves endpoint-host control first.
+    self_registration_enabled: bool = field(
+        default_factory=lambda: os.environ.get("ONAA_SELF_REGISTRATION_ENABLED", "1") == "1")
+    self_registration_ttl_seconds: int = field(
+        default_factory=lambda: int(os.environ.get("ONAA_SELF_REGISTRATION_TTL_SECONDS", "3600")))
+    # Starts per client IP per hour (0 disables), pending starts per host, and agent identities per host.
+    self_registration_per_ip_per_hour: int = field(
+        default_factory=lambda: int(os.environ.get("ONAA_SELF_REGISTRATION_PER_IP_PER_HOUR", "10")))
+    self_registration_pending_per_host: int = field(
+        default_factory=lambda: int(os.environ.get("ONAA_SELF_REGISTRATION_PENDING_PER_HOST", "3")))
+    self_registration_agents_per_host: int = field(
+        default_factory=lambda: int(os.environ.get("ONAA_SELF_REGISTRATION_AGENTS_PER_HOST", "3")))

@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from onaa_demo.a2a import AGENT_CARD_PATH
-from onaa_demo.buyer import BuyerAgent
+from onaa_demo.buyer import BuyerAgent, BuyerNode
 from onaa_demo.demo import bind_ephemeral, serve
 from onaa_demo.mock_escrow import MockEscrow
 from onaa_demo.registry_client import RegistryClient, RegistryError
@@ -90,15 +90,23 @@ def test_contract_against_real_registry_api(strict_mode):
     from onaa_registry.config import Settings
     from onaa_registry.main import create_app
 
-    s_host, e_host = "seller.demo.example.com", "escrow.demo.example.com"
+    b_host, s_host, e_host = "buyer.demo.example.com", "seller.demo.example.com", "escrow.demo.example.com"
+    b_sock, b_local = bind_ephemeral()
     s_sock, s_local = bind_ephemeral()
     e_sock, e_local = bind_ephemeral()
     r_sock, r_local = bind_ephemeral()
-    seller = SellerAgent(f"https://{s_host}")
-    escrow = MockEscrow(f"https://{e_host}")
+    # Every agent fetches counterparty cards/JWKS under the strict (non-demo) SSRF policy: https + public IP
+    # via an injected resolver, routed to local servers by a test-only transport.
+    routes = {b_host: b_local, s_host: s_local, e_host: e_local}
+    agent_http = httpx.Client(transport=_RouteToLocal(routes), timeout=10)
+    strict = {"http_client": agent_http, "allow_localhost": False, "resolver": lambda h, p: ["93.184.215.14"]}
+    buyer_node = BuyerNode(f"https://{b_host}", **strict)
+    seller = SellerAgent(f"https://{s_host}", **strict)
+    escrow = MockEscrow(f"https://{e_host}", **strict)
     settings = Settings(database_url="sqlite://", admin_token=None, write_rate_limit_per_minute=0,
                         terms_version="draft-0.1", challenge_ttl_seconds=3600)
-    handles = [serve(seller.app(), s_sock, s_local), serve(escrow.app(), e_sock, e_local),
+    handles = [serve(buyer_node.app(), b_sock, b_local), serve(seller.app(), s_sock, s_local),
+               serve(escrow.app(), e_sock, e_local),
                serve(create_app(settings), r_sock, r_local)]
     try:
         with httpx.Client(timeout=10) as admin:
@@ -120,16 +128,15 @@ def test_contract_against_real_registry_api(strict_mode):
                 "capabilities": ["escrow.mock"], "regions": ["GLOBAL"], "currencies": ["USD"]})
             assert r.status_code == 201, r.text
 
-        transport = _RouteToLocal({s_host: s_local, e_host: e_local})
-        with httpx.Client(transport=transport, timeout=10) as http, httpx.Client(timeout=10) as reg_http:
+        with httpx.Client(timeout=10) as reg_http:
             registry = RegistryClient(r_local, client=reg_http, allow_localhost=True)
-            # Strict (non-demo) SSRF policy for agents: https + public IP via injected resolver.
-            buyer = BuyerAgent(registry, http_client=http, allow_localhost=False,
-                               resolver=lambda h, p: ["93.184.215.14"])
+            buyer = BuyerAgent(registry, buyer_node, **strict)
             result = buyer.run()
         assert result.seller_record["trust"]["registration_status"] == "registered"
         assert result.escrow_ack["body"]["mock"] is True
-        assert len(seller.request_log) == 1 and len(escrow.request_log) == 1
+        assert result.order_confirm["type"] == "ORDER_CONFIRM"
+        assert len(seller.request_log) == 2 and len(escrow.request_log) == 2
     finally:
         for h in handles:
             h.stop()
+        agent_http.close()
