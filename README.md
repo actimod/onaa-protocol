@@ -10,11 +10,37 @@
 |---|---|
 | [`specs/`](specs/) | Draft specifications: the commerce extension for A2A (RFQ / QUOTE / escrow handoff), JSON Schemas for registry and certification records, the registry OpenAPI document, and the standards baseline (pinned A2A / MCP versions). |
 | [`apps/api/`](apps/api/) | Reference **registry API** (FastAPI): registration, search, endpoint verification and separate trust levels. |
-| [`apps/mcp-registry/`](apps/mcp-registry/) | Read-only **MCP server** that exposes registry search to MCP clients (when present). |
+| [`apps/mcp-registry/`](apps/mcp-registry/) | **MCP server** source (Python, official `mcp` SDK): registry search and trust lookups for MCP clients, over stdio or Streamable HTTP. |
 | [`packages/sdk-python/`](packages/sdk-python/) | **Python SDK** for registry discovery and registration. |
 | [`examples/direct-trade-demo/`](examples/direct-trade-demo/) | End-to-end **demo**: buyer agent → registry search → direct A2A RFQ/QUOTE with a seller agent → registry escrow search → mock escrow handoff. |
 | [`docs/PRINCIPLES.md`](docs/PRINCIPLES.md) | The design principles the code and specs follow. |
 | [`docs/ADR/`](docs/ADR/) | Architecture decision records. |
+
+## MCP server
+
+The MCP server's full source is in [`apps/mcp-registry/`](apps/mcp-registry/) (entry point `onaa_mcp_registry/server.py`). It is read-only by default and exposes three tools:
+
+| Tool | Purpose |
+|---|---|
+| `search_agents` | Find agents by capability, role, region, currency, protocol or text, with trust filters |
+| `search_services` | Find service providers by type (escrow, payment, insurance, logistics, hosting, ...), region and currency |
+| `get_listing` | Fetch one listing with its trust metadata |
+
+Run it yourself (stdio, against the public development registry):
+
+```bash
+pip install ./packages/sdk-python ./apps/mcp-registry
+ONAA_REGISTRY_URL=https://api.onaa.net onaa-mcp-registry
+```
+
+Or with Docker, using the [`Dockerfile`](Dockerfile) at the repository root:
+
+```bash
+docker build -t onaa-mcp-registry .
+docker run -i --rm onaa-mcp-registry
+```
+
+The same server is also hosted at `https://api.onaa.net/mcp` (Streamable HTTP, no auth). Details and client setup: [`apps/mcp-registry/README.md`](apps/mcp-registry/README.md).
 
 ## Try the demo (about one minute, localhost only)
 
