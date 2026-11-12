@@ -1,0 +1,623 @@
+{
+  "evaluate_at": "2026-11-12T12:02:00Z",
+  "note": "Trust levels are independent facts (design principle 8): none implies another.",
+  "cases": [
+    {
+      "name": "discovered",
+      "record": {
+        "registry_record_version": "0.1.0",
+        "id": "agt_d",
+        "operator_id": null,
+        "listing_type": "agent",
+        "service_type": null,
+        "roles": [
+          "seller_agent"
+        ],
+        "display_name": "Sample agt_d",
+        "agent_card_url": "https://seller.example.com/.well-known/agent-card.json",
+        "endpoint_url": "https://seller.example.com/a2a/v1",
+        "supported_protocols": [
+          "a2a"
+        ],
+        "capabilities": [
+          "widgets.sell"
+        ],
+        "regions": [
+          "US"
+        ],
+        "currencies": [
+          "USD"
+        ],
+        "status": "discovered",
+        "trust": {
+          "registration_status": "discovered",
+          "claimed": false,
+          "endpoint_control_verified": false,
+          "endpoint_verified_at": null,
+          "endpoint_verified_until": null,
+          "operator_identity_verified": false,
+          "legal_entity_verified": false,
+          "certifications": [],
+          "review_flags": []
+        }
+      },
+      "expected": {
+        "discovered_unclaimed": true,
+        "registered": false,
+        "endpoint_verified": false,
+        "operator_verified": false,
+        "certified": [],
+        "listing_tier": "free",
+        "suspended": false
+      }
+    },
+    {
+      "name": "registered-free",
+      "record": {
+        "registry_record_version": "0.1.0",
+        "id": "agt_r",
+        "operator_id": "op_sample_01",
+        "listing_type": "agent",
+        "service_type": null,
+        "roles": [
+          "seller_agent"
+        ],
+        "display_name": "Sample agt_r",
+        "agent_card_url": "https://seller.example.com/.well-known/agent-card.json",
+        "endpoint_url": "https://seller.example.com/a2a/v1",
+        "supported_protocols": [
+          "a2a"
+        ],
+        "capabilities": [
+          "widgets.sell"
+        ],
+        "regions": [
+          "US"
+        ],
+        "currencies": [
+          "USD"
+        ],
+        "status": "registered",
+        "trust": {
+          "registration_status": "registered",
+          "claimed": true,
+          "endpoint_control_verified": false,
+          "endpoint_verified_at": null,
+          "endpoint_verified_until": null,
+          "operator_identity_verified": false,
+          "legal_entity_verified": false,
+          "certifications": [],
+          "review_flags": []
+        }
+      },
+      "expected": {
+        "discovered_unclaimed": false,
+        "registered": true,
+        "endpoint_verified": false,
+        "operator_verified": false,
+        "certified": [],
+        "listing_tier": "free",
+        "suspended": false
+      }
+    },
+    {
+      "name": "endpoint-verified-only",
+      "record": {
+        "registry_record_version": "0.1.0",
+        "id": "agt_e",
+        "operator_id": "op_sample_01",
+        "listing_type": "agent",
+        "service_type": null,
+        "roles": [
+          "seller_agent"
+        ],
+        "display_name": "Sample agt_e",
+        "agent_card_url": "https://seller.example.com/.well-known/agent-card.json",
+        "endpoint_url": "https://seller.example.com/a2a/v1",
+        "supported_protocols": [
+          "a2a"
+        ],
+        "capabilities": [
+          "widgets.sell"
+        ],
+        "regions": [
+          "US"
+        ],
+        "currencies": [
+          "USD"
+        ],
+        "status": "endpoint_verified",
+        "trust": {
+          "registration_status": "endpoint_verified",
+          "claimed": true,
+          "endpoint_control_verified": true,
+          "endpoint_verified_at": null,
+          "endpoint_verified_until": "2027-02-10T12:00:00Z",
+          "operator_identity_verified": false,
+          "legal_entity_verified": false,
+          "certifications": [],
+          "review_flags": []
+        }
+      },
+      "expected": {
+        "discovered_unclaimed": false,
+        "registered": true,
+        "endpoint_verified": true,
+        "operator_verified": false,
+        "certified": [],
+        "listing_tier": "free",
+        "suspended": false
+      }
+    },
+    {
+      "name": "operator-verified-without-endpoint",
+      "record": {
+        "registry_record_version": "0.1.0",
+        "id": "agt_o",
+        "operator_id": "op_sample_01",
+        "listing_type": "agent",
+        "service_type": null,
+        "roles": [
+          "seller_agent"
+        ],
+        "display_name": "Sample agt_o",
+        "agent_card_url": "https://seller.example.com/.well-known/agent-card.json",
+        "endpoint_url": "https://seller.example.com/a2a/v1",
+        "supported_protocols": [
+          "a2a"
+        ],
+        "capabilities": [
+          "widgets.sell"
+        ],
+        "regions": [
+          "US"
+        ],
+        "currencies": [
+          "USD"
+        ],
+        "status": "registered",
+        "trust": {
+          "registration_status": "registered",
+          "claimed": true,
+          "endpoint_control_verified": false,
+          "endpoint_verified_at": null,
+          "endpoint_verified_until": null,
+          "operator_identity_verified": true,
+          "legal_entity_verified": false,
+          "certifications": [],
+          "review_flags": []
+        }
+      },
+      "expected": {
+        "discovered_unclaimed": false,
+        "registered": true,
+        "endpoint_verified": false,
+        "operator_verified": true,
+        "certified": [],
+        "listing_tier": "free",
+        "suspended": false
+      }
+    },
+    {
+      "name": "certified-but-endpoint-proof-expired",
+      "record": {
+        "registry_record_version": "0.1.0",
+        "id": "agt_c",
+        "operator_id": "op_sample_01",
+        "listing_type": "agent",
+        "service_type": null,
+        "roles": [
+          "seller_agent"
+        ],
+        "display_name": "Sample agt_c",
+        "agent_card_url": "https://seller.example.com/.well-known/agent-card.json",
+        "endpoint_url": "https://seller.example.com/a2a/v1",
+        "supported_protocols": [
+          "a2a"
+        ],
+        "capabilities": [
+          "widgets.sell"
+        ],
+        "regions": [
+          "US"
+        ],
+        "currencies": [
+          "USD"
+        ],
+        "status": "certified",
+        "trust": {
+          "registration_status": "certified",
+          "claimed": true,
+          "endpoint_control_verified": true,
+          "endpoint_verified_at": null,
+          "endpoint_verified_until": "2026-11-11T12:00:00Z",
+          "operator_identity_verified": false,
+          "legal_entity_verified": false,
+          "certifications": [
+            {
+              "id": "cert_1",
+              "scheme": "protocol_certified",
+              "criteria_version": "0.1",
+              "status": "active",
+              "issued_at": "2026-11-12T12:00:00Z",
+              "expires_at": "2027-11-12T12:00:00Z"
+            }
+          ],
+          "review_flags": []
+        }
+      },
+      "expected": {
+        "discovered_unclaimed": false,
+        "registered": true,
+        "endpoint_verified": false,
+        "operator_verified": false,
+        "certified": [
+          "protocol_certified"
+        ],
+        "listing_tier": "free",
+        "suspended": false
+      }
+    },
+    {
+      "name": "expired-certification-not-counted",
+      "record": {
+        "registry_record_version": "0.1.0",
+        "id": "agt_x",
+        "operator_id": "op_sample_01",
+        "listing_type": "agent",
+        "service_type": null,
+        "roles": [
+          "seller_agent"
+        ],
+        "display_name": "Sample agt_x",
+        "agent_card_url": "https://seller.example.com/.well-known/agent-card.json",
+        "endpoint_url": "https://seller.example.com/a2a/v1",
+        "supported_protocols": [
+          "a2a"
+        ],
+        "capabilities": [
+          "widgets.sell"
+        ],
+        "regions": [
+          "US"
+        ],
+        "currencies": [
+          "USD"
+        ],
+        "status": "registered",
+        "trust": {
+          "registration_status": "registered",
+          "claimed": true,
+          "endpoint_control_verified": false,
+          "endpoint_verified_at": null,
+          "endpoint_verified_until": null,
+          "operator_identity_verified": false,
+          "legal_entity_verified": false,
+          "certifications": [
+            {
+              "id": "cert_1",
+              "scheme": "protocol_certified",
+              "criteria_version": "0.1",
+              "status": "active",
+              "issued_at": "2026-11-12T12:00:00Z",
+              "expires_at": "2026-11-12T12:00:00Z"
+            }
+          ],
+          "review_flags": []
+        }
+      },
+      "expected": {
+        "discovered_unclaimed": false,
+        "registered": true,
+        "endpoint_verified": false,
+        "operator_verified": false,
+        "certified": [],
+        "listing_tier": "free",
+        "suspended": false
+      }
+    },
+    {
+      "name": "claim-pending-is-not-registered",
+      "record": {
+        "registry_record_version": "0.1.0",
+        "id": "agt_p",
+        "operator_id": "op_sample_01",
+        "listing_type": "agent",
+        "service_type": null,
+        "roles": [
+          "seller_agent"
+        ],
+        "display_name": "Sample agt_p",
+        "agent_card_url": "https://seller.example.com/.well-known/agent-card.json",
+        "endpoint_url": "https://seller.example.com/a2a/v1",
+        "supported_protocols": [
+          "a2a"
+        ],
+        "capabilities": [
+          "widgets.sell"
+        ],
+        "regions": [
+          "US"
+        ],
+        "currencies": [
+          "USD"
+        ],
+        "status": "claim_pending",
+        "trust": {
+          "registration_status": "claim_pending",
+          "claimed": false,
+          "endpoint_control_verified": false,
+          "endpoint_verified_at": null,
+          "endpoint_verified_until": null,
+          "operator_identity_verified": false,
+          "legal_entity_verified": false,
+          "certifications": [],
+          "review_flags": []
+        }
+      },
+      "expected": {
+        "discovered_unclaimed": true,
+        "registered": false,
+        "endpoint_verified": false,
+        "operator_verified": false,
+        "certified": [],
+        "listing_tier": "free",
+        "suspended": false
+      }
+    },
+    {
+      "name": "status-certified-without-certification-is-not-certified",
+      "record": {
+        "registry_record_version": "0.1.0",
+        "id": "agt_s",
+        "operator_id": "op_sample_01",
+        "listing_type": "agent",
+        "service_type": null,
+        "roles": [
+          "seller_agent"
+        ],
+        "display_name": "Sample agt_s",
+        "agent_card_url": "https://seller.example.com/.well-known/agent-card.json",
+        "endpoint_url": "https://seller.example.com/a2a/v1",
+        "supported_protocols": [
+          "a2a"
+        ],
+        "capabilities": [
+          "widgets.sell"
+        ],
+        "regions": [
+          "US"
+        ],
+        "currencies": [
+          "USD"
+        ],
+        "status": "certified",
+        "trust": {
+          "registration_status": "certified",
+          "claimed": true,
+          "endpoint_control_verified": false,
+          "endpoint_verified_at": null,
+          "endpoint_verified_until": null,
+          "operator_identity_verified": false,
+          "legal_entity_verified": false,
+          "certifications": [],
+          "review_flags": []
+        }
+      },
+      "expected": {
+        "discovered_unclaimed": false,
+        "registered": true,
+        "endpoint_verified": false,
+        "operator_verified": false,
+        "certified": [],
+        "listing_tier": "free",
+        "suspended": false
+      }
+    },
+    {
+      "name": "status-endpoint-verified-without-proof-is-not-endpoint-verified",
+      "record": {
+        "registry_record_version": "0.1.0",
+        "id": "agt_v",
+        "operator_id": "op_sample_01",
+        "listing_type": "agent",
+        "service_type": null,
+        "roles": [
+          "seller_agent"
+        ],
+        "display_name": "Sample agt_v",
+        "agent_card_url": "https://seller.example.com/.well-known/agent-card.json",
+        "endpoint_url": "https://seller.example.com/a2a/v1",
+        "supported_protocols": [
+          "a2a"
+        ],
+        "capabilities": [
+          "widgets.sell"
+        ],
+        "regions": [
+          "US"
+        ],
+        "currencies": [
+          "USD"
+        ],
+        "status": "endpoint_verified",
+        "trust": {
+          "registration_status": "endpoint_verified",
+          "claimed": true,
+          "endpoint_control_verified": false,
+          "endpoint_verified_at": null,
+          "endpoint_verified_until": null,
+          "operator_identity_verified": false,
+          "legal_entity_verified": false,
+          "certifications": [],
+          "review_flags": []
+        }
+      },
+      "expected": {
+        "discovered_unclaimed": false,
+        "registered": true,
+        "endpoint_verified": false,
+        "operator_verified": false,
+        "certified": [],
+        "listing_tier": "free",
+        "suspended": false
+      }
+    },
+    {
+      "name": "unknown-certification-status-not-counted",
+      "record": {
+        "registry_record_version": "0.1.0",
+        "id": "agt_u",
+        "operator_id": "op_sample_01",
+        "listing_type": "agent",
+        "service_type": null,
+        "roles": [
+          "seller_agent"
+        ],
+        "display_name": "Sample agt_u",
+        "agent_card_url": "https://seller.example.com/.well-known/agent-card.json",
+        "endpoint_url": "https://seller.example.com/a2a/v1",
+        "supported_protocols": [
+          "a2a"
+        ],
+        "capabilities": [
+          "widgets.sell"
+        ],
+        "regions": [
+          "US"
+        ],
+        "currencies": [
+          "USD"
+        ],
+        "status": "registered",
+        "trust": {
+          "registration_status": "registered",
+          "claimed": true,
+          "endpoint_control_verified": false,
+          "endpoint_verified_at": null,
+          "endpoint_verified_until": null,
+          "operator_identity_verified": false,
+          "legal_entity_verified": false,
+          "certifications": [
+            {
+              "id": "cert_1",
+              "scheme": "protocol_certified",
+              "criteria_version": "0.1",
+              "status": "pending_review",
+              "issued_at": "2026-11-12T12:00:00Z",
+              "expires_at": "2027-11-12T12:00:00Z"
+            }
+          ],
+          "review_flags": []
+        }
+      },
+      "expected": {
+        "discovered_unclaimed": false,
+        "registered": true,
+        "endpoint_verified": false,
+        "operator_verified": false,
+        "certified": [],
+        "listing_tier": "free",
+        "suspended": false
+      }
+    },
+    {
+      "name": "legal-entity-alone-is-not-operator-verified",
+      "record": {
+        "registry_record_version": "0.1.0",
+        "id": "agt_l",
+        "operator_id": "op_sample_01",
+        "listing_type": "agent",
+        "service_type": null,
+        "roles": [
+          "seller_agent"
+        ],
+        "display_name": "Sample agt_l",
+        "agent_card_url": "https://seller.example.com/.well-known/agent-card.json",
+        "endpoint_url": "https://seller.example.com/a2a/v1",
+        "supported_protocols": [
+          "a2a"
+        ],
+        "capabilities": [
+          "widgets.sell"
+        ],
+        "regions": [
+          "US"
+        ],
+        "currencies": [
+          "USD"
+        ],
+        "status": "registered",
+        "trust": {
+          "registration_status": "registered",
+          "claimed": true,
+          "endpoint_control_verified": false,
+          "endpoint_verified_at": null,
+          "endpoint_verified_until": null,
+          "operator_identity_verified": false,
+          "legal_entity_verified": true,
+          "certifications": [],
+          "review_flags": []
+        }
+      },
+      "expected": {
+        "discovered_unclaimed": false,
+        "registered": true,
+        "endpoint_verified": false,
+        "operator_verified": false,
+        "certified": [],
+        "listing_tier": "free",
+        "suspended": false
+      }
+    },
+    {
+      "name": "suspended-listing-keeps-separate-facts",
+      "record": {
+        "registry_record_version": "0.1.0",
+        "id": "agt_z",
+        "operator_id": "op_sample_01",
+        "listing_type": "agent",
+        "service_type": null,
+        "roles": [
+          "seller_agent"
+        ],
+        "display_name": "Sample agt_z",
+        "agent_card_url": "https://seller.example.com/.well-known/agent-card.json",
+        "endpoint_url": "https://seller.example.com/a2a/v1",
+        "supported_protocols": [
+          "a2a"
+        ],
+        "capabilities": [
+          "widgets.sell"
+        ],
+        "regions": [
+          "US"
+        ],
+        "currencies": [
+          "USD"
+        ],
+        "status": "suspended",
+        "trust": {
+          "registration_status": "suspended",
+          "claimed": true,
+          "endpoint_control_verified": false,
+          "endpoint_verified_at": null,
+          "endpoint_verified_until": null,
+          "operator_identity_verified": false,
+          "legal_entity_verified": false,
+          "certifications": [],
+          "review_flags": []
+        }
+      },
+      "expected": {
+        "discovered_unclaimed": false,
+        "registered": true,
+        "endpoint_verified": false,
+        "operator_verified": false,
+        "certified": [],
+        "listing_tier": "free",
+        "suspended": true
+      }
+    }
+  ]
+}

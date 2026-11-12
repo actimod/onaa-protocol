@@ -1,4 +1,5 @@
-"""End-to-end on ephemeral localhost ports: discovery via registry, commerce DIRECT between agents."""
+"""End-to-end on ephemeral localhost ports: discovery via registry, ONAA Protocol v0.1 commerce DIRECT
+between agents (signed ORDER and service handoff)."""
 
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ from onaa_demo.registry_client import RegistryClient
 from onaa_demo.registry_stub import sample_record
 from onaa_demo.seller import SellerAgent
 
-COMMERCE_MARKERS = ("SendMessage", "onaa.commerce", "RFQ", "QUOTE", "ESCROW_HANDOFF", "a2a/v1")
+COMMERCE_MARKERS = ("SendMessage", "onaa.commerce", "RFQ", "QUOTE", "ORDER", "HANDOFF", "a2a/v1", "jwks")
 
 
 def origin(url):
@@ -25,7 +26,7 @@ def origin(url):
 
 
 def make_buyer(net, http, **kw):
-    return BuyerAgent(RegistryClient(net.registry_url, client=http), http_client=http, **kw)
+    return BuyerAgent(RegistryClient(net.registry_url, client=http), net.buyer, http_client=http, **kw)
 
 
 def test_full_flow_and_registry_is_not_a_relay(network):
@@ -33,10 +34,15 @@ def test_full_flow_and_registry_is_not_a_relay(network):
         result = make_buyer(network, http).run()
 
     assert result.quote["type"] == "QUOTE" and result.quote["in_reply_to"] == result.rfq["id"]
-    assert result.quote["body"]["total_minor"] == 4 * 1250
-    assert result.escrow_ack["body"]["mock"] is True
-    assert result.escrow_ack["body"]["funds_held_minor"] == 0
-    assert result.escrow_ack["body"]["escrow_reference"].startswith("MOCK-ESC-")
+    assert result.quote["body"]["total_minor"] == 4 * 1250 and "signature" in result.quote
+    assert result.order_confirm["type"] == "ORDER_CONFIRM" and "signature" in result.order_confirm
+    assert result.order["signature"] and result.handoff_request["signature"]
+    ack = result.escrow_ack["body"]
+    assert ack["mock"] is True and ack["mode"] == "mock" and ack["funds_held_minor"] == 0
+    assert ack["handoff_reference"].startswith("MOCK-ESC-") and "signature" in result.escrow_ack
+    assert result.escrow_status["body"]["state"] == "CREATED"
+    assert result.ledger.quote_state == "ACCEPTED"
+    assert result.ledger.orders[result.order["id"]].state == "CONFIRMED"
 
     # Registry saw only discovery GETs, with no bodies and no commerce content.
     log = network.stub.request_log
@@ -47,25 +53,39 @@ def test_full_flow_and_registry_is_not_a_relay(network):
         assert not any(m in r["path"] + r["query"] for m in COMMERCE_MARKERS)
 
     # Seller and escrow received the commerce messages directly.
-    assert len(network.seller.request_log) == 1 and len(network.escrow.request_log) == 1
-    rfq_wire = json.loads(network.seller.request_log[0]["body"])
-    assert rfq_wire["method"] == "SendMessage"
-    assert rfq_wire["params"]["message"]["parts"][0]["data"]["type"] == "RFQ"
-    assert json.loads(network.escrow.request_log[0]["body"])["params"]["message"]["parts"][0]["data"]["type"] \
-        == "ESCROW_HANDOFF_REQUEST"
+    def types(node):
+        return [json.loads(r["body"])["params"]["message"]["parts"][0]["data"]["type"] for r in node.request_log]
+    assert types(network.seller) == ["RFQ", "ORDER_PROPOSE"]
+    assert types(network.escrow) == ["SERVICE_HANDOFF_REQUEST", "SERVICE_STATUS_QUERY"]
+    assert json.loads(network.seller.request_log[0]["body"])["method"] == "SendMessage"
+    assert network.buyer.request_log == []             # nobody pushed to the buyer; it only served card/JWKS
 
     # Every commerce POST from the buyer went to the counterparty origin, never the registry origin.
     reg = origin(network.registry_url)
     by_kind = {k: u for u, k in result.outbound}
-    assert origin(by_kind["RFQ"]) == origin(network.seller.base_url) != reg
-    assert origin(by_kind["ESCROW_HANDOFF_REQUEST"]) == origin(network.escrow.base_url) != reg
+    assert origin(by_kind["RFQ"]) == origin(by_kind["ORDER_PROPOSE"]) == origin(network.seller.base_url) != reg
+    assert origin(by_kind["SERVICE_HANDOFF_REQUEST"]) == origin(network.escrow.base_url) != reg
+
+
+def test_tampered_quote_is_refused(network, monkeypatch):
+    """A QUOTE whose signature does not verify against the seller JWKS stops the trade before ORDER."""
+    original = network.seller._on_rfq
+
+    def tamper(rfq):
+        q = original(rfq)
+        q["nonce"] = q["nonce"][::-1]                       # signed member changed after signing
+        return q
+    monkeypatch.setattr(network.seller, "_on_rfq", tamper)
+    with httpx.Client(timeout=10) as http, pytest.raises(TradeError, match="signature_invalid"):
+        make_buyer(network, http).run()
+    assert len(network.seller.request_log) == 1 and network.escrow.request_log == []
 
 
 def test_buyer_without_demo_flag_refuses_localhost(network, monkeypatch):
     monkeypatch.delenv("ONAA_DEMO_ALLOW_LOCALHOST")
     with httpx.Client(timeout=10) as http:
         buyer = BuyerAgent(RegistryClient(network.registry_url, client=http, allow_localhost=True),
-                           http_client=http)
+                           network.buyer, http_client=http)
         with pytest.raises(TradeError, match="loopback"):
             buyer.run()
     assert network.seller.request_log == []
@@ -107,7 +127,7 @@ def test_run_demo_transcript(allow_localhost):
     out = io.StringIO()
     run_demo(out=out)
     text = out.getvalue()
-    assert "A2A SendMessage RFQ" in text and "QUOTE id=" in text
+    assert "A2A SendMessage RFQ" in text and "QUOTE id=" in text and "signed ORDER_CONFIRM" in text
     assert "MOCK ESCROW - NO REAL FUNDS" in text
     assert "commerce messages seen by registry: 0" in text
     assert "RESULT: OK" in text

@@ -10,7 +10,7 @@ from . import __version__
 from .config import Settings
 from .db import Base, make_engine, make_sessionmaker
 from .netsafety import Fetcher, SafeFetcher
-from .routes import certifications, listings, misc, operators
+from .routes import certifications, listings, misc, operators, self_register
 from .security import RateLimiter
 from .verification import TxtResolver, system_txt_resolver
 
@@ -39,9 +39,11 @@ def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
     app.state.rate_limiter = RateLimiter(settings.write_rate_limit_per_minute)
     app.state.operator_limiter = RateLimiter(settings.operator_write_limit_per_minute)
     app.state.txt_resolver = txt_resolver or system_txt_resolver
+    app.state.self_register_limiter = RateLimiter(settings.self_registration_per_ip_per_hour, window_seconds=3600)
 
     app.include_router(misc.router)
     app.include_router(operators.router)
+    app.include_router(self_register.router)
     app.include_router(listings.build_router("agents"))
     app.include_router(listings.build_router("services"))
     app.include_router(certifications.router)

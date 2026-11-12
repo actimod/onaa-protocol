@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:onaa:schema:v0.1:service-handoff",
+  "title": "ONAA Protocol v0.1 generic service-provider handoff bodies (DRAFT ONAA profile, not an official A2A/MCP schema)",
+  "description": "Bodies for SERVICE_HANDOFF_REQUEST, SERVICE_HANDOFF_ACK, SERVICE_STATUS_QUERY and SERVICE_STATUS, parameterised by service_type. External providers and future first-party ONAA services implement the same schema (founder decision 5). Carries no card, bank, wallet or personal data. In v0.1 mode MUST be mock or sandbox. See specs/onaa-protocol-v0.1.md section 8.",
+  "$defs": {
+    "serviceType": { "enum": ["escrow", "payment", "insurance", "logistics", "inspection", "dispute"] },
+    "mode": { "enum": ["mock", "sandbox"], "description": "'live' is reserved and MUST be rejected in v0.1 (live_mode_not_supported)." },
+    "state": {
+      "enum": ["CREATED", "PENDING_ACTION", "IN_PROGRESS", "SECURED", "COMPLETED", "RELEASED", "REFUNDED", "DISPUTED", "CANCELLED", "FAILED"],
+      "description": "Generic handoff state. For service_type=escrow, SECURED is the Blueprint section 23 HELD state. SECURED only with provider_confirmed=true and never in mock mode."
+    },
+    "minor": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "reference": { "type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$" },
+    "noPaymentData": {
+      "description": "Defence in depth: obviously sensitive member names are forbidden anywhere in a handoff body.",
+      "not": {
+        "anyOf": [
+          { "required": ["card_number"] }, { "required": ["pan"] }, { "required": ["cvv"] }, { "required": ["iban"] },
+          { "required": ["account_number"] }, { "required": ["routing_number"] }, { "required": ["wallet_private_key"] },
+          { "required": ["seed_phrase"] }, { "required": ["password"] }, { "required": ["api_key"] }
+        ]
+      }
+    },
+    "request": {
+      "type": "object",
+      "required": ["service_type", "mode", "order_id", "parties", "currency", "amount_minor"],
+      "allOf": [{ "$ref": "#/$defs/noPaymentData" }],
+      "properties": {
+        "service_type": { "$ref": "#/$defs/serviceType" },
+        "mode": { "enum": ["mock", "sandbox", "live"], "description": "'live' is schema-valid so that receivers can answer with the specific REJECT code live_mode_not_supported (v0.1 has no live mode)." },
+        "order_id": { "$ref": "#/$defs/id" },
+        "order_terms_hash": { "$ref": "#/$defs/sha256" },
+        "quote_id": { "$ref": "#/$defs/id" },
+        "quote_expires_at": { "type": "string", "format": "date-time" },
+        "parties": {
+          "type": "object",
+          "required": ["buyer_agent_id", "seller_agent_id"],
+          "properties": {
+            "buyer_agent_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+            "seller_agent_id": { "type": "string", "minLength": 1, "maxLength": 200 }
+          }
+        },
+        "currency": { "$ref": "#/$defs/currency" },
+        "amount_minor": { "$ref": "#/$defs/minor" },
+        "params": {
+          "type": "object",
+          "description": "Service-type specific, non-sensitive parameters (e.g. insurance coverage_type, logistics origin_region/destination_region, dispute reason_code). Untrusted data.",
+          "allOf": [{ "$ref": "#/$defs/noPaymentData" }]
+        }
+      }
+    },
+    "ack": {
+      "type": "object",
+      "required": ["service_type", "mode", "handoff_reference", "state", "provider_confirmed", "label"],
+      "allOf": [
+        { "$ref": "#/$defs/noPaymentData" },
+        {
+          "description": "v0.1: the ACK MUST be labelled mock or sandbox, and the flag MUST match mode.",
+          "oneOf": [
+            { "required": ["mock"], "properties": { "mock": { "const": true }, "mode": { "const": "mock" } } },
+            { "required": ["sandbox"], "properties": { "sandbox": { "const": true }, "mode": { "const": "sandbox" } } }
+          ]
+        },
+        { "$ref": "#/$defs/securedRule" },
+        { "$ref": "#/$defs/escrowFunds" }
+      ],
+      "properties": {
+        "service_type": { "$ref": "#/$defs/serviceType" },
+        "mode": { "$ref": "#/$defs/mode" },
+        "mock": { "const": true },
+        "sandbox": { "const": true },
+        "label": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "handoff_reference": { "$ref": "#/$defs/reference" },
+        "state": { "$ref": "#/$defs/state" },
+        "provider_state": { "type": "string", "maxLength": 64 },
+        "provider_confirmed": { "type": "boolean" },
+        "order_id": { "$ref": "#/$defs/id" },
+        "currency": { "$ref": "#/$defs/currency" },
+        "amount_minor": { "$ref": "#/$defs/minor" },
+        "funds_held_minor": { "$ref": "#/$defs/minor" },
+        "next_step": { "type": "string", "maxLength": 1000 }
+      }
+    },
+    "statusQuery": {
+      "type": "object",
+      "required": ["handoff_reference"],
+      "properties": { "handoff_reference": { "$ref": "#/$defs/reference" }, "service_type": { "$ref": "#/$defs/serviceType" } }
+    },
+    "status": {
+      "type": "object",
+      "required": ["service_type", "mode", "handoff_reference", "state", "provider_confirmed", "updated_at"],
+      "allOf": [
+        { "$ref": "#/$defs/noPaymentData" },
+        {
+          "oneOf": [
+            { "required": ["mock"], "properties": { "mock": { "const": true }, "mode": { "const": "mock" } } },
+            { "required": ["sandbox"], "properties": { "sandbox": { "const": true }, "mode": { "const": "sandbox" } } }
+          ]
+        },
+        { "$ref": "#/$defs/securedRule" },
+        { "$ref": "#/$defs/escrowFunds" }
+      ],
+      "properties": {
+        "service_type": { "$ref": "#/$defs/serviceType" },
+        "mode": { "$ref": "#/$defs/mode" },
+        "mock": { "const": true },
+        "sandbox": { "const": true },
+        "handoff_reference": { "$ref": "#/$defs/reference" },
+        "state": { "$ref": "#/$defs/state" },
+        "provider_state": { "type": "string", "maxLength": 64 },
+        "provider_confirmed": { "type": "boolean" },
+        "order_id": { "$ref": "#/$defs/id" },
+        "funds_held_minor": { "$ref": "#/$defs/minor" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "securedRule": {
+      "description": "SECURED (escrow: HELD) requires explicit provider confirmation and is impossible in mock mode.",
+      "if": { "properties": { "state": { "const": "SECURED" } }, "required": ["state"] },
+      "then": { "properties": { "provider_confirmed": { "const": true }, "mode": { "const": "sandbox" } } }
+    },
+    "escrowFunds": {
+      "description": "In mock mode no funds are ever held.",
+      "if": { "properties": { "mode": { "const": "mock" } }, "required": ["mode"] },
+      "then": { "properties": { "funds_held_minor": { "const": 0 }, "provider_confirmed": { "const": false } } }
+    }
+  }
+}

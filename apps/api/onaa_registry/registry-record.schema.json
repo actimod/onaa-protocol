@@ -103,6 +103,15 @@
         },
         "certifications": {
           "type": "array"
+        },
+        "registration_method": {
+          "enum": [
+            "operator_account",
+            "agent_self_registration",
+            "discovery_import",
+            null
+          ],
+          "description": "How the listing joined. agent_self_registration = the agent proved host control once at signup (anti-abuse gate), not the Endpoint Verified tier."
         }
       }
     }

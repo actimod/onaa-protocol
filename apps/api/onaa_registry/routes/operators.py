@@ -41,6 +41,21 @@ def me(op: Operator = Depends(current_operator)):
     return _out(op)
 
 
+@router.patch("/me", response_model=schemas.OperatorOut, dependencies=[Depends(write_limit)],
+              summary="Update the operator profile (optional linkage of a self-registered agent to a person/org)")
+def update_me(body: schemas.OperatorUpdate, op: Operator = Depends(current_operator),
+              session: Session = Depends(get_session)):
+    op = session.merge(op)
+    data = body.model_dump(exclude_unset=True)
+    if "website_url" in data:
+        data["website_url"] = normalise_url(data["website_url"], "website_url")
+    for field in ("display_name", "operator_type", "country", "website_url"):
+        if field in data and (data[field] is not None or field in ("country", "website_url")):
+            setattr(op, field, data[field])
+    audit(session, "operator", op.id, "operator.update", op.id, fields=sorted(data))
+    return _out(op)
+
+
 @router.post("/me/keys/rotate", response_model=schemas.OperatorCreated, dependencies=[Depends(write_limit)],
              summary="Revoke all existing keys and issue a new one")
 def rotate_key(op: Operator = Depends(current_operator), session: Session = Depends(get_session)):

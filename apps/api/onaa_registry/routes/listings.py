@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import hmac
 import secrets
 from typing import Annotated, Literal
 
@@ -37,12 +36,10 @@ from ..logic import (
     verified_predicate,
 )
 from ..models import DomainChallenge, Listing, ListingFacet, Operator, utcnow
-from ..netsafety import FetchError, UnsafeURLError
 from ..security import current_operator, sha256_hex, write_limit
-from ..verification import DnsLookupError, dns_record_name, verification_entitlement
+from ..verification import CHALLENGE_PATH, check_host_proof, dns_record_name, verification_entitlement
 
 MAX_CHALLENGE_ATTEMPTS = 10
-CHALLENGE_PATH = "/.well-known/onaa-verification/{cid}.txt"
 
 
 def _record(session: Session, listing: Listing) -> schemas.RegistryRecord:
@@ -150,20 +147,8 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
                      dependencies=[Depends(write_limit)], summary="Register an agent you operate")
         def create(body: schemas.AgentCreate, request: Request, op: Operator = Depends(current_operator),
                    session: Session = Depends(get_session)):
-            card_url = normalise_url(body.agent_card_url, "agent_card_url")
             check_listing_quota(session, op, request.app.state.settings.max_listings_per_operator)
-            ensure_not_taken(session, host_of(card_url), op.id)
-            listing = Listing(
-                id=make_listing_id("agent"), operator_id=op.id, listing_type="agent",
-                display_name=body.display_name, description=body.description, agent_card_url=card_url,
-                endpoint_url=normalise_url(body.endpoint_url, "endpoint_url"), endpoint_host=host_of(card_url),
-                documentation_url=normalise_url(body.documentation_url, "documentation_url"),
-                terms_url=normalise_url(body.terms_url, "terms_url"), lifecycle_status="registered",
-                supported_interfaces=[], regulatory_claims=[],
-            )
-            require_same_host(listing, listing.endpoint_url, "endpoint_url")
-            flag_name_collision(session, listing)
-            set_facets(listing, body.model_dump())
+            listing = build_agent_listing(session, body, op.id)
             session.add(listing)
             session.flush()
             audit(session, "operator", op.id, "agent.register", listing.id)
@@ -219,35 +204,8 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
                      dependencies=[Depends(write_limit)], summary="Register a service (payment, escrow, hosting, ...)")
         def create(body: schemas.ServiceCreate, request: Request, op: Operator = Depends(current_operator),
                    session: Session = Depends(get_session)):
-            endpoint = normalise_url(body.endpoint_url, "endpoint_url")
             check_listing_quota(session, op, request.app.state.settings.max_listings_per_operator)
-            ensure_not_taken(session, host_of(endpoint), op.id)
-            ltype = "hosting" if body.service_type == "hosting" else "service"
-            interfaces = []
-            for itf in body.supported_interfaces:
-                d = itf.model_dump(exclude_none=True)
-                for k in ("spec_url", "url"):
-                    if k in d:
-                        d[k] = normalise_url(d[k], f"supported_interfaces.{k}")
-                interfaces.append(d)
-            listing = Listing(
-                id=make_listing_id(ltype), operator_id=op.id, listing_type=ltype, service_type=body.service_type,
-                display_name=body.display_name, description=body.description, endpoint_url=endpoint,
-                endpoint_host=host_of(endpoint),
-                agent_card_url=normalise_url(body.agent_card_url, "agent_card_url"),
-                documentation_url=normalise_url(body.documentation_url, "documentation_url"),
-                terms_url=normalise_url(body.terms_url, "terms_url"),
-                sandbox_url=normalise_url(body.sandbox_url, "sandbox_url"),
-                sandbox_available=body.sandbox_available, supported_interfaces=interfaces,
-                regulatory_claims=[c[:200] for c in body.regulatory_claims], lifecycle_status="registered",
-            )
-            require_same_host(listing, listing.agent_card_url, "agent_card_url")
-            for itf in interfaces:
-                require_same_host(listing, itf.get("url"), "supported_interfaces.url")
-            flag_name_collision(session, listing)
-            data = body.model_dump()
-            data["roles"] = ["hosting_provider" if ltype == "hosting" else "service_provider"]
-            set_facets(listing, data)
+            listing = build_service_listing(session, body, op.id)
             session.add(listing)
             session.flush()
             audit(session, "operator", op.id, "service.register", listing.id, service_type=body.service_type)
@@ -351,28 +309,8 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
             raise HTTPException(status.HTTP_409_CONFLICT, "listing host changed since challenge was issued")
 
         chl.attempts += 1
-        error = None
-        if chl.method == "dns_txt":
-            try:
-                values = request.app.state.txt_resolver(dns_record_name(chl.host))
-                if not any(hmac.compare_digest(sha256_hex(v.strip()), chl.nonce_hash) for v in values):
-                    error = "token_mismatch" if values else "txt_record_not_found"
-            except DnsLookupError as exc:
-                error = exc.category
-        else:
-            try:
-                # No redirects: a redirect to another host must not prove control of this one.
-                res = request.app.state.fetcher.fetch(f"https://{chl.host}" + CHALLENGE_PATH.format(cid=chl.id),
-                                                      allow_redirects=False)
-                if res.status_code != 200:
-                    error = f"http_{res.status_code}"
-                elif not hmac.compare_digest(sha256_hex(res.body.strip()), chl.nonce_hash):
-                    error = "token_mismatch"
-            except UnsafeURLError:
-                error = "unsafe_url"
-            except FetchError as exc:
-                error = exc.category
-
+        error = check_host_proof(request.app.state.fetcher, request.app.state.txt_resolver, host=chl.host,
+                                 method=chl.method, challenge_id=chl.id, nonce_hash=chl.nonce_hash)
         if error:
             chl.last_error = error
             if chl.attempts >= MAX_CHALLENGE_ATTEMPTS:
@@ -415,6 +353,60 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
                                        endpoint_control_verified=True)
 
     return router
+
+
+def build_agent_listing(session: Session, body: schemas.AgentCreate, operator_id: str | None,
+                        registration_method: str = "operator_account") -> Listing:
+    """Validate and build (not add) an agent listing. Raises HTTPException on policy violations."""
+    card_url = normalise_url(body.agent_card_url, "agent_card_url")
+    ensure_not_taken(session, host_of(card_url), operator_id)
+    listing = Listing(
+        id=make_listing_id("agent"), operator_id=operator_id, listing_type="agent",
+        display_name=body.display_name, description=body.description, agent_card_url=card_url,
+        endpoint_url=normalise_url(body.endpoint_url, "endpoint_url"), endpoint_host=host_of(card_url),
+        documentation_url=normalise_url(body.documentation_url, "documentation_url"),
+        terms_url=normalise_url(body.terms_url, "terms_url"), lifecycle_status="registered",
+        supported_interfaces=[], regulatory_claims=[], registration_method=registration_method,
+    )
+    require_same_host(listing, listing.endpoint_url, "endpoint_url")
+    flag_name_collision(session, listing)
+    set_facets(listing, body.model_dump())
+    return listing
+
+
+def build_service_listing(session: Session, body: schemas.ServiceCreate, operator_id: str | None,
+                          registration_method: str = "operator_account") -> Listing:
+    """Validate and build (not add) a service/hosting listing."""
+    endpoint = normalise_url(body.endpoint_url, "endpoint_url")
+    ensure_not_taken(session, host_of(endpoint), operator_id)
+    ltype = "hosting" if body.service_type == "hosting" else "service"
+    interfaces = []
+    for itf in body.supported_interfaces:
+        d = itf.model_dump(exclude_none=True)
+        for k in ("spec_url", "url"):
+            if k in d:
+                d[k] = normalise_url(d[k], f"supported_interfaces.{k}")
+        interfaces.append(d)
+    listing = Listing(
+        id=make_listing_id(ltype), operator_id=operator_id, listing_type=ltype, service_type=body.service_type,
+        display_name=body.display_name, description=body.description, endpoint_url=endpoint,
+        endpoint_host=host_of(endpoint),
+        agent_card_url=normalise_url(body.agent_card_url, "agent_card_url"),
+        documentation_url=normalise_url(body.documentation_url, "documentation_url"),
+        terms_url=normalise_url(body.terms_url, "terms_url"),
+        sandbox_url=normalise_url(body.sandbox_url, "sandbox_url"),
+        sandbox_available=body.sandbox_available, supported_interfaces=interfaces,
+        regulatory_claims=[c[:200] for c in body.regulatory_claims], lifecycle_status="registered",
+        registration_method=registration_method,
+    )
+    require_same_host(listing, listing.agent_card_url, "agent_card_url")
+    for itf in interfaces:
+        require_same_host(listing, itf.get("url"), "supported_interfaces.url")
+    flag_name_collision(session, listing)
+    data = body.model_dump()
+    data["roles"] = ["hosting_provider" if ltype == "hosting" else "service_provider"]
+    set_facets(listing, data)
+    return listing
 
 
 def _apply_scalar_updates(listing: Listing, data: dict) -> None:

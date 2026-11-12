@@ -1,6 +1,8 @@
 # ONAA Commerce Extension `onaa.commerce/v0` (DRAFT)
 
-Owner: protocol-architect · Status: **DRAFT v0.1.0**, task ENG-014 · Date: 2026-11-12
+Owner: protocol-architect · Status: **SUPERSEDED** by [ONAA Protocol v0.1](onaa-protocol-v0.1.md) (envelope `spec_version` 0.2.0, task PROTO-001) · Originally DRAFT v0.1.0, task ENG-014 · Date: 2026-11-12
+
+> **Superseded.** This document is kept for history and describes legacy envelopes at `spec_version` 0.1.0. v0.1 receivers still accept those envelopes, with restrictions (see [`onaa-protocol-v0.1.md`](onaa-protocol-v0.1.md) §11.4 and [`COMPATIBILITY_MATRIX.md`](COMPATIBILITY_MATRIX.md)). `ESCROW_HANDOFF_REQUEST/ACK` are now accepted-on-receipt aliases of `SERVICE_HANDOFF_REQUEST/ACK` with `service_type=escrow` (§8.6 of the new spec). Do not implement new features against this file.
 
 > This is an **ONAA draft A2A extension**. It is **not** an official A2A, AP2, UCP, ACP or MCP specification and no standards body has reviewed it. It carries **no payment credentials and no payment authorization**. In v0, an escrow acknowledgement is valid only when it is labelled `mock` or `sandbox`.
 
