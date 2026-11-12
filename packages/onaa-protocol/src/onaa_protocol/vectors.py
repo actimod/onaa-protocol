@@ -91,7 +91,8 @@ def transcript() -> dict[str, Any]:
                         "unit_price_minor": 1250, "line_total_minor": 5000}],
         "shipping_minor": 0, "tax_policy": "not_included", "total_minor": 5000, "delivery_terms": "DAP",
         "delivery_region": "US",
-        "settlement": {"escrow_required": True, "accepted_service_types": ["escrow"]}, "sample": True,
+        "settlement": {"escrow_required": True, "accepted_service_types": ["escrow"],
+                       "accepted_provider_card_urls": [party("escrow")["agent_card_url"]]}, "sample": True,
     }, "quote", "seller", at=5, in_reply_to=rfq["id"], recipient="buyer")
     qb = quote["body"]
     order = _env("ORDER_PROPOSE", {
@@ -314,6 +315,8 @@ def envelopes(tr: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
             resigned("buyer", lambda e: e["recipient"].pop("agent_card_url"))),
         mut("signed-reply-without-recipient", msgs["ORDER_CONFIRM"], "invalid_envelope",
             resigned("seller", lambda e: e.pop("recipient"))),
+        # --- v0.1.2 errata (spec 7.4, 9.4.4): the deal-opening RFQ names the buyer's card
+        mut("rfq-without-sender-card-url", rfq, "invalid_envelope", lambda e: e["sender"].pop("agent_card_url")),
         unsigned_named("ORDER_CONFIRM"),
         unsigned_named("ORDER_REJECT"),
         unsigned_named("ORDER_CANCEL"),
@@ -410,6 +413,27 @@ def state_machines(tr: dict[str, Any]) -> dict[str, Any]:
                        in_reply_to=handoff2["id"], recipient="buyer", ttl_min=60)
     backdated = _env("ORDER_PROPOSE", copy.deepcopy(ob), "order-backdated", "buyer", at=20, recipient="seller",
                      ttl_min=60)
+    # --- v0.1.2 errata cases (security re-review): self-acknowledged handoffs, providers the counterparty
+    # never accepted, transactional binding, unsigned same-state status from a bound party
+    handoff_to_self = _env("SERVICE_HANDOFF_REQUEST", handoff["body"], "handoff-to-self", "buyer", at=30,
+                           recipient="buyer")
+    handoff_to_seller = _env("SERVICE_HANDOFF_REQUEST", handoff["body"], "handoff-to-seller", "buyer", at=30,
+                             recipient="seller")
+    sbx_req_outsider = _env("SERVICE_HANDOFF_REQUEST", dict(handoff["body"], mode="sandbox"), "handoff-sbx-outsider",
+                            "buyer", at=30, recipient="outsider")
+    sbx_ack_outsider = _env("SERVICE_HANDOFF_ACK", {
+        "service_type": "escrow", "mode": "sandbox", "sandbox": True,
+        "label": "SANDBOX ESCROW - TEST ENVIRONMENT - NO REAL FUNDS", "handoff_reference": "SBX-OUT-0000000000000001",
+        "state": "SECURED", "provider_confirmed": True, "order_id": order["id"], "currency": "USD",
+        "amount_minor": qb["total_minor"]}, "ack-sbx-outsider", "outsider", at=31,
+        in_reply_to=sbx_req_outsider["id"], recipient="buyer", ttl_min=60)
+    impostor = {"agent_id": party("escrow")["agent_id"], "agent_card_url": party("outsider")["agent_card_url"]}
+    ack_impostor = new_envelope("SERVICE_HANDOFF_ACK", dict(ack["body"], handoff_reference="IMPOSTOR-0001"),
+                                sender=impostor, recipient=party("buyer"), in_reply_to=handoff["id"],
+                                ttl=timedelta(minutes=60), now=T0 + timedelta(seconds=31), signer=signer("outsider"),
+                                **_ids("ack-impostor"))
+    unsigned_same_state = _env("ORDER_STATUS", {"order_id": order["id"], "state": "CONFIRMED"},
+                               "ostatus-unsigned-same", "buyer", at=50, sign=False)
     cases = [
         ("quote-revision-must-increase", [rfq, quote], [step(quote_rev1_again, "quote_superseded")]),
         ("order-on-superseded-quote", [rfq, quote, quote2],
@@ -469,6 +493,15 @@ def state_machines(tr: dict[str, Any]) -> dict[str, Any]:
          [step(status("ostatus-secured-sbx", "buyer", "SECURED", at=47,
                       handoff_reference=sandbox_ack["body"]["handoff_reference"])),
           step(cancel, "invalid_transition")]),
+        ("handoff-addressed-to-a-trading-party", confirmed,
+         [step(handoff_to_self, "not_a_party"), step(handoff_to_seller, "not_a_party")]),
+        ("secured-needs-a-provider-accepted-in-the-quote", [*confirmed, sbx_req_outsider, sbx_ack_outsider],
+         [step(status("ostatus-pp-out", "buyer", "PAYMENT_PENDING", at=46)),
+          step(status("ostatus-secured-out", "buyer", "SECURED", at=47,
+                      handoff_reference=sbx_ack_outsider["body"]["handoff_reference"]), "invalid_transition")]),
+        ("refused-envelope-binds-nothing", [*confirmed, handoff], [step(ack_impostor, "not_a_party"), step(ack)]),
+        ("unsigned-same-state-order-status-from-bound-party", confirmed,
+         [step(unsigned_same_state, "signer_mismatch")]),
     ]
     return {
         "note": "Each case starts a fresh local deal ledger, applies 'setup' (every setup envelope is valid), then "

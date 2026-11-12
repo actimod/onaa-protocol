@@ -7,6 +7,10 @@ Receiver hardening (v0.1.1 errata): the HTTP client pins checked addresses and b
 total deadline (``safe_client``); inbound envelopes must be addressed to this agent (``recipient``);
 replay protection is reserved atomically (a concurrent retry gets the first reply); REJECT messages are
 fixed per code, with details only in the local log.
+
+v0.1.2 errata: replay records are quota-bounded per network source (the client address handed in by the
+HTTP layer) and per verified card origin, unsigned envelopes may live at most one hour, a reservation is
+released whatever goes wrong (``finally``), and handlers run on a bounded executor (``a2a.create_agent_app``).
 """
 
 from __future__ import annotations
@@ -82,32 +86,42 @@ class DemoNode:
     def dispatch(self, env: dict[str, Any]) -> dict[str, Any]:  # pragma: no cover - abstract
         raise NotImplementedError
 
-    def handle(self, message: dict[str, Any]) -> dict[str, Any]:
+    def handle(self, message: dict[str, Any], source: str | None = None) -> dict[str, Any]:
+        """Process one inbound A2A message. ``source`` is the network source (client address) from the HTTP
+        layer, used for per-source quotas; None when called directly (tests, in-process use)."""
         env: Any = None
         reserved = False
+        completed = False
         try:
-            env = extract_envelope(message)
-            check_envelope(env, self.keys, expected_types=self.accepts, expected_recipient=self.sender)
-            cached = self.guard.reserve(env)
-            if cached is not None:
-                return self.reply_message(cached, message)
-            reserved = True
-            out = self.dispatch(env)
-        except Exception as exc:  # noqa: BLE001 - every failure becomes a REJECT; details stay local
-            if reserved:
-                self.guard.release(env)
-            if isinstance(exc, ProtocolError):
-                code = exc.code
-                _log.info("%s rejected: %s: %s", self.agent_id, code, sanitize(exc.message))
-            else:
-                code = "internal_error"
-                _log.exception("%s internal error", self.agent_id)
-            out = reject(env if isinstance(env, dict) else None, self.sender, code, signer=self.signer,
-                         recipient=reply_recipient(env))
+            try:
+                env = extract_envelope(message)
+                check_envelope(env, self.keys, expected_types=self.accepts, expected_recipient=self.sender)
+                cached = self.guard.reserve(env, source=source)
+                if cached is not None:
+                    return self.reply_message(cached, message)
+                reserved = True
+                out = self.dispatch_from(env, source)
+            except Exception as exc:  # noqa: BLE001 - every failure becomes a REJECT; details stay local
+                if isinstance(exc, ProtocolError):
+                    code = exc.code
+                    _log.info("%s rejected: %s: %s", self.agent_id, code, sanitize(exc.message))
+                else:
+                    code = "internal_error"
+                    _log.exception("%s internal error", self.agent_id)
+                out = reject(env if isinstance(env, dict) else None, self.sender, code, signer=self.signer,
+                             recipient=reply_recipient(env), retryable=True if code == "rate_limited" else None)
+                return self.reply_message(out, message)
+            self.guard.complete(env, out)
+            completed = True
             return self.reply_message(out, message)
-        self.guard.complete(env, out)
-        return self.reply_message(out, message)
+        finally:
+            if reserved and not completed:  # any failure, including BaseException: never leak a reservation
+                self.guard.release(env)
+
+    def dispatch_from(self, env: dict[str, Any], source: str | None) -> dict[str, Any]:
+        """``dispatch`` with the request's network source; nodes with per-source quotas override this."""
+        return self.dispatch(env)
 
     def app(self) -> Starlette:
         return a2a.create_agent_app(self.card, self.handle, jwks=self.jwks, required_extensions={EXTENSION_URI},
-                                    request_log=self.request_log)
+                                    request_log=self.request_log, pass_source=True)

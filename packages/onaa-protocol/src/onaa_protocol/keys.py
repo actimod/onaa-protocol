@@ -22,7 +22,7 @@ from . import a2a
 from .agent_card import onaa_params
 from .errors import SignatureError
 from .jose import public_key_from_jwk, validate_jwks
-from .safe_fetch import Resolver, UnsafeURLError, fetch_json, same_origin
+from .safe_fetch import Resolver, UnsafeURLError, fetch_json, remaining, same_origin
 from .text import sanitize
 
 _log = logging.getLogger("onaa_protocol.keys")
@@ -93,10 +93,16 @@ class HttpKeyResolver:
     Caches each JWKS for ``cache_seconds`` and re-fetches at most once per ``refetch_seconds`` when an
     unknown kid appears (key rotation). Hardening for attacker-chosen ``agent_card_url`` values:
 
-    * every fetch has a total ``fetch_deadline`` (seconds);
-    * at most ``max_concurrent_fetches`` fetches run at once (callers wait ``fetch_wait_seconds`` for a
-      slot, then get ``jwks_unavailable``), and concurrent lookups of the same card share one fetch;
-    * a failed card URL is remembered for ``negative_cache_seconds`` (fails fast, no new fetch);
+    * one total ``fetch_deadline`` (seconds) covers the card AND the JWKS fetch, including name resolution
+      (v0.1.2 errata; previously each fetch had its own deadline and the transport its own);
+    * at most ``max_concurrent_fetches`` fetches run at once and at most ``max_fetches_per_origin`` per
+      card origin. An uncached lookup that finds no free slot fails fast with ``jwks_unavailable``
+      (``fetch_wait_seconds`` defaults to 0 since v0.1.2), so attacker-chosen slow card URLs cannot park
+      the receiver's worker threads (spec section 13.2);
+    * concurrent lookups of the same card share one fetch; at most ``max_waiters_per_fetch`` callers wait
+      for it (each at most ``fetch_deadline``), further ones fail fast;
+    * a failed card URL is remembered for ``negative_cache_seconds`` (fails fast, no new fetch); a lookup
+      refused only because the fetcher was busy is not negatively cached;
     * the positive and negative caches are LRU-bounded by ``max_cache_entries``.
 
     Error messages never contain fetched data, host names or addresses (spec section 7.8); details go to
@@ -106,8 +112,9 @@ class HttpKeyResolver:
     def __init__(self, http: httpx.Client, *, allow_localhost: bool | None = None, resolver: Resolver | None = None,
                  cache_seconds: float = 300.0, refetch_seconds: float = 30.0,
                  pins: dict[str, str] | None = None, negative_cache_seconds: float = 30.0,
-                 max_cache_entries: int = 1024, max_concurrent_fetches: int = 8, fetch_wait_seconds: float = 2.0,
-                 fetch_deadline: float = 5.0) -> None:
+                 max_cache_entries: int = 1024, max_concurrent_fetches: int = 8, fetch_wait_seconds: float = 0.0,
+                 fetch_deadline: float = 5.0, max_fetches_per_origin: int = 2,
+                 max_waiters_per_fetch: int = 2) -> None:
         self.http = http
         self.allow_localhost = allow_localhost
         self.resolver = resolver
@@ -117,25 +124,30 @@ class HttpKeyResolver:
         self.max_cache_entries = max_cache_entries
         self.fetch_wait_seconds = fetch_wait_seconds
         self.fetch_deadline = fetch_deadline
+        self.max_fetches_per_origin = max_fetches_per_origin
+        self.max_waiters_per_fetch = max_waiters_per_fetch
         self._pins = _Pins(pins)
         self._cache: OrderedDict[str, _Entry] = OrderedDict()
         self._failures: OrderedDict[str, float] = OrderedDict()
         self._inflight: dict[str, threading.Event] = {}
+        self._waiters: dict[str, int] = {}
+        self._origin_fetches: dict[tuple[str, str | None, int | None], int] = {}
         self._slots = threading.BoundedSemaphore(max_concurrent_fetches)
         self._lock = threading.Lock()
 
     def _fetch(self, card_url: str) -> tuple[dict[str, dict[str, Any]], set[str]]:
         if urlsplit(card_url).path != a2a.AGENT_CARD_PATH:
             raise SignatureError("jwks_unavailable", f"agent_card_url must use {a2a.AGENT_CARD_PATH}")
+        deadline_at = time.monotonic() + self.fetch_deadline  # ONE budget for card + JWKS (v0.1.2)
         try:
             card = a2a.validate_agent_card(fetch_json(self.http, card_url, allow_localhost=self.allow_localhost,
-                                                      resolver=self.resolver, deadline=self.fetch_deadline))
+                                                      resolver=self.resolver, deadline=remaining(deadline_at)))
             params = onaa_params(card, card_url)
             jwks_uri = params["jwks_uri"]
             if not same_origin(card_url, jwks_uri):  # also enforced by onaa_params
                 raise SignatureError("jwks_unavailable", "jwks_uri is not same-origin with the card")
             jwks = fetch_json(self.http, jwks_uri, allow_localhost=self.allow_localhost, resolver=self.resolver,
-                              deadline=self.fetch_deadline)
+                              deadline=remaining(deadline_at))
             keys = validate_jwks(jwks)
         except SignatureError as exc:
             _log.info("signer JWKS unusable for %s: %s", sanitize(card_url), sanitize(exc.message))
@@ -151,6 +163,37 @@ class HttpKeyResolver:
         od.move_to_end(key)
         while len(od) > self.max_cache_entries:
             od.popitem(last=False)
+
+    @staticmethod
+    def _origin(card_url: str) -> tuple[str, str | None, int | None]:
+        p = urlsplit(card_url)
+        try:
+            port = p.port
+        except ValueError:
+            port = None
+        return p.scheme.lower(), p.hostname, port
+
+    def _acquire_slot(self, card_url: str) -> tuple[str, str | None, int | None]:
+        """Take a per-origin and a global fetch slot, or raise ``jwks_unavailable`` (never negatively cached)."""
+        origin = self._origin(card_url)
+        with self._lock:
+            if self._origin_fetches.get(origin, 0) >= self.max_fetches_per_origin:
+                raise SignatureError("jwks_unavailable", "too many concurrent key fetches for this origin")
+            self._origin_fetches[origin] = self._origin_fetches.get(origin, 0) + 1
+        ok = (self._slots.acquire(blocking=False) if self.fetch_wait_seconds <= 0
+              else self._slots.acquire(timeout=self.fetch_wait_seconds))
+        if not ok:
+            self._release_origin(origin)
+            raise SignatureError("jwks_unavailable", "too many concurrent key fetches")
+        return origin
+
+    def _release_origin(self, origin: tuple[str, str | None, int | None]) -> None:
+        with self._lock:
+            n = self._origin_fetches.get(origin, 0) - 1
+            if n > 0:
+                self._origin_fetches[origin] = n
+            else:
+                self._origin_fetches.pop(origin, None)
 
     def _get(self, card_url: str, force: bool) -> tuple[dict[str, dict[str, Any]], set[str]]:
         while True:
@@ -169,15 +212,27 @@ class HttpKeyResolver:
                 owner = event is None
                 if owner:
                     event = self._inflight[card_url] = threading.Event()
+                elif self._waiters.get(card_url, 0) >= self.max_waiters_per_fetch:
+                    raise SignatureError("jwks_unavailable", "signer JWKS fetch already in progress")
+                else:
+                    self._waiters[card_url] = self._waiters.get(card_url, 0) + 1
             if owner:
                 break
             # Another thread is fetching this card: wait for it, then re-read the cache (no second fetch).
-            if not event.wait(self.fetch_deadline * 2 + self.fetch_wait_seconds):
+            try:
+                done = event.wait(self.fetch_deadline + 0.5)
+            finally:
+                with self._lock:
+                    n = self._waiters.get(card_url, 0) - 1
+                    if n > 0:
+                        self._waiters[card_url] = n
+                    else:
+                        self._waiters.pop(card_url, None)
+            if not done:
                 raise SignatureError("jwks_unavailable", "signer JWKS fetch still in progress")
             force = False
         try:
-            if not self._slots.acquire(timeout=self.fetch_wait_seconds):
-                raise SignatureError("jwks_unavailable", "too many concurrent key fetches")
+            origin = self._acquire_slot(card_url)
             try:
                 keys, revoked = self._fetch(card_url)
             except SignatureError:
@@ -186,6 +241,7 @@ class HttpKeyResolver:
                 raise
             finally:
                 self._slots.release()
+                self._release_origin(origin)
             with self._lock:
                 self._store(self._cache, card_url, (time.monotonic(), keys, revoked))
                 self._failures.pop(card_url, None)

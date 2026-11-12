@@ -7,9 +7,12 @@ implemented: no Task lifecycle, streaming, push notifications or auth schemes.
 
 from __future__ import annotations
 
+import functools
+import ipaddress
 from collections.abc import Callable
 from typing import Any
 
+import anyio
 from onaa_protocol.a2a import (  # re-exported for the demo modules and tests
     A2A_VERSION,
     AGENT_CARD_PATH,
@@ -37,7 +40,6 @@ from onaa_protocol.a2a import (  # re-exported for the demo modules and tests
 from onaa_protocol.agent_card import JWKS_PATH
 from onaa_protocol.safe_fetch import loads_json
 from starlette.applications import Starlette
-from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -54,6 +56,23 @@ JSONRPC_PATH = "/a2a/v1"
 MAX_BODY_BYTES = 256 * 1024
 MAX_REQUEST_LOG = 256          # entries kept in a node's request_log (oldest dropped)
 MAX_LOGGED_BODY = 16 * 1024    # bytes of each request body kept in the log
+MAX_HANDLER_THREADS = 16       # concurrent message handlers per app (own limiter, not the shared pool)
+
+
+def client_source(host: str | None) -> str | None:
+    """Quota key for a client address: the IPv4 address, or the /64 prefix of an IPv6 address (one host
+    usually owns a whole /64). None when unknown."""
+    if not host:
+        return None
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return "host:" + host[:255]
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.ipv4_mapped is not None:
+            return "ip:" + str(ip.ipv4_mapped)
+        return "ip6:" + str(ipaddress.ip_network(f"{ip}/64", strict=False))
+    return "ip:" + str(ip)
 
 
 def build_agent_card(
@@ -105,9 +124,17 @@ def create_agent_app(
     jwks: Callable[[], dict[str, Any]] | None = None,
     required_extensions: set[str] | None = None,
     request_log: list[dict[str, Any]] | None = None,
+    pass_source: bool = False,
+    max_handler_threads: int = MAX_HANDLER_THREADS,
 ) -> Starlette:
-    """Starlette app serving the Agent Card, the ONAA JWKS and a JSON-RPC SendMessage endpoint."""
+    """Starlette app serving the Agent Card, the ONAA JWKS and a JSON-RPC SendMessage endpoint.
+
+    The handler runs off the event loop on this app's own bounded limiter (``max_handler_threads``), so
+    slow handlers (key fetches) can neither stall the event loop nor exhaust the process-wide worker pool.
+    With ``pass_source=True`` the handler is called as ``handler(message, source)`` with the client
+    address quota key (:func:`client_source`)."""
     required = required_extensions or set()
+    limiter = anyio.CapacityLimiter(max_handler_threads)
 
     async def agent_card(_: Request) -> JSONResponse:
         return JSONResponse(card)
@@ -165,8 +192,12 @@ def create_agent_app(
         try:
             message = validate_message(params.get("message"))
             # The handler may verify signatures (network key fetches): keep it off the event loop so one
-            # slow peer cannot stall the agent card, the JWKS or other trades.
-            reply = await run_in_threadpool(handler, message)
+            # slow peer cannot stall the agent card, the JWKS or other trades. Its own limiter bounds the
+            # threads it can hold; key fetches fail fast when busy (HttpKeyResolver, v0.1.2).
+            call = functools.partial(handler, message, client_source(request.client.host if request.client
+                                                                     else None)) if pass_source \
+                else functools.partial(handler, message)
+            reply = await anyio.to_thread.run_sync(call, limiter=limiter)
         except A2AError as exc:
             return _rpc_error(req_id, exc.code, exc.message, exc.data)
         resp = JSONResponse({"jsonrpc": "2.0", "id": req_id, "result": {"message": reply}})

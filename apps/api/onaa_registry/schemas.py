@@ -6,8 +6,9 @@ These are ONAA registry records, NOT official A2A Agent Cards.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import re
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
 
@@ -119,8 +120,269 @@ class OperatorCreated(BaseModel):
     api_key: str = Field(description="Shown once. Store it in a secret manager; ONAA keeps only a hash.")
 
 
+# ---------- machine-readable trade terms, jurisdiction and extensions ----------
+DECIMAL_RE = r"^\d{1,12}(\.\d{1,6})?$"
+EXT_KEY_RE = re.compile(r"^(([a-z0-9-]+\.)+[a-z0-9-]+|x-[a-z0-9-]{1,40})/[a-z0-9_.-]{1,64}$")
+MAX_EXTENSIONS_BYTES = 8192
+RESERVED_EXT_NAMESPACES = ("onaa.", "net.onaa.")
+
+
+TOKEN_PATTERN = r"^[a-z0-9][a-z0-9._-]{0,119}$"
+ServiceTypeLit = Literal["payment", "escrow", "insurance", "logistics", "shipping", "inspection", "identity",
+                         "dispute", "tax", "fraud", "fx", "hosting", "other"]
+LISTING_REF_RE = re.compile(r"^(agt|svc|hst)_[0-9a-f]{24}$")
+
+
+def _refs(v: list[str], allowed: tuple[str, ...] = ("agt", "svc", "hst")) -> list[str]:
+    for x in v:
+        if not LISTING_REF_RE.match(x) or x[:3] not in allowed:
+            raise ValueError(f"must be registry listing ids ({'/'.join(a + '_' for a in allowed)}): {x!r}")
+    return sorted(set(v))
+
+
+def _countries(v: list[str], field: str, extra: tuple[str, ...] = ()) -> list[str]:
+    out = sorted({x.strip().upper() for x in v})
+    for x in out:
+        if not (re.match(r"^[A-Z]{2}$", x) or x in extra):
+            raise ValueError(f"{field} must be ISO 3166-1 alpha-2{' or ' + '/'.join(extra) if extra else ''}: {x!r}")
+    return out
+
+
+class Pricing(StrictModel):
+    """One price line (maps to schema.org PriceSpecification). Amounts are decimal strings, never floats.
+    Self-declared and indicative: the binding price is the signed QUOTE exchanged directly over A2A."""
+
+    model: Literal["free", "fixed", "percentage", "per_unit", "subscription", "quote"]
+    amount: str | None = Field(default=None, pattern=DECIMAL_RE)
+    percentage: str | None = Field(default=None, pattern=DECIMAL_RE, description="e.g. '2.9' for 2.9%")
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    unit: str | None = Field(default=None, pattern=r"^[a-z0-9_.-]{1,40}$",
+                             description="per_unit/subscription unit: request, transaction, kg, month, ...")
+    min_amount: str | None = Field(default=None, pattern=DECIMAL_RE)
+    max_amount: str | None = Field(default=None, pattern=DECIMAL_RE)
+    applies_to: str | None = Field(default=None, pattern=TOKEN_PATTERN,
+                                   description="capability or skill id this line prices; empty = whole listing")
+    notes: str | None = Field(default=None, max_length=300)
+
+
+class Quoting(StrictModel):
+    mode: Literal["instant", "rfq", "negotiated", "catalog"] = "rfq"
+    quote_validity_s: int | None = Field(default=None, ge=1, le=90 * 86400)
+    quote_response_time_s: int | None = Field(default=None, ge=1, le=30 * 86400)
+    catalog_url: str | None = Field(default=None, max_length=2048, description="Machine-readable offer catalog")
+
+
+class ServiceLevel(StrictModel):
+    availability_target_pct: str | None = Field(default=None, pattern=DECIMAL_RE)
+    p95_latency_ms: int | None = Field(default=None, ge=1, le=3_600_000)
+    support_hours: str | None = Field(default=None, max_length=100, description="e.g. '24/7', 'Mo-Fr 09-18 Asia/Seoul'")
+    timezone: str | None = Field(default=None, max_length=64, description="IANA time zone, e.g. Asia/Seoul")
+
+
+class Capacity(StrictModel):
+    max_concurrent_orders: int | None = Field(default=None, ge=1, le=10_000_000)
+    max_order_value: str | None = Field(default=None, pattern=DECIMAL_RE)
+    min_order_value: str | None = Field(default=None, pattern=DECIMAL_RE)
+    order_value_currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+    lead_time_days: int | None = Field(default=None, ge=0, le=365)
+
+
+class AcceptedService(StrictModel):
+    """A settlement/fulfilment service type this listing works with. Pairs buyers and sellers with the same
+    escrow, payment, insurance or logistics providers found in the registry."""
+
+    service_type: ServiceTypeLit
+    listing_ids: list[str] = Field(default_factory=list, max_length=20,
+                                   description="Specific registry providers (svc_/hst_) accepted; empty = any")
+    required: bool = False
+
+    @field_validator("listing_ids")
+    @classmethod
+    def _ids(cls, v: list[str]) -> list[str]:
+        return _refs(v, ("svc", "hst"))
+
+
+class PaymentTerms(StrictModel):
+    terms: list[Literal["prepay", "escrow", "on_delivery", "net", "milestone", "subscription"]] = Field(
+        default_factory=list, max_length=6)
+    net_days: int | None = Field(default=None, ge=1, le=180)
+    settlement_currencies: list[str] = Field(default_factory=list, max_length=32)
+
+    @field_validator("settlement_currencies")
+    @classmethod
+    def _cur(cls, v: list[str]) -> list[str]:
+        return _norm_currencies(v)
+
+
+class Policies(StrictModel):
+    """Links to the operator's own policies. ONAA does not adjudicate them."""
+
+    refund_policy_url: str | None = Field(default=None, max_length=2048)
+    dispute_policy_url: str | None = Field(default=None, max_length=2048)
+    warranty_days: int | None = Field(default=None, ge=0, le=3650)
+    liability_cap_amount: str | None = Field(default=None, pattern=DECIMAL_RE)
+    liability_cap_currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$")
+
+
+class Classification(StrictModel):
+    """What is traded, in a public code list: UNSPSC (UN), HS (WCO), GS1 GPC, ISIC (UN) or NAICS."""
+
+    scheme: Literal["unspsc", "hs", "gs1_gpc", "isic", "naics"]
+    code: str = Field(pattern=r"^[0-9A-Za-z.]{1,20}$")
+
+
+class Commerce(StrictModel):
+    pricing: list[Pricing] = Field(default_factory=list, max_length=10)
+    quoting: Quoting | None = None
+    service_level: ServiceLevel | None = None
+    capacity: Capacity | None = None
+    accepts_services: list[AcceptedService] = Field(default_factory=list, max_length=13)
+    payment_terms: PaymentTerms | None = None
+    policies: Policies | None = None
+    classifications: list[Classification] = Field(default_factory=list, max_length=20)
+    incoterms: list[Literal["EXW", "FCA", "CPT", "CIP", "DAP", "DPU", "DDP", "FAS", "FOB", "CFR", "CIF"]] = Field(
+        default_factory=list, max_length=11, description="ICC Incoterms 2020, for physical goods")
+
+
+class Jurisdiction(StrictModel):
+    """Where the listing operates and may serve. Self-declared; never a licence or legal verification."""
+
+    operating_country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$",
+                                          description="ISO 3166-1 alpha-2 country the operator runs from")
+    excluded_regions: list[str] = Field(default_factory=list, max_length=250,
+                                        description="Countries it does NOT serve; overrides `regions` in search")
+    data_residency: list[str] = Field(default_factory=list, max_length=32,
+                                      description="Where data is stored: ISO countries, EU or EEA")
+    compliance_claims: list[str] = Field(default_factory=list, max_length=16,
+                                         description="Self-declared tokens, e.g. gdpr, pci-dss, soc2, iso27001")
+    restricted_activities: list[str] = Field(default_factory=list, max_length=16,
+                                             description="e.g. age_restricted, export_controlled, licensed_goods")
+    sanctions_screening: bool | None = Field(default=None, description="Operator says it screens counterparties")
+
+    @field_validator("excluded_regions")
+    @classmethod
+    def _excl(cls, v: list[str]) -> list[str]:
+        return _countries(v, "excluded_regions")
+
+    @field_validator("data_residency")
+    @classmethod
+    def _res(cls, v: list[str]) -> list[str]:
+        return _countries(v, "data_residency", ("EU", "EEA"))
+
+    @field_validator("compliance_claims", "restricted_activities")
+    @classmethod
+    def _tok(cls, v: list[str], info) -> list[str]:
+        return _tokens(v, info.field_name)
+
+
+class SkillIO(StrictModel):
+    """Machine-readable I/O per skill (A2A cards list modes, not schemas)."""
+
+    skill_id: str = Field(pattern=TOKEN_PATTERN)
+    input_schema_url: str | None = Field(default=None, max_length=2048, description="JSON Schema")
+    output_schema_url: str | None = Field(default=None, max_length=2048, description="JSON Schema")
+    example_url: str | None = Field(default=None, max_length=2048)
+
+
+class Integration(StrictModel):
+    skills_io: list[SkillIO] = Field(default_factory=list, max_length=64)
+    auth_methods: list[Literal["none", "api_key", "oauth2", "oidc", "mtls", "onaa_signature", "http_signature"]] = (
+        Field(default_factory=list, max_length=7))
+    rate_limit_per_minute: int | None = Field(default=None, ge=1, le=10_000_000)
+    status_page_url: str | None = Field(default=None, max_length=2048)
+    changelog_url: str | None = Field(default=None, max_length=2048)
+    depends_on: list[str] = Field(default_factory=list, max_length=32,
+                                  description="Registry listings this one calls (sub-agents, providers)")
+    sunset_at: dt.datetime | None = Field(default=None, description="Planned deprecation time")
+    replaced_by: str | None = Field(default=None, description="Successor listing id")
+
+    @field_validator("depends_on")
+    @classmethod
+    def _deps(cls, v: list[str]) -> list[str]:
+        return _refs(v)
+
+    @field_validator("replaced_by")
+    @classmethod
+    def _repl(cls, v: str | None) -> str | None:
+        return None if v is None else _refs([v])[0]
+
+
+class DataHandling(StrictModel):
+    privacy_policy_url: str | None = Field(default=None, max_length=2048)
+    data_categories: list[str] = Field(default_factory=list, max_length=16,
+                                       description="What it processes: personal, payment, location, health, ...")
+    retention_days: int | None = Field(default=None, ge=0, le=36500)
+    trains_on_customer_data: bool | None = None
+    subprocessors: list[str] = Field(default_factory=list, max_length=32, description="Registry listing ids")
+
+    @field_validator("data_categories")
+    @classmethod
+    def _cat(cls, v: list[str]) -> list[str]:
+        return _tokens(v, "data_categories")
+
+    @field_validator("subprocessors")
+    @classmethod
+    def _sub(cls, v: list[str]) -> list[str]:
+        return _refs(v)
+
+
+class Contacts(StrictModel):
+    support_url: str | None = Field(default=None, max_length=2048)
+    escalation_url: str | None = Field(default=None, max_length=2048)
+    security_contact_url: str | None = Field(default=None, max_length=2048,
+                                             description="e.g. https://host/.well-known/security.txt")
+
+
+class SelfReported(StrictModel):
+    """Track record as claimed by the listing itself. Shown under this name and never as ONAA-verified."""
+
+    completed_trades: int | None = Field(default=None, ge=0)
+    operating_since: dt.date | None = None
+    references_url: str | None = Field(default=None, max_length=2048)
+
+
+PROFILE_BLOCKS = ("commerce", "jurisdiction", "integration", "data_handling", "contacts", "self_reported")
+
+
+def validate_extensions(v: dict[str, Any] | None) -> dict[str, Any] | None:
+    if v is None:
+        return None
+    if len(v) > 32:
+        raise ValueError("at most 32 extension fields")
+    for k in v:
+        if not EXT_KEY_RE.match(k):
+            raise ValueError(f"extension key must be namespaced like 'com.example/field' or 'x-name/field': {k!r}")
+        if k.startswith(RESERVED_EXT_NAMESPACES):
+            raise ValueError(f"namespace reserved for promoted ONAA fields: {k!r}")
+    if len(json.dumps(v, separators=(",", ":"))) > MAX_EXTENSIONS_BYTES:
+        raise ValueError(f"extensions exceed {MAX_EXTENSIONS_BYTES} bytes")
+    return v
+
+
+class _Evolvable(StrictModel):
+    """Optional fields shared by create and update (agents and services). All are self-declared; every
+    block can be added, changed or removed (null) later by the listing's own agent key."""
+
+    commerce: Commerce | None = None
+    jurisdiction: Jurisdiction | None = None
+    integration: Integration | None = None
+    data_handling: DataHandling | None = None
+    contacts: Contacts | None = None
+    self_reported: SelfReported | None = None
+    extensions: dict[str, Any] | None = Field(
+        default=None, description="Namespaced extension fields (`com.example/field`, `x-name/field`), max 8 KiB. "
+                                  "Untrusted. Widely used keys can be proposed for promotion via /v1/vocabulary.")
+    jwks_uri: str | None = Field(default=None, max_length=2048,
+                                 description="ONAA Protocol signing keys (JWK Set); must be on the listing host")
+
+    @field_validator("extensions")
+    @classmethod
+    def _ext(cls, v):
+        return validate_extensions(v)
+
+
 # ---------- listings ----------
-class _ListingCommon(StrictModel):
+class _ListingCommon(_Evolvable):
     display_name: str = Field(min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
     capabilities: list[str] = Field(default_factory=list, max_length=64)
@@ -154,7 +416,7 @@ class AgentCreate(_ListingCommon):
     endpoint_url: str | None = Field(default=None, max_length=2048)
 
 
-class AgentUpdate(StrictModel):
+class AgentUpdate(_Evolvable):
     display_name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
     roles: list[Role] | None = None
@@ -203,7 +465,7 @@ class ServiceCreate(_ListingCommon):
     )
 
 
-class ServiceUpdate(StrictModel):
+class ServiceUpdate(_Evolvable):
     display_name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
     capabilities: list[str] | None = None
@@ -291,6 +553,15 @@ class RegistryRecord(BaseModel):
     languages: list[str]
     categories: list[str]
     regulatory_claims: list[str] = Field(default_factory=list)
+    commerce: dict | None = Field(default=None, description="Self-declared machine-readable trade terms.")
+    jurisdiction: dict | None = Field(default=None, description="Self-declared operating/serving countries.")
+    integration: dict | None = None
+    data_handling: dict | None = None
+    contacts: dict | None = None
+    self_reported: dict | None = Field(default=None, description="Claimed by the listing; NOT verified by ONAA.")
+    extensions: dict = Field(default_factory=dict, description="Namespaced, untrusted extension fields.")
+    jwks_uri: str | None = None
+    revision: int = Field(default=1, description="Increments on every change; also sent as the HTTP ETag.")
     trust: Trust
     agent_card: dict | None = Field(default=None, description="Cache metadata for the linked card; content untrusted.")
     provenance: dict | None = None
@@ -298,6 +569,14 @@ class RegistryRecord(BaseModel):
     status: LifecycleStatus
     created_at: dt.datetime
     updated_at: dt.datetime
+
+
+class HistoryEntry(BaseModel):
+    at: dt.datetime
+    action: str
+    actor_type: str
+    fields: list[str] = Field(default_factory=list)
+    revision: int | None = None
 
 
 class SearchPage(BaseModel):
@@ -381,6 +660,52 @@ class SelfRegistrationFailed(BaseModel):
     status: str
     attempts: int
     error: str
+
+
+# ---------- vocabulary evolution ----------
+VocabularyKind = Literal["field", "capability", "category", "protocol", "service_type", "skill_tag", "compliance",
+                         "data_category"]
+
+
+class VocabularyProposalCreate(StrictModel):
+    kind: VocabularyKind
+    name: str = Field(min_length=1, max_length=120, description="token, or a namespaced extension key for fields")
+    description: str = Field(min_length=10, max_length=2000)
+    example: dict[str, Any] | None = Field(default=None, description="Example value or record fragment, max 4 KiB")
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not (TOKEN_RE.match(v) or EXT_KEY_RE.match(v)):
+            raise ValueError("name must be a lowercase token or a namespaced key like 'com.example/field'")
+        return v
+
+    @field_validator("example")
+    @classmethod
+    def _ex(cls, v):
+        if v is not None and len(json.dumps(v, separators=(",", ":"))) > 4096:
+            raise ValueError("example exceeds 4 KiB")
+        return v
+
+
+class VocabularyProposalOut(BaseModel):
+    id: str
+    kind: str
+    name: str
+    description: str
+    example: dict | None
+    status: str
+    support_count: int
+    usage_count: int = Field(description="How many public listings already use this name (facet or extension key)")
+    decision_reason: str | None
+    created_at: dt.datetime
+    decided_at: dt.datetime | None
+
+
+class VocabularyDecision(StrictModel):
+    decision: Literal["accept", "decline"]
+    reason: str = Field(min_length=1, max_length=500)
 
 
 # ---------- certification ----------

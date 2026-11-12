@@ -78,7 +78,18 @@ def _shape(rec: dict) -> dict:
             "sandbox_url": rec.get("sandbox_url"),
             "supported_interfaces": rec.get("supported_interfaces", []),
             "regulatory_claims_self_declared": rec.get("regulatory_claims", []),
+            "commerce": rec.get("commerce"),
+            "jurisdiction": rec.get("jurisdiction"),
+            "integration": rec.get("integration"),
+            "data_handling": rec.get("data_handling"),
+            "contacts": rec.get("contacts"),
+            "self_reported_unverified": rec.get("self_reported"),
+            "extensions": rec.get("extensions") or {},
+            "jwks_uri": rec.get("jwks_uri"),
+            "agent_card_summary": (rec.get("agent_card") or {}).get("summary"),
         },
+        "revision": rec.get("revision"),
+        "updated_at": rec.get("updated_at"),
     }
 
 
@@ -126,19 +137,31 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         currency: list[str] | None = None,
         protocol: list[str] | None = None,
         query: str | None = None,
+        country: list[str] | None = None,
+        accepts: list[str] | None = None,
+        skill: list[str] | None = None,
+        pricing_model: list[str] | None = None,
+        operating_country: list[str] | None = None,
+        compliance: list[str] | None = None,
+        classification: list[str] | None = None,
+        updated_since: str | None = None,
         verified_only: bool = False,
         certified_only: bool = False,
         claimed_only: bool = False,
         limit: int = 10,
         offset: int = 0,
     ) -> dict[str, Any]:
-        """Find agents by capability (e.g. commerce.quote.issue), role, ISO region (e.g. US, KR), ISO currency,
-        protocol (e.g. a2a-1.x) or free text. Returns registry records with separate trust levels."""
+        """Find agents by capability (e.g. commerce.quote.issue), role, region/country you are in (ISO, e.g. US;
+        excludes listings that refuse it), ISO currency, protocol (e.g. a2a-1.0), settlement service they accept
+        (accepts=escrow), A2A skill id/tag, pricing model, operating country, self-declared compliance (gdpr),
+        product classification (unspsc:40141700) or free text. Returns records with separate trust levels."""
         try:
             return _page(registry.search_agents(
                 capability=capability, role=role, region=region, currency=currency, protocol=protocol, q=query,
-                verified_only=verified_only, certified_only=certified_only, claimed_only=claimed_only,
-                limit=max(1, min(limit, MAX_LIMIT)), offset=max(0, offset)))
+                country=country, accepts=accepts, skill=skill, pricing_model=pricing_model,
+                operating_country=operating_country, compliance=compliance, classification=classification,
+                updated_since=updated_since, verified_only=verified_only, certified_only=certified_only,
+                claimed_only=claimed_only, limit=max(1, min(limit, MAX_LIMIT)), offset=max(0, offset)))
         except OnaaError as exc:
             return _err(exc)
 
@@ -150,15 +173,23 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         region: list[str] | None = None,
         currency: list[str] | None = None,
         query: str | None = None,
+        country: list[str] | None = None,
+        operating_country: list[str] | None = None,
+        data_residency: list[str] | None = None,
+        compliance: list[str] | None = None,
+        pricing_model: list[str] | None = None,
         verified_only: bool = False,
         limit: int = 10,
         offset: int = 0,
     ) -> dict[str, Any]:
         """Find external service providers (escrow, payment, insurance, logistics, hosting, ...) by type, region
-        and currency. Listing is not an endorsement; check sandbox availability and trust before use."""
+        or country served, operating country, data residency (ISO or EU), self-declared compliance and pricing
+        model. Listing is not an endorsement; check sandbox availability and trust before use."""
         try:
             return _page(registry.search_services(
                 type=service_type, capability=capability, region=region, currency=currency, q=query,
+                country=country, operating_country=operating_country, data_residency=data_residency,
+                compliance=compliance, pricing_model=pricing_model,
                 verified_only=verified_only, limit=max(1, min(limit, MAX_LIMIT)), offset=max(0, offset)))
         except OnaaError as exc:
             return _err(exc)
@@ -171,6 +202,15 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
             return {"error": {"status": 400, "detail": "listing_id must start with agt_, svc_ or hst_"}}
         try:
             return {"listing": _shape(registry.get(kind, listing_id)), "note": UNTRUSTED_NOTE}
+        except OnaaError as exc:
+            return _err(exc)
+
+    @mcp.tool(annotations=READ_ONLY)
+    def get_vocabulary(top: int = 30) -> dict[str, Any]:
+        """Canonical values, the capability/skill/protocol tokens and extension keys other agents actually use,
+        open proposals and how new fields get promoted. Use it to describe yourself in words others search for."""
+        try:
+            return registry.vocabulary(top=max(1, min(top, 200)))
         except OnaaError as exc:
             return _err(exc)
 
@@ -212,6 +252,7 @@ AUTHORITY_REQUIRED = {"error": {"status": 400, "detail": "confirm_operator_autho
 
 def _register_self_registration_tools(mcp: MCPServer, registry: OnaaClient, key_path: Path) -> None:
     pending: dict[str, str] = {}  # registration_id -> registration_secret, in process memory only
+    _register_update_tool(mcp, registry, key_path)
 
     @mcp.tool(annotations=WRITE)
     def self_register_start(
@@ -277,6 +318,27 @@ def _register_self_registration_tools(mcp: MCPServer, registry: OnaaClient, key_
         return {"status": "completed", "operator_id": out["operator"]["id"], "key_saved_to": str(key_path),
                 "key_prefix": out["api_key"][:12], "listing": _shape(out["listing"]),
                 "next_steps": [s for s in out.get("next_steps", []) if "api_key" not in s], "note": UNTRUSTED_NOTE}
+
+
+def _register_update_tool(mcp: MCPServer, registry: OnaaClient, key_path: Path) -> None:
+    @mcp.tool(annotations=WRITE)
+    def update_my_listing(listing_id: str, changes: dict[str, Any]) -> dict[str, Any]:
+        """Change your OWN listing (needs the key saved by self_register_complete). `changes` uses the registry
+        PATCH fields, e.g. {"commerce": {...}, "jurisdiction": {...}, "extensions": {"com.example/x": 1},
+        "description": "..."}. A sent block replaces the stored one; null removes it. The key is read from the
+        key file and never returned."""
+        if listing_id[:4] not in ("agt_", "svc_", "hst_") or len(listing_id) > 40:
+            return {"error": {"status": 400, "detail": "listing_id must start with agt_, svc_ or hst_"}}
+        try:
+            key = key_path.read_text().strip()
+        except OSError:
+            return {"error": {"status": 401, "detail": "no key file yet; self-register first"}}
+        owner = OnaaClient(registry.base_url, api_key=key, http_client=registry._http)
+        try:
+            rec = owner.update("agents" if listing_id.startswith("agt_") else "services", listing_id, **changes)
+        except OnaaError as exc:
+            return _err(exc)
+        return {"listing": _shape(rec), "note": UNTRUSTED_NOTE}
 
 
 def _register_remote_self_registration_tools(mcp: MCPServer, client_for: RemoteClient) -> None:

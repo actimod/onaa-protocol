@@ -57,7 +57,7 @@ from .safe_fetch import fetch_json, safe_client, validate_url
 from .state import TradeLedger, check_transition
 from .text import sanitize
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 __all__ = [
     "EXTENSION_URI", "MUST_SIGN", "PROTOCOL_VERSION", "REPLY_TYPES", "SHOULD_SIGN", "SPEC", "SPEC_VERSION",

@@ -133,10 +133,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -145,7 +148,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         }
       ],
@@ -189,10 +192,13 @@
                 "escrow_required": true,
                 "accepted_service_types": [
                   "escrow"
+                ],
+                "accepted_provider_card_urls": [
+                  "https://escrow.example.com/.well-known/agent-card.json"
                 ]
               },
               "sample": true,
-              "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+              "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
             },
             "recipient": {
               "agent_id": "sample-buyer-agent",
@@ -201,7 +207,7 @@
             "in_reply_to": "rfq-0000-4000-8000-000000000001",
             "signature": {
               "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-              "signature": "CFLrfdQFyjl33n4kFLCGHlolYoaK_HOPuzVVYlqdCjWfCPB9oaTGmb1409Mff7ybU_1uq7fQV1bodaLQ1GWNAw"
+              "signature": "vYerI5FPoE40gcR7fyINl3E8Bz83FM0UQsY51Z_MEWIpHjLD5DAClPagpuCNDBlMtEfgVjYoIvxdutL8zv-QCw"
             }
           },
           "expected": "quote_superseded"
@@ -277,10 +283,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -289,7 +298,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -329,10 +338,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:1e72aadc9af4c991b144ffc4736976dbd01c156f8a9b708258d73391fb98209e"
+            "terms_hash": "sha256:7366fd980a7a0406cab2cc58a8925fcefe79bec45fcc6ca9b73bef7b37598eb5"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -341,7 +353,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "Dssewf9twTqZts272xg5AvFVnJL69l2hprshR9g6pdpeWvhdvSKS4xVU__ZgKimKBjhAH6qKP-hcOCgLtSo3CQ"
+            "signature": "WIoVl0e7XdA4qBBCBNYTuHIqE-wr-wYfuMZaSbViDnqlsdOKc7kqT_8w2GGb5sfuTVVffScGa2Qgbt8rBzRyCg"
           }
         }
       ],
@@ -364,7 +376,7 @@
             "body": {
               "quote_id": "quote-0000-4000-8000-000000000001",
               "quote_revision": 1,
-              "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+              "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
               "rfq_id": "rfq-0000-4000-8000-000000000001",
               "buyer_agent_id": "sample-buyer-agent",
               "seller_agent_id": "sample-seller-agent",
@@ -385,7 +397,7 @@
             },
             "signature": {
               "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-              "signature": "VCEuL9uoO0_zMP7LEpfKEvsDBR0U8x9jQS3ybNltJ_5kTCeoBfYWEsCGsuOoLg-lVuv74-mGZrFsdJjOFk59Cg"
+              "signature": "PLZAxZzF2v_Mdf6V80yexUkmJM9T-64HZ6Y7u6bOklwQqmZogozJ7PWC1t6PdGue3elaQNmel6KJ5kgfH3wjCA"
             }
           },
           "expected": "quote_superseded"
@@ -408,7 +420,7 @@
             "body": {
               "quote_id": "quote-rev2-0000-4000-8000-000000000001",
               "quote_revision": 2,
-              "quote_terms_hash": "sha256:1e72aadc9af4c991b144ffc4736976dbd01c156f8a9b708258d73391fb98209e",
+              "quote_terms_hash": "sha256:7366fd980a7a0406cab2cc58a8925fcefe79bec45fcc6ca9b73bef7b37598eb5",
               "rfq_id": "rfq-0000-4000-8000-000000000001",
               "buyer_agent_id": "sample-buyer-agent",
               "seller_agent_id": "sample-seller-agent",
@@ -429,7 +441,7 @@
             },
             "signature": {
               "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-              "signature": "R5ztoLyAWcu2bP6hv4PP_DEIewLwlK-fK-y4ji_1HtyATKlaxtbBnAO7AUiHk-oM3MZc6TCC2tlvCeBfEvfGBQ"
+              "signature": "BaHJ_q45znb4DZctHUz8Q_H0e4QDRz51olFjAnANDx4Wz4N47jcdeMjlnxyefTgPmzuVzoGAWfrjCMl_X8LsCA"
             }
           },
           "expected": "valid"
@@ -505,10 +517,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -517,7 +532,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         }
       ],
@@ -540,7 +555,7 @@
             "body": {
               "quote_id": "quote-0000-4000-8000-000000000001",
               "quote_revision": 1,
-              "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+              "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
               "rfq_id": "rfq-0000-4000-8000-000000000001",
               "buyer_agent_id": "sample-buyer-agent",
               "seller_agent_id": "sample-seller-agent",
@@ -561,7 +576,7 @@
             },
             "signature": {
               "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-              "signature": "vWG5J3OUahSwY5fElLIfTJeBCigs0xY7CZVrDk4gCy_Lgbg1yl_gRYqDnkohUF9OcDsn-wH4sNQ4QCtiV0AwDQ"
+              "signature": "i2UyFchtg5-gIGlFgnkJlYMuzqnpaoX-w48X_jlidgUkAei12RMQsEFYlQKVEhLjQesiLcFggIQsVRJjox-HBQ"
             }
           },
           "expected": "quote_expired"
@@ -637,10 +652,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -649,7 +667,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         }
       ],
@@ -672,7 +690,7 @@
             "body": {
               "quote_id": "quote-0000-4000-8000-000000000001",
               "quote_revision": 1,
-              "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+              "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
               "rfq_id": "rfq-0000-4000-8000-000000000001",
               "buyer_agent_id": "sample-buyer-agent",
               "seller_agent_id": "sample-seller-agent",
@@ -693,7 +711,7 @@
             },
             "signature": {
               "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-              "signature": "YY3DkqPSRdMDDcCcDpLMfI4eUFu0c57AjQ_lxQbTbmWIGB3OYwgCglI1pkVwUDY8Fq-5ceRLPAdQVxaGIglcAA"
+              "signature": "btoxgDxwFGO3N_UPScONmRy6zXccSIXYZqcWqPce2M96gNuvCYiygYLMxpD6lN334rURmm0R5LStS2vqtoYYCg"
             }
           },
           "expected": "amount_mismatch"
@@ -769,10 +787,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -781,7 +802,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         }
       ],
@@ -804,7 +825,7 @@
             "body": {
               "quote_id": "quote-0000-4000-8000-000000000001",
               "quote_revision": 1,
-              "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+              "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
               "rfq_id": "rfq-0000-4000-8000-000000000001",
               "buyer_agent_id": "sample-buyer-agent",
               "seller_agent_id": "sample-seller-agent",
@@ -825,7 +846,7 @@
             },
             "signature": {
               "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-              "signature": "ydYqQq3OKciyR3ZVeHiX2g17ZGRzIzwPVB3L2XTa0Ha42M_Ih7BSd4ZcJVMrK6aV1BXTpMusruN63ZGxvSBhCw"
+              "signature": "2eEDFL2nM9LM7LhdKyVS7bQxuJYnTuQ85Rco28WYJzBULHZBgFBaubyHYouZ91bmYhwo01bVGp13GbPfECcKCg"
             }
           },
           "expected": "amount_mismatch"
@@ -901,10 +922,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -913,7 +937,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         }
       ],
@@ -936,7 +960,7 @@
             "body": {
               "quote_id": "quote-0000-4000-8000-000000000001",
               "quote_revision": 2,
-              "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+              "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
               "rfq_id": "rfq-0000-4000-8000-000000000001",
               "buyer_agent_id": "sample-buyer-agent",
               "seller_agent_id": "sample-seller-agent",
@@ -957,7 +981,7 @@
             },
             "signature": {
               "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-              "signature": "wAwwwfMEg61VY-jM1qNaqLfXNjmO8zNTZPM4LzOea1v9s2uTNZwKHMQcMTbemdrCf8i5cK1renmlfcyWsc5IAQ"
+              "signature": "FWIUwS0dtxXKjchKNsQycNOXRvr64OwewkJJuiZQ5XqrWmiWYI1ig3PN6_t5HsMRlYDpJqDrhLDwUZlTxzI6CQ"
             }
           },
           "expected": "terms_mismatch"
@@ -1033,10 +1057,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -1045,7 +1072,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         }
       ],
@@ -1068,7 +1095,7 @@
             "body": {
               "quote_id": "unknown-quote-0000-4000-8000-000000000001",
               "quote_revision": 1,
-              "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+              "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
               "rfq_id": "rfq-0000-4000-8000-000000000001",
               "buyer_agent_id": "sample-buyer-agent",
               "seller_agent_id": "sample-seller-agent",
@@ -1089,7 +1116,7 @@
             },
             "signature": {
               "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-              "signature": "R9puPIhwlmXX6hDCuCyznrx1JPh1bAq0rP68TS2JGUhYwosSk5y4kvqeU1wI_pwXq-wSlioy-pVCJbpu1xP3Dg"
+              "signature": "H1P_64ElY1mt3FdX7HwfAmOls9G5IYycxmk0WccfEAiI79v2UOx5FAOr64uBy-iWwj-uP4N0Zi9JG7RT8tr_Dg"
             }
           },
           "expected": "unknown_quote"
@@ -1165,10 +1192,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -1177,7 +1207,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         }
       ],
@@ -1200,7 +1230,7 @@
             "body": {
               "quote_id": "quote-0000-4000-8000-000000000001",
               "quote_revision": 1,
-              "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+              "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
               "rfq_id": "rfq-0000-4000-8000-000000000001",
               "buyer_agent_id": "sample-outsider-agent",
               "seller_agent_id": "sample-seller-agent",
@@ -1221,7 +1251,7 @@
             },
             "signature": {
               "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6Im91dHNpZGVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-              "signature": "F1qqNSV14bXYcoRAd4_YdY2YG-UPbLajEJo4qKh_Be3cyqIMNH_YhVcBJrTUhX-iobL-NCO02fvAZ7pqSB_wBg"
+              "signature": "wu6FUDHkpjDKV8hp_OeQS8kfs1dNcjtPxzgCoRMVymrlrOo6FGYtfEJiIhV6Tt3AJpfLQl1qausmkQt2oIdkDg"
             }
           },
           "expected": "not_a_party"
@@ -1297,10 +1327,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -1309,7 +1342,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         }
       ],
@@ -1332,7 +1365,7 @@
             "body": {
               "quote_id": "quote-0000-4000-8000-000000000001",
               "quote_revision": 1,
-              "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+              "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
               "rfq_id": "rfq-0000-4000-8000-000000000001",
               "buyer_agent_id": "sample-buyer-agent",
               "seller_agent_id": "sample-seller-agent",
@@ -1353,7 +1386,7 @@
             },
             "signature": {
               "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImF0dGFja2VyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-              "signature": "DwxO-bXF3etQOG_gsHFS0BLY0yZ2xKBY_aLF8htJxdYsrscZmL_wx4pKNk_TnQVs1vo-XtVkXbUF0o3cSEmKDQ"
+              "signature": "BACLik7k2wV6efSxa73MUh8ZDGMBUdmqJpr7PekwnYp3pCNNRvK5FjMKG0DdDLFVCVHWsxDQxZEx94-xPAnEDg"
             }
           },
           "expected": "signer_mismatch"
@@ -1429,10 +1462,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -1441,7 +1477,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -1460,7 +1496,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -1481,7 +1517,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         }
       ],
@@ -1591,10 +1627,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -1603,7 +1642,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -1622,7 +1661,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -1643,7 +1682,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         }
       ],
@@ -1665,7 +1704,7 @@
             },
             "body": {
               "order_id": "order-0000-4000-8000-000000000001",
-              "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+              "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
               "quote_id": "quote-0000-4000-8000-000000000001",
               "state": "CONFIRMED",
               "seller_order_reference": "SAMPLE-SO-0001"
@@ -1677,7 +1716,7 @@
             "in_reply_to": "order-0000-4000-8000-000000000001",
             "signature": {
               "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-              "signature": "Zk-EkeX6cRTb1-4cO7_0Cb9daYGlN_VVOFknQG9kZWu0E6BxId3ieW7U_I6T5jpf8q4qb373G6marZe1iFEJCA"
+              "signature": "CXpfpcrF2e-CFQo6pwtXaY9gSuzBkGXLpZX1Fe9iTVEHOgtI41e7mC6iHnmFZZIlw2ZdaiNHD-JTY0m-7DetCw"
             }
           },
           "expected": "not_a_party"
@@ -1753,10 +1792,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -1765,7 +1807,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -1784,7 +1826,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -1805,7 +1847,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         }
       ],
@@ -1829,7 +1871,7 @@
               "service_type": "escrow",
               "mode": "mock",
               "order_id": "order-0000-4000-8000-000000000001",
-              "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+              "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
               "quote_id": "quote-0000-4000-8000-000000000001",
               "quote_expires_at": "2026-11-12T12:15:05Z",
               "parties": {
@@ -1845,7 +1887,7 @@
             },
             "signature": {
               "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-              "signature": "SHbUlwo_gheC44QHWO0NsA974JCeWhBL0C62gOwknS7J6FjI8lHhvFBMHV4bexlDYo8fyuBbHEEToUUSZ34GBg"
+              "signature": "luBXomxxS-FnMNL1pMnv4gwfMWYyMlTF2RFX5ruxySB8LR3r7WL1MrYLKWxCUalP1kEVu3H0do7c-vO90tKaBw"
             }
           },
           "expected": "invalid_transition"
@@ -1921,10 +1963,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -1933,7 +1978,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -1952,7 +1997,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -1973,7 +2018,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         },
         {
@@ -1991,7 +2036,7 @@
           },
           "body": {
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "state": "CONFIRMED",
             "seller_order_reference": "SAMPLE-SO-0001"
@@ -2003,7 +2048,7 @@
           "in_reply_to": "order-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "uL-JSOrA8bASxywu3ZWGRxQ1sPs6zSKXSkjA9e4qee5d28aT90fbvNmyphZY5BkWyR9Enevlp4o9Pte_1Y29Cw"
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
           }
         }
       ],
@@ -2109,10 +2154,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -2121,7 +2169,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -2140,7 +2188,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -2161,7 +2209,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         },
         {
@@ -2179,7 +2227,7 @@
           },
           "body": {
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "state": "CONFIRMED",
             "seller_order_reference": "SAMPLE-SO-0001"
@@ -2191,7 +2239,7 @@
           "in_reply_to": "order-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "uL-JSOrA8bASxywu3ZWGRxQ1sPs6zSKXSkjA9e4qee5d28aT90fbvNmyphZY5BkWyR9Enevlp4o9Pte_1Y29Cw"
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
           }
         }
       ],
@@ -2297,10 +2345,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -2309,7 +2360,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -2328,7 +2379,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -2349,7 +2400,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         },
         {
@@ -2367,7 +2418,7 @@
           },
           "body": {
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "state": "CONFIRMED",
             "seller_order_reference": "SAMPLE-SO-0001"
@@ -2379,7 +2430,7 @@
           "in_reply_to": "order-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "uL-JSOrA8bASxywu3ZWGRxQ1sPs6zSKXSkjA9e4qee5d28aT90fbvNmyphZY5BkWyR9Enevlp4o9Pte_1Y29Cw"
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
           }
         }
       ],
@@ -2488,10 +2539,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -2500,7 +2554,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -2519,7 +2573,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -2540,7 +2594,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         },
         {
@@ -2558,7 +2612,7 @@
           },
           "body": {
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "state": "CONFIRMED",
             "seller_order_reference": "SAMPLE-SO-0001"
@@ -2570,7 +2624,7 @@
           "in_reply_to": "order-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "uL-JSOrA8bASxywu3ZWGRxQ1sPs6zSKXSkjA9e4qee5d28aT90fbvNmyphZY5BkWyR9Enevlp4o9Pte_1Y29Cw"
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
           }
         }
       ],
@@ -2706,10 +2760,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -2718,7 +2775,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -2737,7 +2794,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -2758,7 +2815,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         },
         {
@@ -2776,7 +2833,7 @@
           },
           "body": {
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "state": "CONFIRMED",
             "seller_order_reference": "SAMPLE-SO-0001"
@@ -2788,7 +2845,7 @@
           "in_reply_to": "order-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "uL-JSOrA8bASxywu3ZWGRxQ1sPs6zSKXSkjA9e4qee5d28aT90fbvNmyphZY5BkWyR9Enevlp4o9Pte_1Y29Cw"
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
           }
         }
       ],
@@ -2812,7 +2869,7 @@
               "service_type": "escrow",
               "mode": "mock",
               "order_id": "order-0000-4000-8000-000000000001",
-              "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+              "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
               "quote_id": "quote-0000-4000-8000-000000000001",
               "quote_expires_at": "2026-11-12T12:15:05Z",
               "parties": {
@@ -2828,7 +2885,7 @@
             },
             "signature": {
               "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-              "signature": "DCYmQFpGpLnlpFqBzy-6B2yfNGpDfFyMr1d-NMhg4Vz8jfQ8ctz5XVcuxuCAvm0EPFljUezG5zMV2IeleGHaCA"
+              "signature": "Jgi5m4xOW4HcLhY2J5q2tiXVr-NSewrAi-K-pAgAiFP1SET8MxunG35nJfTPwskfDkkV3ytknFZ3YBqzPcdECQ"
             }
           },
           "expected": "amount_mismatch"
@@ -2904,10 +2961,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -2916,7 +2976,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -2935,7 +2995,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -2956,7 +3016,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         },
         {
@@ -2974,7 +3034,7 @@
           },
           "body": {
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "state": "CONFIRMED",
             "seller_order_reference": "SAMPLE-SO-0001"
@@ -2986,7 +3046,7 @@
           "in_reply_to": "order-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "uL-JSOrA8bASxywu3ZWGRxQ1sPs6zSKXSkjA9e4qee5d28aT90fbvNmyphZY5BkWyR9Enevlp4o9Pte_1Y29Cw"
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
           }
         },
         {
@@ -3006,7 +3066,7 @@
             "service_type": "escrow",
             "mode": "mock",
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_expires_at": "2026-11-12T12:15:05Z",
             "parties": {
@@ -3022,7 +3082,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "zNpUD2NrRI6kuoL6xDpTXbqtIwDiwCwF2vGkS6Yj1cRdSxJV2f9gMkM--WCsPHVl54sq_D36jpXwO-sTY7ruAA"
+            "signature": "wrsDZyMEaDvXhK38kh5blLpz_VoVHgFFVD6istmPtTn1tKWXs6vV35dmORZAYogL9yNYjLsFkcmECbAggDbfAA"
           }
         }
       ],
@@ -3138,10 +3198,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -3150,7 +3213,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -3169,7 +3232,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -3190,7 +3253,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         },
         {
@@ -3208,7 +3271,7 @@
           },
           "body": {
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "state": "CONFIRMED",
             "seller_order_reference": "SAMPLE-SO-0001"
@@ -3220,7 +3283,7 @@
           "in_reply_to": "order-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "uL-JSOrA8bASxywu3ZWGRxQ1sPs6zSKXSkjA9e4qee5d28aT90fbvNmyphZY5BkWyR9Enevlp4o9Pte_1Y29Cw"
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
           }
         }
       ],
@@ -3338,10 +3401,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -3350,7 +3416,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -3369,7 +3435,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -3390,7 +3456,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         },
         {
@@ -3408,7 +3474,7 @@
           },
           "body": {
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "state": "CONFIRMED",
             "seller_order_reference": "SAMPLE-SO-0001"
@@ -3420,7 +3486,7 @@
           "in_reply_to": "order-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "uL-JSOrA8bASxywu3ZWGRxQ1sPs6zSKXSkjA9e4qee5d28aT90fbvNmyphZY5BkWyR9Enevlp4o9Pte_1Y29Cw"
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
           }
         },
         {
@@ -3440,7 +3506,7 @@
             "service_type": "escrow",
             "mode": "mock",
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_expires_at": "2026-11-12T12:15:05Z",
             "parties": {
@@ -3456,7 +3522,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "zNpUD2NrRI6kuoL6xDpTXbqtIwDiwCwF2vGkS6Yj1cRdSxJV2f9gMkM--WCsPHVl54sq_D36jpXwO-sTY7ruAA"
+            "signature": "wrsDZyMEaDvXhK38kh5blLpz_VoVHgFFVD6istmPtTn1tKWXs6vV35dmORZAYogL9yNYjLsFkcmECbAggDbfAA"
           }
         },
         {
@@ -3631,10 +3697,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -3643,7 +3712,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -3662,7 +3731,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -3683,7 +3752,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         },
         {
@@ -3701,7 +3770,7 @@
           },
           "body": {
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "state": "CONFIRMED",
             "seller_order_reference": "SAMPLE-SO-0001"
@@ -3713,7 +3782,7 @@
           "in_reply_to": "order-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "uL-JSOrA8bASxywu3ZWGRxQ1sPs6zSKXSkjA9e4qee5d28aT90fbvNmyphZY5BkWyR9Enevlp4o9Pte_1Y29Cw"
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
           }
         },
         {
@@ -3733,7 +3802,7 @@
             "service_type": "escrow",
             "mode": "mock",
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_expires_at": "2026-11-12T12:15:05Z",
             "parties": {
@@ -3749,7 +3818,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "zNpUD2NrRI6kuoL6xDpTXbqtIwDiwCwF2vGkS6Yj1cRdSxJV2f9gMkM--WCsPHVl54sq_D36jpXwO-sTY7ruAA"
+            "signature": "wrsDZyMEaDvXhK38kh5blLpz_VoVHgFFVD6istmPtTn1tKWXs6vV35dmORZAYogL9yNYjLsFkcmECbAggDbfAA"
           }
         },
         {
@@ -3900,10 +3969,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -3912,7 +3984,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -3931,7 +4003,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -3952,7 +4024,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         },
         {
@@ -3970,7 +4042,7 @@
           },
           "body": {
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "state": "CONFIRMED",
             "seller_order_reference": "SAMPLE-SO-0001"
@@ -3982,7 +4054,7 @@
           "in_reply_to": "order-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "uL-JSOrA8bASxywu3ZWGRxQ1sPs6zSKXSkjA9e4qee5d28aT90fbvNmyphZY5BkWyR9Enevlp4o9Pte_1Y29Cw"
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
           }
         },
         {
@@ -4002,7 +4074,7 @@
             "service_type": "escrow",
             "mode": "mock",
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_expires_at": "2026-11-12T12:15:05Z",
             "parties": {
@@ -4018,7 +4090,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "zNpUD2NrRI6kuoL6xDpTXbqtIwDiwCwF2vGkS6Yj1cRdSxJV2f9gMkM--WCsPHVl54sq_D36jpXwO-sTY7ruAA"
+            "signature": "wrsDZyMEaDvXhK38kh5blLpz_VoVHgFFVD6istmPtTn1tKWXs6vV35dmORZAYogL9yNYjLsFkcmECbAggDbfAA"
           }
         },
         {
@@ -4169,10 +4241,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -4181,7 +4256,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -4200,7 +4275,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -4221,7 +4296,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         },
         {
@@ -4239,7 +4314,7 @@
           },
           "body": {
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "state": "CONFIRMED",
             "seller_order_reference": "SAMPLE-SO-0001"
@@ -4251,7 +4326,7 @@
           "in_reply_to": "order-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "uL-JSOrA8bASxywu3ZWGRxQ1sPs6zSKXSkjA9e4qee5d28aT90fbvNmyphZY5BkWyR9Enevlp4o9Pte_1Y29Cw"
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
           }
         }
       ],
@@ -4379,10 +4454,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -4391,7 +4469,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -4410,7 +4488,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -4431,7 +4509,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         },
         {
@@ -4449,7 +4527,7 @@
           },
           "body": {
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "state": "CONFIRMED",
             "seller_order_reference": "SAMPLE-SO-0001"
@@ -4461,7 +4539,7 @@
           "in_reply_to": "order-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "uL-JSOrA8bASxywu3ZWGRxQ1sPs6zSKXSkjA9e4qee5d28aT90fbvNmyphZY5BkWyR9Enevlp4o9Pte_1Y29Cw"
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
           }
         },
         {
@@ -4481,7 +4559,7 @@
             "service_type": "escrow",
             "mode": "mock",
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_expires_at": "2026-11-12T12:15:05Z",
             "parties": {
@@ -4497,7 +4575,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "zNpUD2NrRI6kuoL6xDpTXbqtIwDiwCwF2vGkS6Yj1cRdSxJV2f9gMkM--WCsPHVl54sq_D36jpXwO-sTY7ruAA"
+            "signature": "wrsDZyMEaDvXhK38kh5blLpz_VoVHgFFVD6istmPtTn1tKWXs6vV35dmORZAYogL9yNYjLsFkcmECbAggDbfAA"
           }
         }
       ],
@@ -4657,10 +4735,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -4669,7 +4750,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -4688,7 +4769,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -4709,7 +4790,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         },
         {
@@ -4727,7 +4808,7 @@
           },
           "body": {
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "state": "CONFIRMED",
             "seller_order_reference": "SAMPLE-SO-0001"
@@ -4739,7 +4820,7 @@
           "in_reply_to": "order-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "uL-JSOrA8bASxywu3ZWGRxQ1sPs6zSKXSkjA9e4qee5d28aT90fbvNmyphZY5BkWyR9Enevlp4o9Pte_1Y29Cw"
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
           }
         },
         {
@@ -4759,7 +4840,7 @@
             "service_type": "escrow",
             "mode": "mock",
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_expires_at": "2026-11-12T12:15:05Z",
             "parties": {
@@ -4775,7 +4856,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "zNpUD2NrRI6kuoL6xDpTXbqtIwDiwCwF2vGkS6Yj1cRdSxJV2f9gMkM--WCsPHVl54sq_D36jpXwO-sTY7ruAA"
+            "signature": "wrsDZyMEaDvXhK38kh5blLpz_VoVHgFFVD6istmPtTn1tKWXs6vV35dmORZAYogL9yNYjLsFkcmECbAggDbfAA"
           }
         }
       ],
@@ -4893,10 +4974,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -4905,7 +4989,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -4924,7 +5008,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -4945,7 +5029,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         },
         {
@@ -4963,7 +5047,7 @@
           },
           "body": {
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "state": "CONFIRMED",
             "seller_order_reference": "SAMPLE-SO-0001"
@@ -4975,7 +5059,7 @@
           "in_reply_to": "order-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "uL-JSOrA8bASxywu3ZWGRxQ1sPs6zSKXSkjA9e4qee5d28aT90fbvNmyphZY5BkWyR9Enevlp4o9Pte_1Y29Cw"
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
           }
         },
         {
@@ -4995,7 +5079,7 @@
             "service_type": "escrow",
             "mode": "mock",
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_expires_at": "2026-11-12T12:15:05Z",
             "parties": {
@@ -5011,7 +5095,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "zNpUD2NrRI6kuoL6xDpTXbqtIwDiwCwF2vGkS6Yj1cRdSxJV2f9gMkM--WCsPHVl54sq_D36jpXwO-sTY7ruAA"
+            "signature": "wrsDZyMEaDvXhK38kh5blLpz_VoVHgFFVD6istmPtTn1tKWXs6vV35dmORZAYogL9yNYjLsFkcmECbAggDbfAA"
           }
         },
         {
@@ -5069,7 +5153,7 @@
             "service_type": "escrow",
             "mode": "mock",
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_expires_at": "2026-11-12T12:15:05Z",
             "parties": {
@@ -5085,7 +5169,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "kguUrHpickLOC30vE7jUojiY4m2F9jFAzZNzJX8vud_ZtlWCfS-2uTc-BCX_7pcnEpPQkETQkk9U1VGURySeAQ"
+            "signature": "8cNqHqhmle6bBa15ZC_zPE2fXu6oD38SFZtXZpYz7URzK38rLR8iwk_Lecu1q-vTDEyy8RJQ-oNYgvrQ_zSzCQ"
           }
         }
       ],
@@ -5203,10 +5287,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -5215,7 +5302,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         }
       ],
@@ -5238,7 +5325,7 @@
             "body": {
               "quote_id": "quote-0000-4000-8000-000000000001",
               "quote_revision": 1,
-              "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+              "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
               "rfq_id": "rfq-0000-4000-8000-000000000001",
               "buyer_agent_id": "sample-buyer-agent",
               "seller_agent_id": "sample-seller-agent",
@@ -5259,7 +5346,7 @@
             },
             "signature": {
               "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-              "signature": "obXDkkyI3A-lZ4-oTFGYvdE1A-bt-A3yN1fx3QcynXMGITn8BRL_nYzaqvKIHKXVErdS1xPMiIT5YyAdozgvAw"
+              "signature": "dn743ZQV_OV77I9FgRg5X1hBuVdNsByQ0iiDboXB9N16MEy5olfKMk9cQ4yoWZyagazi-Nt-ixllNslJRpCGAQ"
             }
           },
           "expected": "quote_expired"
@@ -5335,10 +5422,13 @@
               "escrow_required": true,
               "accepted_service_types": [
                 "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
               ]
             },
             "sample": true,
-            "terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397"
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
           },
           "recipient": {
             "agent_id": "sample-buyer-agent",
@@ -5347,7 +5437,7 @@
           "in_reply_to": "rfq-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "zR_hPYcL9hiO-Ag2yLRn67jMurQoOot_QiXwp6Dpsr_zPrAktJUU_9Ce0kSOSmF76KEbVEDmIuHlOmaVvu3JCQ"
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
           }
         },
         {
@@ -5366,7 +5456,7 @@
           "body": {
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_revision": 1,
-            "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
             "rfq_id": "rfq-0000-4000-8000-000000000001",
             "buyer_agent_id": "sample-buyer-agent",
             "seller_agent_id": "sample-seller-agent",
@@ -5387,7 +5477,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
           }
         },
         {
@@ -5405,7 +5495,7 @@
           },
           "body": {
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "state": "CONFIRMED",
             "seller_order_reference": "SAMPLE-SO-0001"
@@ -5417,7 +5507,7 @@
           "in_reply_to": "order-0000-4000-8000-000000000001",
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
-            "signature": "uL-JSOrA8bASxywu3ZWGRxQ1sPs6zSKXSkjA9e4qee5d28aT90fbvNmyphZY5BkWyR9Enevlp4o9Pte_1Y29Cw"
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
           }
         },
         {
@@ -5437,7 +5527,7 @@
             "service_type": "escrow",
             "mode": "sandbox",
             "order_id": "order-0000-4000-8000-000000000001",
-            "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
             "quote_id": "quote-0000-4000-8000-000000000001",
             "quote_expires_at": "2026-11-12T12:15:05Z",
             "parties": {
@@ -5453,7 +5543,7 @@
           },
           "signature": {
             "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-            "signature": "A_w4M1foBMKloERIz4_lL_zmVc8pInJp7FACTiO5_72_m_cVAtXB6h2SjxeC8zHSf9eJIcfJKssg_YZOv3lVAw"
+            "signature": "7FVsEfgUwVuHx9gfN21tlGsclC9v3xY0UNxEIaVhfwKhGeGDsT1hIGbPG9-Vvwm9BiOT1KNvmHYugjLOho5gAQ"
           }
         },
         {
@@ -5612,6 +5702,1004 @@
             }
           },
           "expected": "invalid_transition"
+        }
+      ]
+    },
+    {
+      "name": "handoff-addressed-to-a-trading-party",
+      "setup": [
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "RFQ",
+          "id": "rfq-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-rfq-000000000001",
+          "nonce": "nonce-rfq-0000000000000001",
+          "created_at": "2026-11-12T12:00:00Z",
+          "expires_at": "2026-11-12T12:15:00Z",
+          "sender": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "items": [
+              {
+                "sku": "widget-std",
+                "quantity": 4
+              }
+            ],
+            "currency": "USD",
+            "delivery_region": "US",
+            "max_total_minor": 10000
+          },
+          "recipient": {
+            "agent_id": "sample-seller-agent",
+            "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+          }
+        },
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "QUOTE",
+          "id": "quote-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-quote-000000000001",
+          "nonce": "nonce-quote-0000000000000001",
+          "created_at": "2026-11-12T12:00:05Z",
+          "expires_at": "2026-11-12T12:15:05Z",
+          "sender": {
+            "agent_id": "sample-seller-agent",
+            "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "rfq_id": "rfq-0000-4000-8000-000000000001",
+            "revision": 1,
+            "seller_agent_id": "sample-seller-agent",
+            "buyer_agent_id": "sample-buyer-agent",
+            "currency": "USD",
+            "line_items": [
+              {
+                "sku": "widget-std",
+                "description": "Standard widget (SAMPLE)",
+                "quantity": 4,
+                "unit_price_minor": 1250,
+                "line_total_minor": 5000
+              }
+            ],
+            "shipping_minor": 0,
+            "tax_policy": "not_included",
+            "total_minor": 5000,
+            "delivery_terms": "DAP",
+            "delivery_region": "US",
+            "settlement": {
+              "escrow_required": true,
+              "accepted_service_types": [
+                "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
+              ]
+            },
+            "sample": true,
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
+          },
+          "recipient": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "in_reply_to": "rfq-0000-4000-8000-000000000001",
+          "signature": {
+            "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
+          }
+        },
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "ORDER_PROPOSE",
+          "id": "order-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-order-000000000001",
+          "nonce": "nonce-order-0000000000000001",
+          "created_at": "2026-11-12T12:00:20Z",
+          "expires_at": "2026-11-12T12:15:20Z",
+          "sender": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "quote_id": "quote-0000-4000-8000-000000000001",
+            "quote_revision": 1,
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
+            "rfq_id": "rfq-0000-4000-8000-000000000001",
+            "buyer_agent_id": "sample-buyer-agent",
+            "seller_agent_id": "sample-seller-agent",
+            "currency": "USD",
+            "total_minor": 5000,
+            "delivery_region": "US",
+            "settlement": {
+              "service_type": "escrow"
+            },
+            "buyer_authority": {
+              "max_total_minor": 10000,
+              "human_approval": "not_required"
+            }
+          },
+          "recipient": {
+            "agent_id": "sample-seller-agent",
+            "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+          },
+          "signature": {
+            "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
+          }
+        },
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "ORDER_CONFIRM",
+          "id": "confirm-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-confirm-000000000001",
+          "nonce": "nonce-confirm-0000000000000001",
+          "created_at": "2026-11-12T12:00:21Z",
+          "expires_at": "2026-11-12T12:15:21Z",
+          "sender": {
+            "agent_id": "sample-seller-agent",
+            "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "order_id": "order-0000-4000-8000-000000000001",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
+            "quote_id": "quote-0000-4000-8000-000000000001",
+            "state": "CONFIRMED",
+            "seller_order_reference": "SAMPLE-SO-0001"
+          },
+          "recipient": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "in_reply_to": "order-0000-4000-8000-000000000001",
+          "signature": {
+            "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "at": "2026-11-12T12:02:00Z",
+          "envelope": {
+            "spec": "onaa.commerce/v0",
+            "spec_version": "0.2.0",
+            "type": "SERVICE_HANDOFF_REQUEST",
+            "id": "handoff-to-self-0000-4000-8000-000000000001",
+            "idempotency_key": "idem-handoff-to-self-000000000001",
+            "nonce": "nonce-handoff-to-self-0000000000000001",
+            "created_at": "2026-11-12T12:00:30Z",
+            "expires_at": "2026-11-12T12:15:30Z",
+            "sender": {
+              "agent_id": "sample-buyer-agent",
+              "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+            },
+            "body": {
+              "service_type": "escrow",
+              "mode": "mock",
+              "order_id": "order-0000-4000-8000-000000000001",
+              "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
+              "quote_id": "quote-0000-4000-8000-000000000001",
+              "quote_expires_at": "2026-11-12T12:15:05Z",
+              "parties": {
+                "buyer_agent_id": "sample-buyer-agent",
+                "seller_agent_id": "sample-seller-agent"
+              },
+              "currency": "USD",
+              "amount_minor": 5000
+            },
+            "recipient": {
+              "agent_id": "sample-buyer-agent",
+              "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+            },
+            "signature": {
+              "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
+              "signature": "etSdphKjY49yv9XXREBP1pAqCuoiX4JjBY6gU2k0Ldia_okhg2lG-WassfRUHt0FHtS3PFvqKvuuhJOIlVO3AQ"
+            }
+          },
+          "expected": "not_a_party"
+        },
+        {
+          "at": "2026-11-12T12:02:00Z",
+          "envelope": {
+            "spec": "onaa.commerce/v0",
+            "spec_version": "0.2.0",
+            "type": "SERVICE_HANDOFF_REQUEST",
+            "id": "handoff-to-seller-0000-4000-8000-000000000001",
+            "idempotency_key": "idem-handoff-to-seller-000000000001",
+            "nonce": "nonce-handoff-to-seller-0000000000000001",
+            "created_at": "2026-11-12T12:00:30Z",
+            "expires_at": "2026-11-12T12:15:30Z",
+            "sender": {
+              "agent_id": "sample-buyer-agent",
+              "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+            },
+            "body": {
+              "service_type": "escrow",
+              "mode": "mock",
+              "order_id": "order-0000-4000-8000-000000000001",
+              "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
+              "quote_id": "quote-0000-4000-8000-000000000001",
+              "quote_expires_at": "2026-11-12T12:15:05Z",
+              "parties": {
+                "buyer_agent_id": "sample-buyer-agent",
+                "seller_agent_id": "sample-seller-agent"
+              },
+              "currency": "USD",
+              "amount_minor": 5000
+            },
+            "recipient": {
+              "agent_id": "sample-seller-agent",
+              "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+            },
+            "signature": {
+              "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
+              "signature": "1AoObNYUW7Ocd8AH7yQuKUOR0vRHCakGJI8iXs36I-e6eSa3qWk2JVqtr2R23xOSn0c5tiRV2OOncSGB8jgMCA"
+            }
+          },
+          "expected": "not_a_party"
+        }
+      ]
+    },
+    {
+      "name": "secured-needs-a-provider-accepted-in-the-quote",
+      "setup": [
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "RFQ",
+          "id": "rfq-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-rfq-000000000001",
+          "nonce": "nonce-rfq-0000000000000001",
+          "created_at": "2026-11-12T12:00:00Z",
+          "expires_at": "2026-11-12T12:15:00Z",
+          "sender": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "items": [
+              {
+                "sku": "widget-std",
+                "quantity": 4
+              }
+            ],
+            "currency": "USD",
+            "delivery_region": "US",
+            "max_total_minor": 10000
+          },
+          "recipient": {
+            "agent_id": "sample-seller-agent",
+            "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+          }
+        },
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "QUOTE",
+          "id": "quote-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-quote-000000000001",
+          "nonce": "nonce-quote-0000000000000001",
+          "created_at": "2026-11-12T12:00:05Z",
+          "expires_at": "2026-11-12T12:15:05Z",
+          "sender": {
+            "agent_id": "sample-seller-agent",
+            "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "rfq_id": "rfq-0000-4000-8000-000000000001",
+            "revision": 1,
+            "seller_agent_id": "sample-seller-agent",
+            "buyer_agent_id": "sample-buyer-agent",
+            "currency": "USD",
+            "line_items": [
+              {
+                "sku": "widget-std",
+                "description": "Standard widget (SAMPLE)",
+                "quantity": 4,
+                "unit_price_minor": 1250,
+                "line_total_minor": 5000
+              }
+            ],
+            "shipping_minor": 0,
+            "tax_policy": "not_included",
+            "total_minor": 5000,
+            "delivery_terms": "DAP",
+            "delivery_region": "US",
+            "settlement": {
+              "escrow_required": true,
+              "accepted_service_types": [
+                "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
+              ]
+            },
+            "sample": true,
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
+          },
+          "recipient": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "in_reply_to": "rfq-0000-4000-8000-000000000001",
+          "signature": {
+            "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
+          }
+        },
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "ORDER_PROPOSE",
+          "id": "order-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-order-000000000001",
+          "nonce": "nonce-order-0000000000000001",
+          "created_at": "2026-11-12T12:00:20Z",
+          "expires_at": "2026-11-12T12:15:20Z",
+          "sender": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "quote_id": "quote-0000-4000-8000-000000000001",
+            "quote_revision": 1,
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
+            "rfq_id": "rfq-0000-4000-8000-000000000001",
+            "buyer_agent_id": "sample-buyer-agent",
+            "seller_agent_id": "sample-seller-agent",
+            "currency": "USD",
+            "total_minor": 5000,
+            "delivery_region": "US",
+            "settlement": {
+              "service_type": "escrow"
+            },
+            "buyer_authority": {
+              "max_total_minor": 10000,
+              "human_approval": "not_required"
+            }
+          },
+          "recipient": {
+            "agent_id": "sample-seller-agent",
+            "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+          },
+          "signature": {
+            "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
+          }
+        },
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "ORDER_CONFIRM",
+          "id": "confirm-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-confirm-000000000001",
+          "nonce": "nonce-confirm-0000000000000001",
+          "created_at": "2026-11-12T12:00:21Z",
+          "expires_at": "2026-11-12T12:15:21Z",
+          "sender": {
+            "agent_id": "sample-seller-agent",
+            "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "order_id": "order-0000-4000-8000-000000000001",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
+            "quote_id": "quote-0000-4000-8000-000000000001",
+            "state": "CONFIRMED",
+            "seller_order_reference": "SAMPLE-SO-0001"
+          },
+          "recipient": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "in_reply_to": "order-0000-4000-8000-000000000001",
+          "signature": {
+            "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
+          }
+        },
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "SERVICE_HANDOFF_REQUEST",
+          "id": "handoff-sbx-outsider-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-handoff-sbx-outsider-000000000001",
+          "nonce": "nonce-handoff-sbx-outsider-0000000000000001",
+          "created_at": "2026-11-12T12:00:30Z",
+          "expires_at": "2026-11-12T12:15:30Z",
+          "sender": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "service_type": "escrow",
+            "mode": "sandbox",
+            "order_id": "order-0000-4000-8000-000000000001",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
+            "quote_id": "quote-0000-4000-8000-000000000001",
+            "quote_expires_at": "2026-11-12T12:15:05Z",
+            "parties": {
+              "buyer_agent_id": "sample-buyer-agent",
+              "seller_agent_id": "sample-seller-agent"
+            },
+            "currency": "USD",
+            "amount_minor": 5000
+          },
+          "recipient": {
+            "agent_id": "sample-outsider-agent",
+            "agent_card_url": "https://outsider.example.com/.well-known/agent-card.json"
+          },
+          "signature": {
+            "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
+            "signature": "VMGDe8OrpOJsVaQRyIUXCIJac0TyGc5KHmFx8Me5SKh0Naw_riSmsFuyQSFqF8T7tdKuyglcvMnaYZ-H8_OGCw"
+          }
+        },
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "SERVICE_HANDOFF_ACK",
+          "id": "ack-sbx-outsider-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-ack-sbx-outsider-000000000001",
+          "nonce": "nonce-ack-sbx-outsider-0000000000000001",
+          "created_at": "2026-11-12T12:00:31Z",
+          "expires_at": "2026-11-12T13:00:31Z",
+          "sender": {
+            "agent_id": "sample-outsider-agent",
+            "agent_card_url": "https://outsider.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "service_type": "escrow",
+            "mode": "sandbox",
+            "sandbox": true,
+            "label": "SANDBOX ESCROW - TEST ENVIRONMENT - NO REAL FUNDS",
+            "handoff_reference": "SBX-OUT-0000000000000001",
+            "state": "SECURED",
+            "provider_confirmed": true,
+            "order_id": "order-0000-4000-8000-000000000001",
+            "currency": "USD",
+            "amount_minor": 5000
+          },
+          "recipient": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "in_reply_to": "handoff-sbx-outsider-0000-4000-8000-000000000001",
+          "signature": {
+            "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6Im91dHNpZGVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
+            "signature": "cww3dBZ8PPojCDgaTjrlnxgR7_JtpPZY3aGaNPnJ18beRmbkNYysDFkcTt9Kg49Eyl5EIvi7hZGU2DqgQpVHAA"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "at": "2026-11-12T12:02:00Z",
+          "envelope": {
+            "spec": "onaa.commerce/v0",
+            "spec_version": "0.2.0",
+            "type": "ORDER_STATUS",
+            "id": "ostatus-pp-out-0000-4000-8000-000000000001",
+            "idempotency_key": "idem-ostatus-pp-out-000000000001",
+            "nonce": "nonce-ostatus-pp-out-0000000000000001",
+            "created_at": "2026-11-12T12:00:46Z",
+            "expires_at": "2026-11-12T12:15:46Z",
+            "sender": {
+              "agent_id": "sample-buyer-agent",
+              "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+            },
+            "body": {
+              "order_id": "order-0000-4000-8000-000000000001",
+              "state": "PAYMENT_PENDING"
+            },
+            "recipient": {
+              "agent_id": "sample-seller-agent",
+              "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+            },
+            "signature": {
+              "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
+              "signature": "mxCgQzIdeLom2aszC1RvFXWoypZ_G60oUl6ri-taRCU8QE90huxWqjwaE5rKsW0fb_YjvHksHqUswzJstFBzAA"
+            }
+          },
+          "expected": "valid"
+        },
+        {
+          "at": "2026-11-12T12:02:00Z",
+          "envelope": {
+            "spec": "onaa.commerce/v0",
+            "spec_version": "0.2.0",
+            "type": "ORDER_STATUS",
+            "id": "ostatus-secured-out-0000-4000-8000-000000000001",
+            "idempotency_key": "idem-ostatus-secured-out-000000000001",
+            "nonce": "nonce-ostatus-secured-out-0000000000000001",
+            "created_at": "2026-11-12T12:00:47Z",
+            "expires_at": "2026-11-12T12:15:47Z",
+            "sender": {
+              "agent_id": "sample-buyer-agent",
+              "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+            },
+            "body": {
+              "order_id": "order-0000-4000-8000-000000000001",
+              "state": "SECURED",
+              "handoff_reference": "SBX-OUT-0000000000000001"
+            },
+            "recipient": {
+              "agent_id": "sample-seller-agent",
+              "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+            },
+            "signature": {
+              "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
+              "signature": "XfJoGbdVuzw_sPCzmR70WOcS4j4ASv6hjD2GvuP37WLJ4YSN5epdEnDhOUMLafxLvGCHJf4pnXcUIGBGcHLICQ"
+            }
+          },
+          "expected": "invalid_transition"
+        }
+      ]
+    },
+    {
+      "name": "refused-envelope-binds-nothing",
+      "setup": [
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "RFQ",
+          "id": "rfq-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-rfq-000000000001",
+          "nonce": "nonce-rfq-0000000000000001",
+          "created_at": "2026-11-12T12:00:00Z",
+          "expires_at": "2026-11-12T12:15:00Z",
+          "sender": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "items": [
+              {
+                "sku": "widget-std",
+                "quantity": 4
+              }
+            ],
+            "currency": "USD",
+            "delivery_region": "US",
+            "max_total_minor": 10000
+          },
+          "recipient": {
+            "agent_id": "sample-seller-agent",
+            "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+          }
+        },
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "QUOTE",
+          "id": "quote-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-quote-000000000001",
+          "nonce": "nonce-quote-0000000000000001",
+          "created_at": "2026-11-12T12:00:05Z",
+          "expires_at": "2026-11-12T12:15:05Z",
+          "sender": {
+            "agent_id": "sample-seller-agent",
+            "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "rfq_id": "rfq-0000-4000-8000-000000000001",
+            "revision": 1,
+            "seller_agent_id": "sample-seller-agent",
+            "buyer_agent_id": "sample-buyer-agent",
+            "currency": "USD",
+            "line_items": [
+              {
+                "sku": "widget-std",
+                "description": "Standard widget (SAMPLE)",
+                "quantity": 4,
+                "unit_price_minor": 1250,
+                "line_total_minor": 5000
+              }
+            ],
+            "shipping_minor": 0,
+            "tax_policy": "not_included",
+            "total_minor": 5000,
+            "delivery_terms": "DAP",
+            "delivery_region": "US",
+            "settlement": {
+              "escrow_required": true,
+              "accepted_service_types": [
+                "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
+              ]
+            },
+            "sample": true,
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
+          },
+          "recipient": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "in_reply_to": "rfq-0000-4000-8000-000000000001",
+          "signature": {
+            "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
+          }
+        },
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "ORDER_PROPOSE",
+          "id": "order-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-order-000000000001",
+          "nonce": "nonce-order-0000000000000001",
+          "created_at": "2026-11-12T12:00:20Z",
+          "expires_at": "2026-11-12T12:15:20Z",
+          "sender": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "quote_id": "quote-0000-4000-8000-000000000001",
+            "quote_revision": 1,
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
+            "rfq_id": "rfq-0000-4000-8000-000000000001",
+            "buyer_agent_id": "sample-buyer-agent",
+            "seller_agent_id": "sample-seller-agent",
+            "currency": "USD",
+            "total_minor": 5000,
+            "delivery_region": "US",
+            "settlement": {
+              "service_type": "escrow"
+            },
+            "buyer_authority": {
+              "max_total_minor": 10000,
+              "human_approval": "not_required"
+            }
+          },
+          "recipient": {
+            "agent_id": "sample-seller-agent",
+            "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+          },
+          "signature": {
+            "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
+          }
+        },
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "ORDER_CONFIRM",
+          "id": "confirm-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-confirm-000000000001",
+          "nonce": "nonce-confirm-0000000000000001",
+          "created_at": "2026-11-12T12:00:21Z",
+          "expires_at": "2026-11-12T12:15:21Z",
+          "sender": {
+            "agent_id": "sample-seller-agent",
+            "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "order_id": "order-0000-4000-8000-000000000001",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
+            "quote_id": "quote-0000-4000-8000-000000000001",
+            "state": "CONFIRMED",
+            "seller_order_reference": "SAMPLE-SO-0001"
+          },
+          "recipient": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "in_reply_to": "order-0000-4000-8000-000000000001",
+          "signature": {
+            "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
+          }
+        },
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "SERVICE_HANDOFF_REQUEST",
+          "id": "handoff-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-handoff-000000000001",
+          "nonce": "nonce-handoff-0000000000000001",
+          "created_at": "2026-11-12T12:00:30Z",
+          "expires_at": "2026-11-12T12:15:30Z",
+          "sender": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "service_type": "escrow",
+            "mode": "mock",
+            "order_id": "order-0000-4000-8000-000000000001",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
+            "quote_id": "quote-0000-4000-8000-000000000001",
+            "quote_expires_at": "2026-11-12T12:15:05Z",
+            "parties": {
+              "buyer_agent_id": "sample-buyer-agent",
+              "seller_agent_id": "sample-seller-agent"
+            },
+            "currency": "USD",
+            "amount_minor": 5000
+          },
+          "recipient": {
+            "agent_id": "mock-escrow-service",
+            "agent_card_url": "https://escrow.example.com/.well-known/agent-card.json"
+          },
+          "signature": {
+            "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
+            "signature": "wrsDZyMEaDvXhK38kh5blLpz_VoVHgFFVD6istmPtTn1tKWXs6vV35dmORZAYogL9yNYjLsFkcmECbAggDbfAA"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "at": "2026-11-12T12:02:00Z",
+          "envelope": {
+            "spec": "onaa.commerce/v0",
+            "spec_version": "0.2.0",
+            "type": "SERVICE_HANDOFF_ACK",
+            "id": "ack-impostor-0000-4000-8000-000000000001",
+            "idempotency_key": "idem-ack-impostor-000000000001",
+            "nonce": "nonce-ack-impostor-0000000000000001",
+            "created_at": "2026-11-12T12:00:31Z",
+            "expires_at": "2026-11-12T13:00:31Z",
+            "sender": {
+              "agent_id": "mock-escrow-service",
+              "agent_card_url": "https://outsider.example.com/.well-known/agent-card.json"
+            },
+            "body": {
+              "service_type": "escrow",
+              "mode": "mock",
+              "mock": true,
+              "label": "MOCK ESCROW - NO REAL FUNDS - NOT A LICENSED ESCROW SERVICE",
+              "handoff_reference": "IMPOSTOR-0001",
+              "state": "CREATED",
+              "provider_state": "MOCK_CREATED",
+              "provider_confirmed": false,
+              "order_id": "order-0000-4000-8000-000000000001",
+              "currency": "USD",
+              "amount_minor": 5000,
+              "funds_held_minor": 0,
+              "next_step": "None. Mock only; no funds move."
+            },
+            "recipient": {
+              "agent_id": "sample-buyer-agent",
+              "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+            },
+            "in_reply_to": "handoff-0000-4000-8000-000000000001",
+            "signature": {
+              "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6Im91dHNpZGVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
+              "signature": "Mto2M1acw2hyNdvVEY5JE_C5pjILqwjbd-r0gejwK9fvcOCzaPY026HPOMTSZodCrAFrqNf3xfDGNOgqbe32AA"
+            }
+          },
+          "expected": "not_a_party"
+        },
+        {
+          "at": "2026-11-12T12:02:00Z",
+          "envelope": {
+            "spec": "onaa.commerce/v0",
+            "spec_version": "0.2.0",
+            "type": "SERVICE_HANDOFF_ACK",
+            "id": "ack-0000-4000-8000-000000000001",
+            "idempotency_key": "idem-ack-000000000001",
+            "nonce": "nonce-ack-0000000000000001",
+            "created_at": "2026-11-12T12:00:31Z",
+            "expires_at": "2026-11-12T13:00:31Z",
+            "sender": {
+              "agent_id": "mock-escrow-service",
+              "agent_card_url": "https://escrow.example.com/.well-known/agent-card.json"
+            },
+            "body": {
+              "service_type": "escrow",
+              "mode": "mock",
+              "mock": true,
+              "label": "MOCK ESCROW - NO REAL FUNDS - NOT A LICENSED ESCROW SERVICE",
+              "handoff_reference": "MOCK-ESC-0000000000000001",
+              "state": "CREATED",
+              "provider_state": "MOCK_CREATED",
+              "provider_confirmed": false,
+              "order_id": "order-0000-4000-8000-000000000001",
+              "currency": "USD",
+              "amount_minor": 5000,
+              "funds_held_minor": 0,
+              "next_step": "None. Mock only; no funds move."
+            },
+            "recipient": {
+              "agent_id": "sample-buyer-agent",
+              "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+            },
+            "in_reply_to": "handoff-0000-4000-8000-000000000001",
+            "signature": {
+              "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImVzY3Jvdy10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
+              "signature": "wQXpdnmMB549RGXtq-apgNMvNUYNyKpywdMD3xwv-dBBESWCGe-fXn6-RcU6dTFhklt-jnF9ANSBeHc1elU8Bg"
+            }
+          },
+          "expected": "valid"
+        }
+      ]
+    },
+    {
+      "name": "unsigned-same-state-order-status-from-bound-party",
+      "setup": [
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "RFQ",
+          "id": "rfq-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-rfq-000000000001",
+          "nonce": "nonce-rfq-0000000000000001",
+          "created_at": "2026-11-12T12:00:00Z",
+          "expires_at": "2026-11-12T12:15:00Z",
+          "sender": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "items": [
+              {
+                "sku": "widget-std",
+                "quantity": 4
+              }
+            ],
+            "currency": "USD",
+            "delivery_region": "US",
+            "max_total_minor": 10000
+          },
+          "recipient": {
+            "agent_id": "sample-seller-agent",
+            "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+          }
+        },
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "QUOTE",
+          "id": "quote-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-quote-000000000001",
+          "nonce": "nonce-quote-0000000000000001",
+          "created_at": "2026-11-12T12:00:05Z",
+          "expires_at": "2026-11-12T12:15:05Z",
+          "sender": {
+            "agent_id": "sample-seller-agent",
+            "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "rfq_id": "rfq-0000-4000-8000-000000000001",
+            "revision": 1,
+            "seller_agent_id": "sample-seller-agent",
+            "buyer_agent_id": "sample-buyer-agent",
+            "currency": "USD",
+            "line_items": [
+              {
+                "sku": "widget-std",
+                "description": "Standard widget (SAMPLE)",
+                "quantity": 4,
+                "unit_price_minor": 1250,
+                "line_total_minor": 5000
+              }
+            ],
+            "shipping_minor": 0,
+            "tax_policy": "not_included",
+            "total_minor": 5000,
+            "delivery_terms": "DAP",
+            "delivery_region": "US",
+            "settlement": {
+              "escrow_required": true,
+              "accepted_service_types": [
+                "escrow"
+              ],
+              "accepted_provider_card_urls": [
+                "https://escrow.example.com/.well-known/agent-card.json"
+              ]
+            },
+            "sample": true,
+            "terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db"
+          },
+          "recipient": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "in_reply_to": "rfq-0000-4000-8000-000000000001",
+          "signature": {
+            "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
+            "signature": "Jm0EWfYygO3b2Sk-ft8cI5hofJLPNSjMBjzFvfYbJdOdLcjguIE2_2C0U55P51KMpyylHsw-JPBqmZiDAU33Cw"
+          }
+        },
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "ORDER_PROPOSE",
+          "id": "order-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-order-000000000001",
+          "nonce": "nonce-order-0000000000000001",
+          "created_at": "2026-11-12T12:00:20Z",
+          "expires_at": "2026-11-12T12:15:20Z",
+          "sender": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "quote_id": "quote-0000-4000-8000-000000000001",
+            "quote_revision": 1,
+            "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
+            "rfq_id": "rfq-0000-4000-8000-000000000001",
+            "buyer_agent_id": "sample-buyer-agent",
+            "seller_agent_id": "sample-seller-agent",
+            "currency": "USD",
+            "total_minor": 5000,
+            "delivery_region": "US",
+            "settlement": {
+              "service_type": "escrow"
+            },
+            "buyer_authority": {
+              "max_total_minor": 10000,
+              "human_approval": "not_required"
+            }
+          },
+          "recipient": {
+            "agent_id": "sample-seller-agent",
+            "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+          },
+          "signature": {
+            "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
+            "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
+          }
+        },
+        {
+          "spec": "onaa.commerce/v0",
+          "spec_version": "0.2.0",
+          "type": "ORDER_CONFIRM",
+          "id": "confirm-0000-4000-8000-000000000001",
+          "idempotency_key": "idem-confirm-000000000001",
+          "nonce": "nonce-confirm-0000000000000001",
+          "created_at": "2026-11-12T12:00:21Z",
+          "expires_at": "2026-11-12T12:15:21Z",
+          "sender": {
+            "agent_id": "sample-seller-agent",
+            "agent_card_url": "https://seller.example.com/.well-known/agent-card.json"
+          },
+          "body": {
+            "order_id": "order-0000-4000-8000-000000000001",
+            "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
+            "quote_id": "quote-0000-4000-8000-000000000001",
+            "state": "CONFIRMED",
+            "seller_order_reference": "SAMPLE-SO-0001"
+          },
+          "recipient": {
+            "agent_id": "sample-buyer-agent",
+            "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+          },
+          "in_reply_to": "order-0000-4000-8000-000000000001",
+          "signature": {
+            "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6InNlbGxlci10ZXN0LTIwMjYtMTEiLCJ0eXAiOiJvbmFhLWVudmVsb3BlK2p3cyJ9",
+            "signature": "u8XoRfp72-Z7e-OWkF2UaUxvVymqUgCJvA_l_Y69jK6Oj0bkveBkMdKA9mEhx-dvCepARxx4bdy9hMMb3aKSCQ"
+          }
+        }
+      ],
+      "steps": [
+        {
+          "at": "2026-11-12T12:02:00Z",
+          "envelope": {
+            "spec": "onaa.commerce/v0",
+            "spec_version": "0.2.0",
+            "type": "ORDER_STATUS",
+            "id": "ostatus-unsigned-same-0000-4000-8000-000000000001",
+            "idempotency_key": "idem-ostatus-unsigned-same-000000000001",
+            "nonce": "nonce-ostatus-unsigned-same-0000000000000001",
+            "created_at": "2026-11-12T12:00:50Z",
+            "expires_at": "2026-11-12T12:15:50Z",
+            "sender": {
+              "agent_id": "sample-buyer-agent",
+              "agent_card_url": "https://buyer.example.com/.well-known/agent-card.json"
+            },
+            "body": {
+              "order_id": "order-0000-4000-8000-000000000001",
+              "state": "CONFIRMED"
+            }
+          },
+          "expected": "signer_mismatch"
         }
       ]
     }

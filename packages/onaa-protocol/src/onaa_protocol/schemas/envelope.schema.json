@@ -74,6 +74,11 @@
       "if": { "properties": { "type": { "enum": ["QUOTE", "ORDER_CONFIRM", "ORDER_REJECT", "SERVICE_HANDOFF_ACK", "ESCROW_HANDOFF_ACK", "RECEIPT"] } } },
       "then": { "required": ["in_reply_to"] }
     },
+    {
+      "description": "v0.1.2: an RFQ at spec_version >= 0.2.0 names the buyer's Agent Card, which the deal binds to the buyer's agent_id (spec sections 7.4, 9.4).",
+      "if": { "properties": { "type": { "const": "RFQ" }, "spec_version": { "pattern": "^0\\.([2-9]|[1-9][0-9]+)\\.[0-9]+$" } } },
+      "then": { "properties": { "sender": { "required": ["agent_id", "agent_card_url"] } } }
+    },
     { "if": { "properties": { "type": { "const": "RFQ" } } }, "then": { "properties": { "body": { "$ref": "#/$defs/rfq" } } } },
     { "if": { "properties": { "type": { "const": "QUOTE" } } }, "then": { "properties": { "body": { "$ref": "#/$defs/quote" } } } },
     {
@@ -169,7 +174,12 @@
           "type": "object",
           "properties": {
             "escrow_required": { "type": "boolean" },
-            "accepted_service_types": { "type": "array", "items": { "$ref": "urn:onaa:schema:v0.1:service-handoff#/$defs/serviceType" } }
+            "accepted_service_types": { "type": "array", "items": { "$ref": "urn:onaa:schema:v0.1:service-handoff#/$defs/serviceType" } },
+            "accepted_provider_card_urls": {
+              "type": "array", "maxItems": 16, "uniqueItems": true,
+              "description": "v0.1.2: Agent Card URLs of the service providers the seller accepts. Covered by terms_hash, so the buyer agrees to the list by ordering. Only a handoff from a listed provider can make the order SECURED (spec section 8.4.5).",
+              "items": { "type": "string", "format": "uri", "maxLength": 2048 }
+            }
           }
         },
         "sample": { "type": "boolean" }

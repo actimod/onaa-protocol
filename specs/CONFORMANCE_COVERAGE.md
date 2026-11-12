@@ -2,7 +2,7 @@
 
 Normative text: [`onaa-protocol-v0.1.md`](onaa-protocol-v0.1.md) · Suite: `python -m onaa_protocol.conformance` (catalog in `packages/onaa-protocol/src/onaa_protocol/conformance/catalog.py`) · Vectors: [`TEST_VECTORS.md`](TEST_VECTORS.md) · Status: DRAFT · Date: 2026-11-12
 
-This document maps every normative **MUST** / **SHOULD** statement of ONAA Protocol v0.1 (§2–§13) to the conformance tests that check it, per conformance role. §2 compares conformance suite **0.1.0** (before the first coverage review) with suite **0.2.0**, and §2a compares suite **0.3.0** with the current suite **0.4.0** (buyer client-side tests through the opt-in conformance trade trigger, spec §12.1). Each suite only adds tests. No existing test id was renumbered, reused or changed in meaning.
+This document maps every normative **MUST** / **SHOULD** statement of ONAA Protocol v0.1 (§2–§13) to the conformance tests that check it, per conformance role. §2 compares conformance suite **0.1.0** (before the first coverage review) with suite **0.2.0**, §2a compares suite **0.3.0** with suite **0.4.0** (buyer client-side tests through the opt-in conformance trade trigger, spec §12.1), and §2b compares suite **0.4.0** with the current suite **0.5.0** (ONAA Protocol v0.1.2 security errata). Each suite only adds tests. No existing test id was renumbered, reused or changed in meaning.
 
 ## 1. How to read this
 
@@ -39,23 +39,42 @@ Notes on the numbers:
 
 ## 2a. Coverage summary, suite 0.3.0 → 0.4.0
 
-Computed from the §3 matrix (`test_coverage_doc.py` recomputes this table and fails on drift). "Suite 0.3.0" evaluates the same rows with the suite 0.4.0 test ids (`C-MUST-080`–`091`) removed. The row set is the 0.3.0 set plus R-7.1-8 (a sender duty made explicit in 0.4.0). The opt-in trigger requirements of §3a are not counted.
+Computed from the §3 matrix (`test_coverage_doc.py` recomputes this table and fails on drift). "Suite 0.3.0" evaluates the current rows with the suite 0.4.0 test ids (`C-MUST-080`–`091`) removed, "suite 0.4.0" with them; the suite 0.5.0 ids (`C-MUST-092`, `093`) are removed from both columns. The row set is the current one: the 0.3.0 set plus R-7.1-8 (a sender duty made explicit in 0.4.0) and the v0.1.2 rows R-7.1-9, R-7.4-3, R-7.6-5 and R-8.4-7, so the denominators differ from the figures published with suite 0.4.0. The opt-in trigger requirements of §3a are not counted.
 
 | Role | Level | Requirements | Live black-box: suite 0.3.0 | Live black-box: suite 0.4.0 | Live or vectors: suite 0.3.0 | Live or vectors: suite 0.4.0 |
 |---|---|---|---|---|---|---|
-| buyer_agent | MUST | 76 | 33/76 (43%) | 57/76 (75%) | 54/76 (71%) | 64/76 (84%) |
-| buyer_agent | SHOULD | 17 | 2/17 (12%) | 2/17 (12%) | 2/17 (12%) | 2/17 (12%) |
-| seller_agent | MUST | 83 | 54/83 (65%) | 54/83 (65%) | 68/83 (82%) | 68/83 (82%) |
-| seller_agent | SHOULD | 15 | 5/15 (33%) | 5/15 (33%) | 5/15 (33%) | 5/15 (33%) |
+| buyer_agent | MUST | 79 | 33/79 (42%) | 58/79 (73%) | 57/79 (72%) | 67/79 (85%) |
+| buyer_agent | SHOULD | 18 | 2/18 (11%) | 2/18 (11%) | 2/18 (11%) | 2/18 (11%) |
+| seller_agent | MUST | 86 | 54/86 (63%) | 54/86 (63%) | 71/86 (83%) | 71/86 (83%) |
+| seller_agent | SHOULD | 16 | 5/16 (31%) | 5/16 (31%) | 5/16 (31%) | 5/16 (31%) |
 | service_provider | MUST | 64 | 49/64 (77%) | 49/64 (77%) | 54/64 (84%) | 54/64 (84%) |
-| service_provider | SHOULD | 14 | 5/14 (36%) | 5/14 (36%) | 5/14 (36%) | 5/14 (36%) |
+| service_provider | SHOULD | 15 | 5/15 (33%) | 5/15 (33%) | 5/15 (33%) | 5/15 (33%) |
 | registry | MUST | 9 | 3/9 (33%) | 3/9 (33%) | 3/9 (33%) | 3/9 (33%) |
 
 Notes:
 
-* The buyer live MUST coverage applies **only to buyers that declare the trigger**. For a buyer without it, `C-MUST-080`–`091` are `n/a` and its effective live coverage stays at the suite 0.3.0 figure (43%).
+* The buyer live MUST coverage applies **only to buyers that declare the trigger**. For a buyer without it, `C-MUST-080`–`091` are `n/a` and its effective live coverage stays at the suite 0.3.0 figure (42% over the current rows; 43% over the rows published with suite 0.4.0).
 * `C-MUST-089` relies on the buyer's own result report (outcome `stopped`, `stopped_on` = `SERVICE_HANDOFF_ACK`) plus the observable fact that the refused handoff reference is not used afterwards. All other trigger tests judge traffic observed on the wire.
 * No SHOULD test was added (see G-9).
+
+## 2b. Coverage summary, suite 0.4.0 → 0.5.0
+
+Computed from the §3 matrix in the same way (`test_coverage_doc.py`). "Suite 0.4.0" evaluates the current rows with the suite 0.5.0 ids (`C-MUST-092`, `C-MUST-093`) removed.
+
+| Role | Level | Requirements | Live black-box: suite 0.4.0 | Live black-box: suite 0.5.0 | Live or vectors: suite 0.4.0 | Live or vectors: suite 0.5.0 |
+|---|---|---|---|---|---|---|
+| buyer_agent | MUST | 79 | 58/79 (73%) | 58/79 (73%) | 67/79 (85%) | 67/79 (85%) |
+| buyer_agent | SHOULD | 18 | 2/18 (11%) | 2/18 (11%) | 2/18 (11%) | 2/18 (11%) |
+| seller_agent | MUST | 86 | 54/86 (63%) | 55/86 (64%) | 71/86 (83%) | 71/86 (83%) |
+| seller_agent | SHOULD | 16 | 5/16 (31%) | 5/16 (31%) | 5/16 (31%) | 5/16 (31%) |
+| service_provider | MUST | 64 | 49/64 (77%) | 49/64 (77%) | 54/64 (84%) | 54/64 (84%) |
+| service_provider | SHOULD | 15 | 5/15 (33%) | 5/15 (33%) | 5/15 (33%) | 5/15 (33%) |
+| registry | MUST | 9 | 3/9 (33%) | 3/9 (33%) | 3/9 (33%) | 3/9 (33%) |
+
+Notes:
+
+* Suite 0.5.0 adds two seller MUST tests (§4c). Most v0.1.2 errata rules are checked by the offline vectors only (`V-MUST-003`, `V-MUST-011`): self-acknowledged handoffs, providers outside the QUOTE's `accepted_provider_card_urls` and transactional binding are not observable at a seller that does not receive handoff messages, and a buyer's handoff is addressed by the buyer itself.
+* The lockout and resource rules of v0.1.2 (per-source quotas, unsigned retention window, fail-fast key fetches, total deadline including name resolution) are not black-box testable without load generation or a controllable DNS responder (G-12). The package and demo unit tests cover them (`packages/onaa-protocol/tests/test_security_rereview.py` and `examples/direct-trade-demo/tests/test_demo_security_rereview.py`).
 
 ## 3. Traceability matrix
 
@@ -96,6 +115,7 @@ Notes:
 | R-7.1-5 | 7.1 | SHOULD | `recipient` is set | NOT COVERED | NOT COVERED | NOT COVERED | — |
 | R-7.1-7 | 7.1, 7.2 step 7a | MUST (v0.1.1) | Signed envelopes name `recipient` (with `agent_card_url` unless a reply); receivers refuse a signed envelope addressed to another agent (`recipient_mismatch`) | C-MUST-078, C-MUST-082, C-MUST-086, V-MUST-003, V-MUST-013 | C-MUST-078, V-MUST-003, V-MUST-013 | C-MUST-078, V-MUST-003, V-MUST-013 | — |
 | R-7.1-6 | 7.1 | SHOULD | Envelope `id` is a UUID (RECOMMENDED) | NOT COVERED | NOT COVERED | NOT COVERED | — |
+| R-7.1-9 | 7.1, 7.4 | MUST (v0.1.2) | An RFQ at `spec_version` ≥ 0.2.0 names `sender.agent_card_url` (senders); receivers refuse one without it (`invalid_envelope`) | C-MUST-082, V-MUST-003 | C-MUST-092, V-MUST-003 | — | — |
 | R-7.1-8 | 7.1, 7.6 | MUST | Senders give every envelope a fresh `id`, an `idempotency_key` per logical request and a fresh ≥ 128-bit `nonce`, with `0 < expires_at − created_at ≤ 24 h` (sender side; added in suite 0.4.0) | C-MUST-083 | NOT COVERED | NOT COVERED | — |
 | R-7.2-0 | 7.2 | MUST | Process in the normative order, stop at the first failure, answer `REJECT <code>` | C-MUST-060, V-MUST-003 (partial) | C-MUST-007, V-MUST-003 (partial) | C-MUST-007, V-MUST-003 (partial) | — |
 | R-7.2-1 | 7.2 step 1 | MUST | Not exactly one envelope part -> `invalid_envelope` | C-MUST-059 | C-MUST-059 | C-MUST-059 | — |
@@ -110,7 +130,8 @@ Notes:
 | R-9.2-2 | 7.3, 9.2 | SHOULD | QUOTE and ORDER_STATUS are signed | NOT COVERED | C-SHOULD-001, C-SHOULD-004 | — | — |
 | R-7.3-1 | 7.3 | SHOULD | REJECT is signed when the agent has a key | NOT COVERED | NOT COVERED | NOT COVERED | — |
 | R-9.2-3 | 9.2 | MUST | Every present signature is verified whatever the type; an invalid optional signature is a failure | C-MUST-063, C-MUST-075, C-MUST-086, C-MUST-087, V-MUST-006 | C-MUST-015, C-MUST-075, V-MUST-006 | C-MUST-015, C-MUST-075, V-MUST-006 | — |
-| R-7.4-2 | 7.4.2, 9.2, 9.4.4 | MUST (v0.1.1) | An ORDER_STATUS that changes the order state is signed; a bound party's unsigned state-changing envelope is refused (`signature_missing` / `signer_mismatch`) and has no effect; quote expiry uses the receiver's clock | C-MUST-090, V-MUST-011 | C-MUST-077, V-MUST-011 | — | — |
+| R-7.4-2 | 7.4.2, 9.2, 9.4.4 | MUST (v0.1.1, v0.1.2) | An ORDER_STATUS that changes the order state is signed; a bound party's unsigned state-changing envelope, and since v0.1.2 any unsigned ORDER_STATUS from a bound party (also same-state), is refused (`signature_missing` / `signer_mismatch`) and has no effect; quote expiry uses the receiver's clock | C-MUST-090, V-MUST-011 | C-MUST-077, C-MUST-093, V-MUST-011 | — | — |
+| R-7.4-3 | 7.4, 9.4.4 | MUST (v0.1.2) | A refused envelope creates no binding and changes no state (transactional binding); an ORDER_PROPOSE is accepted only from a buyer the RFQ bound | V-MUST-011 (vectors only) | V-MUST-011 (vectors only) | — | — |
 | R-7.4-1 | 7.4 | MUST | Illegal transitions in the party's own deals -> `invalid_transition` (or the more specific 7.5 code); a provider's own handoff machine | C-MUST-090, V-MUST-007, V-MUST-011 (partial) | C-MUST-028, C-MUST-029, V-MUST-007, V-MUST-011 (partial) | C-MUST-034, V-MUST-007, V-MUST-011 (partial) | — |
 | R-7.5.2-1 | 7.5.2 | MUST | QUOTE arithmetic (line totals, shipping, added tax) is checked by the receiver and correct when sent | C-MUST-086, V-MUST-003 | C-MUST-020, V-MUST-003 | — | — |
 | R-7.5.2-2 | 7.5.2 | MUST | `terms_hash` is recomputed; mismatch -> `invalid_body` | C-MUST-086, V-MUST-003 | C-MUST-020, V-MUST-003 | — | — |
@@ -130,6 +151,7 @@ Notes:
 | R-7.6-2 | 7.6.2 | MUST | Same key, different envelope -> `idempotency_conflict` | C-MUST-065, V-MUST-012 | C-MUST-011, V-MUST-012 | C-MUST-011, V-MUST-012 | — |
 | R-7.6-3 | 7.6.3 | MUST | Reused nonce under a different key -> `replay` | C-MUST-065, V-MUST-012 | C-MUST-012, V-MUST-012 | C-MUST-012, V-MUST-012 | — |
 | R-7.6-4 | 7.6.6 | MUST | Idempotency/nonce records kept until `expires_at` + 5 min; successful replies cached | V-MUST-012 (vectors only) | V-MUST-012 (vectors only) | V-MUST-012 (vectors only) | — |
+| R-7.6-5 | 7.6.7, 13.11 | SHOULD (v0.1.2) | Bounded per-peer stores use per-source quotas (network source, verified card origin; never `agent_id` alone), evict expired and heaviest-source entries first, never entries holding an order, and let kept records expire | NOT COVERED | NOT COVERED | NOT COVERED | — |
 | R-7.7-1 | 7.7 | MUST | All messages of a deal use `contextId` = first RFQ `id` | C-MUST-084 | NOT COVERED | — | — |
 | R-7.7-2 | 7.7 | SHOULD | Service handoffs reuse the deal `contextId` | NOT COVERED | NOT COVERED | — | — |
 | R-7.7-3 | 7.7 | MUST | Receivers rely on signed binding ids, not on `contextId` | NOT COVERED | C-MUST-022, C-MUST-023, C-MUST-024, C-MUST-025, C-MUST-026 (partial) | NOT COVERED | — |
@@ -145,6 +167,7 @@ Notes:
 | R-8.4-4 | 8.4.3 | MUST | `SECURED` only with `provider_confirmed: true` in sandbox; mock holds no funds and is never provider-confirmed | — | — | C-MUST-030, C-MUST-032, C-SHOULD-010, V-MUST-003 | — |
 | R-8.4-6 | 8.4.4 | MUST (v0.1.1) | A SERVICE_HANDOFF_ACK counts only from the provider the request named (`recipient.agent_card_url`); a handoff reference is single-use per deal; SECURED only from a `sandbox` handoff | C-MUST-088, C-MUST-089, V-MUST-011 (partial) | V-MUST-011 (vectors only) | — | — |
 | R-8.4-5 | 8.4.4 | MUST | An order is never treated as SECURED on a counterparty's claim | C-MUST-090, V-MUST-011 | C-MUST-028, V-MUST-011 | — | — |
+| R-8.4-7 | 8.4.5 | MUST (v0.1.2) | A handoff addressed to, or an ACK sent from, a card URL of the buyer or seller is `not_a_party`; an order becomes SECURED only through a provider listed in the accepted QUOTE's `settlement.accepted_provider_card_urls` | V-MUST-011 (vectors only) | V-MUST-011 (vectors only) | — | — |
 | R-8.5-1 | 8.5 | SHOULD | Status is disclosed only to the parties named in the request | — | — | C-SHOULD-015 | — |
 | R-8.6-1 | 8.6 | MUST | v0.1 senders emit canonical `SERVICE_HANDOFF_*` types (aliases only at 0.1.x) | C-MUST-082, V-MUST-003 | V-MUST-003 (vectors only) | C-MUST-030, V-MUST-003 | — |
 | R-8.6-2 | 8.6 | SHOULD | Escrow providers accept the legacy `ESCROW_HANDOFF_REQUEST` alias | — | — | C-SHOULD-012 | — |
@@ -170,9 +193,9 @@ Notes:
 | R-11.3-1 | 11.3 | MUST | A higher minor (0.3.x) that validates is processed | C-MUST-056, V-MUST-002 | C-MUST-056, V-MUST-002 | C-MUST-056, V-MUST-002 | — |
 | R-13.1-1 | 13.1 | MUST | LLM agents keep signed structured fields authoritative; free text never triggers tool calls, payments, contact or key disclosure | C-MUST-091 (partial) | NOT COVERED | NOT COVERED | — |
 | R-13.2-1 | 13.2 | MUST | Receivers apply the SSRF rules to inbound `sender.agent_card_url` | NOT COVERED | NOT COVERED | NOT COVERED | — |
-| R-13.2-2 | 13.2 | SHOULD | Key fetches are rate-limited per origin | NOT COVERED | NOT COVERED | NOT COVERED | — |
+| R-13.2-2 | 13.2, 13.11 | SHOULD | Key fetches are rate-limited per origin; an uncached lookup fails fast when no fetch slot is free (v0.1.2) | NOT COVERED | NOT COVERED | NOT COVERED | — |
 | R-13.2-3 | 13.2 | MUST | Production fetchers pin the validated IP (DNS rebinding) | NOT COVERED | NOT COVERED | NOT COVERED | NOT COVERED |
-| R-13.2-4 | 13.2 | MUST (v0.1.1) | Fetches and inbound key lookups have a total deadline, a size cap and strict JSON parsing; key fetches are concurrency-limited and failures negatively cached | NOT COVERED | NOT COVERED | NOT COVERED | NOT COVERED |
+| R-13.2-4 | 13.2, 13.11 | MUST (v0.1.1, v0.1.2) | Fetches and inbound key lookups have a total deadline (since v0.1.2 including name resolution; one deadline for card + JWKS), a size cap and strict JSON parsing; key fetches are concurrency-limited and failures negatively cached | NOT COVERED | NOT COVERED | NOT COVERED | NOT COVERED |
 | R-13.5-1 | 13.5 | MUST | The buyer uses the verified QUOTE, never a re-typed copy | C-MUST-085 | — | — | — |
 | R-13.9-1 | 13.9 | SHOULD | Fresh random ids; no id reuse across deals | NOT COVERED | NOT COVERED | NOT COVERED | — |
 
@@ -189,6 +212,8 @@ These are MUSTs only for a buyer that declares `params.conformance.trade_trigger
 | R-12.1-5 | 12.1.3 | MUST | The run stops at the first refused counterparty message and reports `stopped_on` | C-MUST-086, C-MUST-087, C-MUST-089 |
 | R-12.1-6 | 12.1.3 | MUST | Only the named counterparties are contacted; no registry, payment, human-approval prompt or real funds; triggered deals kept apart | C-MUST-081, C-MUST-084 (partial: contacts observable only at harness origins) |
 | R-12.1-7 | 12.1.3 | MUST | At most one triggered run at a time (`rate_limited`) | Unit tests of `onaa_protocol.trigger.TriggerGuard` only |
+| R-12.1-8 | 12.1.3 | MUST (v0.1.2) | Triggered deals are kept in a separate bounded store; the whole run has a total time budget | Demo unit tests only (`BuyerNode.triggered_deals`, `TRIGGER_RUN_BUDGET`); not observable by the harness |
+| R-12.1-9 | 12.1.3, 12.1.5 | SHOULD (v0.1.2) | An operator allowlist of trigger senders is checked before any key fetch (`not_a_party`); triggers are rate-limited per sender origin | Unit tests of `check_trigger(allowed_senders=...)` and `TriggerGuard(max_per_sender=...)` only |
 
 ## 4. Tests added in suite 0.2.0
 
@@ -276,6 +301,17 @@ All run only against a buyer that declares `params.conformance.trade_trigger` (o
 
 The demo's `tests/test_conformance_buyer_trigger.py` shows that each test catches a deliberately broken buyer: trigger without checks and counterparty marker ignored (`081`), signed ORDER_PROPOSE without `recipient` (`082`), reused nonce (`083`), missing `A2A-Extensions` (`084`), QUOTE not verified (`086`), ORDER_CONFIRM signature not verified (`087`), ACK accepted from any card (`089`), notifications not applied to the deal (`090`), URLs in free text fetched (`091`), and a re-typed quote without a state machine (`085`, `087`, `088`).
 
+## 4c. Tests added in suite 0.5.0 (ONAA Protocol v0.1.2 security errata)
+
+Added after the security re-review of v0.1.1 (spec §15, v0.1.2). Existing ids are unchanged. The rows R-7.1-9, R-7.4-3, R-7.6-5, R-8.4-7, R-12.1-8 and R-12.1-9 were added to §3/§3a, and R-7.4-2, R-13.2-2 and R-13.2-4 were extended.
+
+| Id | § | Roles | What it checks |
+|---|---|---|---|
+| `ONAA-C-MUST-092` | 7.1, 7.4 | seller | An RFQ at 0.2.0 whose `sender` has no `agent_card_url` → `invalid_envelope` (the RFQ binds the buyer's card) |
+| `ONAA-C-MUST-093` | 9.2, 7.4.2 | seller | After a confirmed order, an unsigned ORDER_STATUS from the bound harness buyer that repeats `CONFIRMED` → `signer_mismatch` or `signature_missing` |
+
+The errata also added vectors to existing checks: `ONAA-V-MUST-003` (RFQ without `sender.agent_card_url`) and `ONAA-V-MUST-011` (handoff addressed to the buyer's or seller's own card, SECURED through a provider the QUOTE does not list, a refused ACK that must not bind the provider's `agent_id`, unsigned same-state ORDER_STATUS from a bound party). The signed transcript QUOTE now lists its escrow provider in `settlement.accepted_provider_card_urls`, so every transcript signature changed. The demo's `tests/test_demo_security_rereview.py` shows that `092` and `093` catch a seller with the pre-errata behaviour.
+
 ## 5. Normative statements without a BCP 14 keyword
 
 These are normative by context but carry no capitalised keyword. Tests for them use level SHOULD unless the spec elsewhere states the same duty as a MUST. They are not counted in §2.
@@ -315,6 +351,7 @@ Priority: **P1** = MUST that is security-relevant or central to the demo flow, a
 | G-8 | P2 | R-9.6-4 | "Never trust TEST-ONLY keys" has no testable definition. Proposal: publish the TEST-ONLY public keys (`x` values) as a deny-list in the vectors. A production-mode verifier must then reject a harness that signs with one. |
 | G-9 | P3 | R-3-2, R-4.1-1, R-4.2-4/5 (buyer), R-5.2-6, R-7.1-4/5/6, R-7.3-1, R-7.5.5-1 (buyer), R-7.7-2, R-9.4-4, R-9.6-3, R-10.4-2, R-13.2-2, R-13.9-1 | SHOULD-level checks. Most are easy (reply `Message.extensions`, signed REJECTs, `recipient` present, UUID ids). They are deliberately not added one by one, because every SHOULD test changes the 80% threshold for all implementations. Batch them in one suite minor release with a changelog note. |
 | G-10 | P3 | R-6.2-4, R-7.5.2-3, R-7.5.7-1, R-9.1-4, R-9.6-5, R-13.1-1 | Not machine-checkable (presentation to humans, LLM tool-use policy, choice of crypto library, key hygiene). Cover with a human review checklist in the certification process. The vectors already carry a prompt-injection string as data. |
+| G-12 | P2 | R-7.6-5, R-13.2-2, R-13.2-4 | Lockout and resource rules (v0.1.2): per-source quotas, the unsigned retention window, fail-fast and per-origin key fetches, total deadlines including name resolution. Black-box checks need load generation against a live agent (quotas, slots) or a controllable slow DNS responder (resolution deadline). Proposal: an opt-in `--load` mode with a small, fixed request budget that checks `rate_limited` comes with `retryable: true` and that other sources are still served. |
 | G-11 | P3 | R-5.2-1 (partial) | `onaa_protocol` is schema-checked as `0.x`, not pinned to `"0.1"`. Whether a `0.2` card is acceptable to a 0.1 client is a spec decision. |
 
 No gap requires changes to `onaa_protocol/jose.py`, `jcs.py`, `keys.py` or `safe_fetch.py`. G-2 and G-5 exercise them as they are. (Suite 0.2.0 statement. The v0.1.1 security errata later hardened `jose.py`, `keys.py` and `safe_fetch.py`; the reference fetcher now pins the connected IP, which the package unit tests check with a rebinding resolver. G-7 remains a black-box gap.)
@@ -332,7 +369,8 @@ No gap requires changes to `onaa_protocol/jose.py`, `jcs.py`, `keys.py` or `safe
 | F-7 | §12 says signed positive tests skip without a reachable harness. Remote runs now also need a second origin for `ONAA-C-MUST-071`. | Documented in §4. Spec §12 now mentions the second harness origin (suite 0.4.0 change). |
 | F-8 | The demo buyer answered every inbound ORDER_STATUS / SERVICE_STATUS with a RECEIPT without applying it to its deal, so a seller's SECURED claim or an unsigned CANCELLED for its own order was "accepted" (spec §3: buyers MUST enforce the state machines for their own deals). Found while designing `ONAA-C-MUST-090`. | Fixed: `BuyerNode` routes notifications about its own orders and handoff references to the deal's `TradeLedger` (bounded); refused ones get REJECT. Notifications about unknown deals still get a RECEIPT. |
 | F-9 | A first version of `ONAA-C-MUST-089` accepted any `stopped` outcome. A buyer that accepted an ACK from another card passed, because it happened to stop later at SERVICE_STATUS. Found by the broken-buyer test. | Fixed before release: spec §12.1.3 requires `stopped_on` = the refused message type, and the test also checks that the refused handoff reference is not used. |
+| F-10 | Security re-review of v0.1.1 (spec §15, v0.1.2): `ONAA-C-MUST-077` checked only state-changing unsigned ORDER_STATUS, while the reference also refused same-state ones from a bound party and §9.2 said SHOULD. | Spec aligned to the stricter, fail-closed behaviour (§7.4.2, §9.2); new `ONAA-C-MUST-093`. |
 
 ## 8. Keeping this document current
 
-`packages/onaa-protocol/tests/test_coverage_doc.py` fails if this document cites a test id that is not in the catalog, if a catalog id is not cited here, or if the §2a table differs from the counts recomputed from the §3 matrix. When adding a test, add its id to a "tests added" section and to the requirement rows it covers, and update §2a.
+`packages/onaa-protocol/tests/test_coverage_doc.py` fails if this document cites a test id that is not in the catalog, if a catalog id is not cited here, or if the §2a or §2b table differs from the counts recomputed from the §3 matrix. When adding a test, add its id to a "tests added" section and to the requirement rows it covers, and update §2a/§2b (a new suite gets its own summary table).

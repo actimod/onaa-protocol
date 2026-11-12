@@ -6,12 +6,17 @@ SERVICE_STATUS_QUERY -> signed SERVICE_STATUS. It also accepts the legacy ``ESCR
 alias at spec_version 0.1.0 (spec section 8.6). It moves no money, stores no payment data, holds
 nothing (``funds_held_minor`` is always 0), never reports SECURED/HELD and is never a merchant of record.
 Any real provider integration needs a vendor-confirmed sandbox and founder approval.
+
+Bounded store (v0.1.2 errata): a mock handoff is forgotten ``HANDOFF_TTL`` after creation (status queries
+then get ``unknown_reference``), and one network source may hold at most ``MAX_HANDOFFS_PER_SOURCE`` live
+handoffs, so unsigned legacy requests cannot fill the store for everyone until a restart.
 """
 
 from __future__ import annotations
 
 import hashlib
 import threading
+from collections import OrderedDict
 from datetime import timedelta
 from typing import Any
 
@@ -21,7 +26,9 @@ from onaa_protocol.envelope import LEGACY_SPEC_VERSION, format_ts, parse_ts, utc
 from .node import DemoNode
 
 ESCROW_AGENT_ID = "mock-escrow-service"
-MAX_HANDOFFS = 10_000  # mock handoffs kept in memory; new requests are refused (rate_limited) beyond this
+MAX_HANDOFFS = 10_000  # live mock handoffs kept in memory; new requests are refused (rate_limited) beyond this
+MAX_HANDOFFS_PER_SOURCE = 1_000  # live mock handoffs per network source
+HANDOFF_TTL = timedelta(hours=1)  # a mock handoff is forgotten this long after creation
 MOCK_LABEL = "MOCK ESCROW - NO REAL FUNDS - NOT A LICENSED ESCROW SERVICE"
 
 
@@ -40,17 +47,54 @@ class MockEscrow(DemoNode):
                       "url": base_url.rstrip("/")},
             service_types=["escrow"], service_modes=["mock"], regions=["GLOBAL"], currencies=["USD", "EUR"], **kw)
         self._lock = threading.Lock()
-        self.handoffs: dict[str, dict[str, Any]] = {}
+        self.handoffs: OrderedDict[str, dict[str, Any]] = OrderedDict()  # creation order == expiry order
+        self._per_source: dict[str, int] = {}
 
     def _ref(self, env: dict[str, Any]) -> str:
         digest = hashlib.sha256((env["sender"]["agent_id"] + ":" + env["idempotency_key"]).encode()).hexdigest()
         return "MOCK-ESC-" + digest[:16].upper()
 
     def dispatch(self, env: dict[str, Any]) -> dict[str, Any]:
+        return self.dispatch_from(env, None)
+
+    def dispatch_from(self, env: dict[str, Any], source: str | None) -> dict[str, Any]:
+        src = source or "unknown"
         with self._lock:
-            if env["type"] != "SERVICE_STATUS_QUERY" and len(self.handoffs) >= MAX_HANDOFFS:
-                raise ProtocolError("rate_limited", "too many mock handoffs")
-            return getattr(self, "_on_" + env["type"].lower())(env)
+            self._expire()
+            if env["type"] != "SERVICE_STATUS_QUERY":
+                if len(self.handoffs) >= MAX_HANDOFFS or self._per_source.get(src, 0) >= MAX_HANDOFFS_PER_SOURCE:
+                    raise ProtocolError("rate_limited", "too many mock handoffs")
+            out = getattr(self, "_on_" + env["type"].lower())(env)
+            ref = (out["body"].get("handoff_reference") or out["body"].get("escrow_reference")) \
+                if out["type"] in ("SERVICE_HANDOFF_ACK", "ESCROW_HANDOFF_ACK") else None
+            if ref is not None and "source" not in self.handoffs[ref]:
+                self.handoffs[ref]["source"] = src
+                self._per_source[src] = self._per_source.get(src, 0) + 1
+            return out
+
+    def _expire(self) -> None:
+        now = utcnow()
+        while self.handoffs:
+            ref, h = next(iter(self.handoffs.items()))
+            if h["expires"] > now:
+                break
+            self._drop(ref)
+
+    def _drop(self, ref: str) -> None:
+        h = self.handoffs.pop(ref)
+        src = h.get("source")
+        if src is not None:
+            n = self._per_source.get(src, 0) - 1
+            if n > 0:
+                self._per_source[src] = n
+            else:
+                self._per_source.pop(src, None)
+
+    def _put(self, ref: str, record: dict[str, Any]) -> None:
+        if ref in self.handoffs:
+            self._drop(ref)
+        record["expires"] = utcnow() + HANDOFF_TTL
+        self.handoffs[ref] = record
 
     def _on_service_handoff_request(self, env: dict[str, Any]) -> dict[str, Any]:
         b = env["body"]
@@ -62,9 +106,9 @@ class MockEscrow(DemoNode):
             raise ProtocolError("quote_expired", "referenced quote has expired")
         ref = self._ref(env)
         now = utcnow()
-        self.handoffs[ref] = {"order_id": b["order_id"], "state": "CREATED", "updated_at": format_ts(now),
-                              "requester": env["sender"]["agent_id"],
-                              "parties": {env["sender"]["agent_id"], *b["parties"].values()}}
+        self._put(ref, {"order_id": b["order_id"], "state": "CREATED", "updated_at": format_ts(now),
+                        "requester": env["sender"]["agent_id"],
+                        "parties": {env["sender"]["agent_id"], *b["parties"].values()}})
         return new_envelope("SERVICE_HANDOFF_ACK", {
             "service_type": "escrow", "mode": "mock", "mock": True, "label": MOCK_LABEL, "handoff_reference": ref,
             "state": "CREATED", "provider_state": "MOCK_CREATED", "provider_confirmed": False,
@@ -95,9 +139,9 @@ class MockEscrow(DemoNode):
         if parse_ts(b["quote_expires_at"], "quote_expires_at") <= utcnow():
             raise ProtocolError("quote_expired", "referenced quote has expired")
         ref = self._ref(env)
-        self.handoffs[ref] = {"order_id": b["quote_id"], "state": "CREATED", "updated_at": format_ts(utcnow()),
-                              "requester": env["sender"]["agent_id"],
-                              "parties": {env["sender"]["agent_id"], b["buyer_agent_id"], b["seller_agent_id"]}}
+        self._put(ref, {"order_id": b["quote_id"], "state": "CREATED", "updated_at": format_ts(utcnow()),
+                        "requester": env["sender"]["agent_id"],
+                        "parties": {env["sender"]["agent_id"], b["buyer_agent_id"], b["seller_agent_id"]}})
         return new_envelope("ESCROW_HANDOFF_ACK", {
             "mock": True, "label": MOCK_LABEL, "escrow_reference": ref, "state": "MOCK_CREATED",
             "quote_id": b["quote_id"], "currency": b["currency"], "amount_minor": b["amount_minor"],

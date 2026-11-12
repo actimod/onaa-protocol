@@ -16,14 +16,21 @@ Conformance trade trigger (spec section 12.1): OFF by default. Only with ``Buyer
 does the buyer declare ``params.conformance.trade_trigger`` and accept a signed, recipient-bound trigger from a
 conformance harness. It then runs one TEST-ONLY mock trade against the harness counterparties named in the
 trigger, after checking that each counterparty card marks itself as a harness counterparty of that harness.
-No registry lookup, no live mode, no payment data; triggered deals are kept apart from real ones.
+No registry lookup, no live mode, no payment data; triggered deals are kept apart from real ones (their own,
+smaller store, so triggered runs can never evict a real deal), the whole run has a total time budget
+(``TRIGGER_RUN_BUDGET``), and the operator may restrict trigger senders to an allowlist of harness card URLs
+(``trigger_allowed_senders``; checked before any key fetch).
+
+Inbound notifications are kept as small summaries in a bounded ``deque`` (v0.1.2 errata).
 """
 
 from __future__ import annotations
 
 import copy
 import threading
-from collections import OrderedDict
+import time
+from collections import OrderedDict, deque
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit
@@ -62,7 +69,9 @@ from .safe_fetch import Resolver, UnsafeURLError, fetch_json, same_origin, valid
 
 BUYER_AGENT_ID = "sample-buyer-agent"
 MAX_DEAL_KEYS = 1000        # order ids / handoff references of recent deals kept for inbound notifications
-MAX_NOTIFICATIONS = 256
+MAX_TRIGGERED_DEAL_KEYS = 64  # the same for conformance-triggered deals, kept apart (spec 12.1.3)
+MAX_NOTIFICATIONS = 256     # summaries of recent inbound notifications
+TRIGGER_RUN_BUDGET = 50.0   # seconds for a whole triggered run, so the result is sent within 60 s (spec 12.1.3)
 
 
 class TradeError(RuntimeError):
@@ -82,7 +91,7 @@ class BuyerNode(DemoNode):
     accepts = ("ORDER_STATUS", "SERVICE_STATUS")
 
     def __init__(self, base_url: str, agent_id: str = BUYER_AGENT_ID, *, conformance_trigger: bool = False,
-                 **kw: Any) -> None:
+                 trigger_allowed_senders: Iterable[str] | None = None, **kw: Any) -> None:
         if conformance_trigger:
             kw["conformance"] = {"trade_trigger": trigger_declaration(["escrow"])}
         super().__init__(
@@ -94,41 +103,56 @@ class BuyerNode(DemoNode):
             provider={"organization": "ONAA reference sample (not a real business)", "url": base_url.rstrip("/")},
             regions=["US", "DE"], currencies=["USD", "EUR"], **kw)
         self.conformance_trigger = conformance_trigger
+        # Operator allowlist of harness card URLs (spec 12.1.5 SHOULD); None = any signed, recipient-bound sender.
+        self.trigger_allowed_senders = None if trigger_allowed_senders is None else frozenset(trigger_allowed_senders)
         self.trigger_guard = TriggerGuard()
-        self.notifications: list[dict[str, Any]] = []
+        self.notifications: deque[dict[str, Any]] = deque(maxlen=MAX_NOTIFICATIONS)
         self._deal_lock = threading.Lock()
         self.deals: OrderedDict[str, TradeLedger] = OrderedDict()  # "order:<id>" / "ref:<reference>" -> ledger
+        self.triggered_deals: OrderedDict[str, TradeLedger] = OrderedDict()  # same keys; conformance runs only
 
     # ------------------------------------------------------------ own deals (local view only)
 
-    def remember_deal(self, ledger: TradeLedger) -> None:
-        """Route later notifications about this deal's orders and handoffs to its ledger (bounded)."""
+    def remember_deal(self, ledger: TradeLedger, *, triggered: bool = False) -> None:
+        """Route later notifications about this deal's orders and handoffs to its ledger (bounded).
+        Triggered (conformance) deals go to their own smaller store and can never evict a real deal."""
+        store, cap = (self.triggered_deals, MAX_TRIGGERED_DEAL_KEYS) if triggered else (self.deals, MAX_DEAL_KEYS)
         with self._deal_lock:
             for key in [f"order:{o}" for o in ledger.orders] + [f"ref:{r}" for r in ledger.handoffs]:
-                self.deals[key] = ledger
-                self.deals.move_to_end(key)
-            while len(self.deals) > MAX_DEAL_KEYS:
-                self.deals.popitem(last=False)
+                store[key] = ledger
+                store.move_to_end(key)
+            while len(store) > cap:
+                store.popitem(last=False)
 
     def _deal_for(self, env: dict[str, Any]) -> TradeLedger | None:
         body = env.get("body") or {}
         key = f"ref:{body.get('handoff_reference')}" if env["type"] == "SERVICE_STATUS" else \
             f"order:{body.get('order_id')}"
-        return self.deals.get(key)
+        return self.deals.get(key) or self.triggered_deals.get(key)
+
+    @staticmethod
+    def _summary(env: dict[str, Any], applied: bool) -> dict[str, Any]:
+        """A small, fixed-shape record of a notification (never the untrusted body itself)."""
+        body = env.get("body") or {}
+
+        def short(v: Any) -> Any:
+            return v[:128] if isinstance(v, str) else None
+        return {"type": env["type"], "id": env["id"], "sender_agent_id": short(env["sender"].get("agent_id")),
+                "order_id": short(body.get("order_id")), "handoff_reference": short(body.get("handoff_reference")),
+                "state": short(body.get("state")), "signed": "signature" in env, "applied": applied}
 
     def dispatch(self, env: dict[str, Any]) -> dict[str, Any]:
         with self._deal_lock:
             ledger = self._deal_for(env)
             if ledger is not None:
                 ledger.apply(env)  # state machine, signer binding, SECURED rule; ProtocolError -> REJECT
-            self.notifications.append(env)
-            del self.notifications[:-MAX_NOTIFICATIONS]
+            self.notifications.append(self._summary(env, ledger is not None))
         return new_envelope("RECEIPT", {"received_id": env["id"], "received_type": env["type"]},
                             sender=self.sender, recipient=env["sender"], in_reply_to=env["id"], signer=self.signer)
 
     # ------------------------------------------------------------ conformance trade trigger (opt-in)
 
-    def handle(self, message: dict[str, Any]) -> dict[str, Any]:
+    def handle(self, message: dict[str, Any], source: str | None = None) -> dict[str, Any]:
         if self.conformance_trigger:
             try:
                 trigger = find_trigger(message)
@@ -136,20 +160,21 @@ class BuyerNode(DemoNode):
                 return self.reply_message(reject(None, self.sender, exc.code, signer=self.signer), message)
             if trigger is not None:
                 return self._handle_trigger(trigger, message)
-        return super().handle(message)
+        return super().handle(message, source)
 
     def _handle_trigger(self, trigger: dict[str, Any], message: dict[str, Any]) -> dict[str, Any]:
         def refuse(code: str) -> dict[str, Any]:
             return self.reply_message(reject(trigger, self.sender, code, signer=self.signer,
                                              recipient=reply_recipient(trigger)), message)
         try:
-            check_trigger(trigger, self.keys, expected_recipient=self.sender)
+            check_trigger(trigger, self.keys, expected_recipient=self.sender,
+                          allowed_senders=self.trigger_allowed_senders)
             self.trigger_guard.reserve(trigger)
         except ProtocolError as exc:
             return refuse(exc.code)
         except Exception:  # noqa: BLE001 - details stay local
             return refuse("internal_error")
-        agent = BuyerAgent(None, self, http_client=self.http)
+        agent = BuyerAgent(None, self, http_client=self.http, deadline=TRIGGER_RUN_BUDGET)
         try:
             agent.run_triggered(trigger)
             result = trigger_result(trigger, "completed")
@@ -161,7 +186,7 @@ class BuyerNode(DemoNode):
             return refuse("internal_error")
         finally:
             self.trigger_guard.finish()
-            self.remember_deal(agent.ledger)
+            self.remember_deal(agent.ledger, triggered=True)
         return a2a.make_message(a2a.ROLE_AGENT, [a2a.data_part(result)], context_id=message.get("contextId"),
                                 extensions=[EXTENSION_URI])
 
@@ -192,8 +217,12 @@ class BuyerAgent:
         http_client: httpx.Client | None = None,
         allow_localhost: bool | None = None,
         resolver: Resolver | None = None,
+        deadline: float | None = None,
     ) -> None:
+        """``deadline`` (seconds, optional) is a total budget for the whole run: every fetch and exchange
+        gets at most what is left of it."""
         self.registry = registry
+        self.deadline_at = None if deadline is None else time.monotonic() + deadline
         self.node = node
         self.http = http_client or safe_client(allow_localhost=allow_localhost, resolver=resolver)
         self.allow_localhost = allow_localhost
@@ -207,6 +236,15 @@ class BuyerAgent:
 
     def log(self, line: str) -> None:
         self.transcript.append(line)
+
+    def _budget(self, default: float) -> float:
+        """Per-call deadline: ``default``, capped by what is left of the run budget (if any)."""
+        if self.deadline_at is None:
+            return default
+        left = self.deadline_at - time.monotonic()
+        if left <= 0:
+            raise TradeError("run deadline exceeded", code="rate_limited")
+        return min(default, left)
 
     @staticmethod
     def _s(value: Any) -> str:
@@ -224,7 +262,8 @@ class BuyerAgent:
         try:
             self.outbound.append((card_url, "agent-card"))
             card = a2a.validate_agent_card(
-                fetch_json(self.http, card_url, allow_localhost=self.allow_localhost, resolver=self.resolver))
+                fetch_json(self.http, card_url, allow_localhost=self.allow_localhost, resolver=self.resolver,
+                           deadline=self._budget(10.0)))
             endpoint = a2a.select_jsonrpc_interface(card)
             # ONAA policy: invocation URL must be on the card's origin (registry enforces same host).
             if not same_origin(card_url, endpoint):
@@ -246,7 +285,8 @@ class BuyerAgent:
         self.outbound.append((endpoint, env["type"]))
         out: dict[str, Any] | None = None
         try:
-            reply = a2a.send_message(self.http, endpoint, msg, extensions=[EXTENSION_URI])
+            reply = a2a.send_message(self.http, endpoint, msg, extensions=[EXTENSION_URI],
+                                     deadline=self._budget(15.0))
             out = extract_envelope(reply)
             check_envelope(out, self.keys, expected_types=REPLY_TYPES[env["type"]], expected_recipient=self.sender)
         except (a2a.A2AError, ProtocolError, UnsafeURLError, httpx.HTTPError) as exc:
@@ -320,9 +360,14 @@ class BuyerAgent:
         self.outbound.append((self.registry.base_url + "/v1/services", "registry-search"))
         if not escrows:
             raise TradeError("no escrow service found in registry")
+        # Prefer a provider the seller accepts (QUOTE settlement.accepted_provider_card_urls, covered by
+        # terms_hash): only such a provider can ever make the order SECURED (spec section 8.4.5).
+        accepted = (quote["body"].get("settlement") or {}).get("accepted_provider_card_urls") or []
+        escrows.sort(key=lambda r: r.get("agent_card_url") not in accepted)
         escrow = escrows[0]
         self.log(f"    registry -> buyer : {len(escrows)} result(s); picked {self._s(escrow['id'])} "
-                 f"'{self._s(escrow.get('display_name'))}' [{self._s(trust_label(escrow))}]")
+                 f"'{self._s(escrow.get('display_name'))}' [{self._s(trust_label(escrow))}]"
+                 + (" (accepted by the seller's QUOTE)" if escrow.get("agent_card_url") in accepted else ""))
         ecard, escrow_ep, eparams = self.resolve_a2a_endpoint(escrow)
         handoff, ack, status = self._handoff(escrow, ecard, escrow_ep, eparams, quote, order, rfq["id"])
         self.node.remember_deal(self.ledger)

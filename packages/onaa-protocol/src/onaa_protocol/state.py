@@ -5,16 +5,23 @@ transcript). It is never a central ledger: ONAA's registry holds no trade state 
 Callers MUST validate and verify each envelope (``envelope.check_envelope``) before ``apply``: the
 ledger relies on a present ``signature`` member having been verified.
 
-Identity rules (spec sections 7.4, 8.4, 9.4; v0.1.1 errata):
+Identity rules (spec sections 7.4, 8.4, 9.4; v0.1.1 and v0.1.2 errata):
 
 * an ``agent_id`` is bound to an ``agent_card_url`` by its first *signed* envelope in the deal, or by the
-  deal-opening RFQ;
+  deal-opening RFQ (which must name the buyer's card at spec_version >= 0.2.0);
+* binding is transactional: an envelope that the ledger refuses binds nothing (v0.1.2);
 * once bound, every state-changing envelope from that ``agent_id`` must be signed with the same card URL
-  (``signer_mismatch``), and MUST-sign types are refused unsigned (``signature_missing``);
+  (``signer_mismatch``), and MUST-sign types are refused unsigned (``signature_missing``). This includes
+  an ORDER_STATUS that repeats the current state (v0.1.2: fail closed);
 * an ORDER_STATUS that changes the order state must be signed;
+* an ORDER_PROPOSE is accepted only when the RFQ bound the buyer's card (v0.1.2);
 * a SERVICE_HANDOFF_ACK counts only from the provider the request was addressed to
-  (``recipient.agent_card_url``); handoff references are single-use in a deal; an order becomes SECURED
-  only from a provider-confirmed SECURED ``sandbox`` handoff;
+  (``recipient.agent_card_url``), and neither that card nor the ACK sender's card may be a card bound to
+  the buyer or the seller (v0.1.2); handoff references are single-use in a deal;
+* an order becomes SECURED only from a provider-confirmed SECURED ``sandbox`` handoff whose provider card
+  is listed in the accepted QUOTE's ``settlement.accepted_provider_card_urls`` (v0.1.2): the list is
+  covered by ``terms_hash``, so both parties agreed to it, and a party cannot secure an order through a
+  provider it controls alone;
 * time checks use the receiver's clock (``now`` or the current time), never a sender's ``created_at``.
 """
 
@@ -130,7 +137,9 @@ class TradeLedger:
             return None
         return self.quotes[self.latest_quote_id]["sender"]["agent_id"]
 
-    def _bind(self, env: dict[str, Any]) -> None:
+    def _bind(self, env: dict[str, Any]) -> tuple[str, str] | None:
+        """Check the sender against its binding. Returns the NEW binding this envelope would create; the
+        caller stores it only after the envelope was applied successfully (transactional, v0.1.2)."""
         s = env["sender"]
         url = s.get("agent_card_url")
         signed = "signature" in env
@@ -140,9 +149,27 @@ class TradeLedger:
                 raise SignatureError("signer_mismatch", "sender changed agent_card_url within the deal")
             if not signed and env["type"] in STATEFUL_TYPES:
                 raise SignatureError("signer_mismatch", "a bound party's state-changing envelopes must be signed")
-            return
+            return None
         if url and (signed or (env["type"] == "RFQ" and self.rfq is None)):
-            self.cards[s["agent_id"]] = url
+            return s["agent_id"], url
+        return None
+
+    def _party_cards(self) -> set[str]:
+        """Card URLs that belong to the buyer or the seller of this deal (bound or as first seen)."""
+        cards = {self.cards.get(self.buyer_id or ""), self.cards.get(self.seller_id or "")}
+        if self.rfq is not None:
+            cards.add(self.rfq["sender"].get("agent_card_url"))
+        if self.latest_quote_id is not None:
+            cards.add(self.quotes[self.latest_quote_id]["sender"].get("agent_card_url"))
+        return {c for c in cards if c}
+
+    def accepted_providers(self, order: Order) -> frozenset[str]:
+        """Provider card URLs both parties agreed to for ``order``: the accepted QUOTE's
+        ``settlement.accepted_provider_card_urls`` (covered by ``terms_hash``; spec section 8.4.5)."""
+        quote = self.quotes.get(order.body.get("quote_id", ""))
+        settlement = quote["body"].get("settlement") if quote else None
+        urls = settlement.get("accepted_provider_card_urls") if isinstance(settlement, dict) else None
+        return frozenset(u for u in urls if isinstance(u, str)) if isinstance(urls, list) else frozenset()
 
     def _order(self, order_id: str) -> Order:
         order = self.orders.get(order_id)
@@ -172,10 +199,12 @@ class TradeLedger:
         if "signature" not in env and (env["type"] in MUST_SIGN or env["type"] != t):
             # MUST-sign types (and the unsigned legacy aliases) never change state unsigned.
             raise SignatureError("signature_missing", f"{t} must be signed to change deal state")
-        self._bind(env)
+        new_binding = self._bind(env)
         handler = getattr(self, "_on_" + t.lower(), None)
         if handler is not None:
-            handler(env, b, now)
+            handler(env, b, now)  # raises before mutating: a refused envelope changes nothing, binds nothing
+        if new_binding is not None:
+            self.cards[new_binding[0]] = new_binding[1]
         self.history.append((env["type"], env["id"]))
 
     def _on_rfq(self, env: dict[str, Any], b: dict[str, Any], now: datetime | None) -> None:
@@ -219,6 +248,10 @@ class TradeLedger:
             raise ProtocolError("amount_mismatch", "ORDER total/currency differ from the QUOTE")
         if env["sender"]["agent_id"] != self.buyer_id or b["buyer_agent_id"] != self.buyer_id:
             raise ProtocolError("not_a_party", "only the RFQ buyer may propose an order")
+        if self.cards.get(self.buyer_id or "") is None:
+            # v0.1.2: the RFQ did not bind the buyer's card, so anyone who learned the rfq_id could
+            # otherwise sign an order in the buyer's name (spec sections 7.4, 9.4.4).
+            raise ProtocolError("not_a_party", "the RFQ named no buyer Agent Card; the buyer is not bound")
         if b["seller_agent_id"] != quote["sender"]["agent_id"] or b["rfq_id"] != self.rfq["id"]:
             raise ProtocolError("terms_mismatch", "seller_agent_id/rfq_id do not match the QUOTE")
         if env["id"] in self.orders:
@@ -267,6 +300,9 @@ class TradeLedger:
                     or h.mode != "sandbox"):
                 raise ProtocolError("invalid_transition",
                                     "SECURED requires a provider-confirmed SECURED sandbox handoff for this order")
+            if h.provider_card_url not in self.accepted_providers(order):
+                raise ProtocolError("invalid_transition",
+                                    "SECURED requires a provider listed in the QUOTE's accepted_provider_card_urls")
         self._set_order(order, new)
 
     def _on_dispute_open(self, env: dict[str, Any], b: dict[str, Any], now: datetime | None) -> None:
@@ -282,6 +318,9 @@ class TradeLedger:
         rcpt = env.get("recipient")
         if not isinstance(rcpt, dict) or not rcpt.get("agent_card_url"):
             raise ProtocolError("invalid_envelope", "SERVICE_HANDOFF_REQUEST must name recipient.agent_card_url")
+        if rcpt["agent_card_url"] in self._party_cards():
+            # v0.1.2: a trading party would otherwise address the handoff to itself and acknowledge it.
+            raise ProtocolError("not_a_party", "a handoff cannot be addressed to a trading party of the deal")
         if b.get("order_terms_hash") not in (None, order.terms_hash):
             raise ProtocolError("terms_mismatch", "order_terms_hash does not match the order")
         if b["service_type"] in ("escrow", "payment") and (
@@ -297,7 +336,8 @@ class TradeLedger:
         # identity anchor; the request's recipient.agent_id may be a registry record id (section 7.1).
         if env["sender"].get("agent_card_url") != req["recipient"]["agent_card_url"]:
             raise ProtocolError("not_a_party", "ACK is not from the provider the request was addressed to")
-        if env["sender"]["agent_id"] in (self.buyer_id, self.seller_id):
+        if env["sender"]["agent_id"] in (self.buyer_id, self.seller_id) or \
+                env["sender"].get("agent_card_url") in self._party_cards():
             raise ProtocolError("not_a_party", "a trading party cannot acknowledge its own handoff")
         rb = req["body"]
         if b["service_type"] != rb["service_type"] or b["mode"] != rb["mode"]:

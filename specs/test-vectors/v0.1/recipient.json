@@ -59,7 +59,7 @@
           "service_type": "escrow",
           "mode": "mock",
           "order_id": "order-0000-4000-8000-000000000001",
-          "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+          "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
           "quote_id": "quote-0000-4000-8000-000000000001",
           "quote_expires_at": "2026-11-12T12:15:05Z",
           "parties": {
@@ -75,7 +75,7 @@
         },
         "signature": {
           "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-          "signature": "zNpUD2NrRI6kuoL6xDpTXbqtIwDiwCwF2vGkS6Yj1cRdSxJV2f9gMkM--WCsPHVl54sq_D36jpXwO-sTY7ruAA"
+          "signature": "wrsDZyMEaDvXhK38kh5blLpz_VoVHgFFVD6istmPtTn1tKWXs6vV35dmORZAYogL9yNYjLsFkcmECbAggDbfAA"
         }
       },
       "expected_recipient": {
@@ -103,7 +103,7 @@
           "service_type": "escrow",
           "mode": "mock",
           "order_id": "order-0000-4000-8000-000000000001",
-          "order_terms_hash": "sha256:b6765b7791b704ab7e149a94730b548e757e77d83db912b698e67ed5a492affa",
+          "order_terms_hash": "sha256:c6adb2ce31eebcd710fc59e5abac71116156dee10f7266859e685de95177407b",
           "quote_id": "quote-0000-4000-8000-000000000001",
           "quote_expires_at": "2026-11-12T12:15:05Z",
           "parties": {
@@ -119,7 +119,7 @@
         },
         "signature": {
           "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-          "signature": "zNpUD2NrRI6kuoL6xDpTXbqtIwDiwCwF2vGkS6Yj1cRdSxJV2f9gMkM--WCsPHVl54sq_D36jpXwO-sTY7ruAA"
+          "signature": "wrsDZyMEaDvXhK38kh5blLpz_VoVHgFFVD6istmPtTn1tKWXs6vV35dmORZAYogL9yNYjLsFkcmECbAggDbfAA"
         }
       },
       "expected_recipient": {
@@ -146,7 +146,7 @@
         "body": {
           "quote_id": "quote-0000-4000-8000-000000000001",
           "quote_revision": 1,
-          "quote_terms_hash": "sha256:6cbf6df2939f1a47a03e4f69b70e32dad356af218933c6b30d9169a4f4c58397",
+          "quote_terms_hash": "sha256:51ae1dccc4a2a27280376ee8022061bb474fb3ea81ce57492427b931b5d633db",
           "rfq_id": "rfq-0000-4000-8000-000000000001",
           "buyer_agent_id": "sample-buyer-agent",
           "seller_agent_id": "sample-seller-agent",
@@ -167,7 +167,7 @@
         },
         "signature": {
           "protected": "eyJhbGciOiJFZERTQSIsImtpZCI6ImJ1eWVyLXRlc3QtMjAyNi0xMSIsInR5cCI6Im9uYWEtZW52ZWxvcGUrandzIn0",
-          "signature": "SCurT5AOSK74VihhC5S23HC7iR9fAXiL3r8DXg_9A5FPJ1RIKQmL1doRXEuYR9H2bqr5HAJDMIwm6WStPZwZAw"
+          "signature": "FX5dsCBT1GOqrenSJ1RiQC5cT2tA8e8Kt-u-J2jmIFtCHfbBir9BNvxXPuafw_vhLO1QHBNFJbjccgEYUiZIBA"
         }
       },
       "expected_recipient": {

@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-SUITE_VERSION = "0.4.0"  # 0.2.0: coverage review; 0.3.0: v0.1.1 errata; 0.4.0: buyer trigger tests; ids unchanged
+SUITE_VERSION = "0.5.0"  # 0.2.0: coverage review; 0.3.0: v0.1.1 errata; 0.4.0: buyer trigger tests;
+# 0.5.0: v0.1.2 errata; ids unchanged
 SELLER, BUYER, SERVICE, REGISTRY = "seller_agent", "buyer_agent", "service_provider", "registry"
 AGENTS = (SELLER, BUYER, SERVICE)
 
@@ -179,6 +180,11 @@ _DEFS = [
              "ORDER_STATUS is not accepted)"),
     CheckDef("ONAA-C-MUST-091", "MUST", "13.1", (BUYER,), "URLs and instructions in counterparty free text are "
              "never acted on"),
+    # ---- v0.1.2 security errata (added in suite 0.5.0)
+    CheckDef("ONAA-C-MUST-092", "MUST", "7.1", (SELLER,), "An RFQ at spec_version 0.2.0 without "
+             "sender.agent_card_url is answered with REJECT invalid_envelope"),
+    CheckDef("ONAA-C-MUST-093", "MUST", "9.2", (SELLER,), "Unsigned ORDER_STATUS from the bound buyer that "
+             "repeats the current order state is refused (signer_mismatch or signature_missing)"),
     # ---- SHOULD
     CheckDef("ONAA-C-SHOULD-001", "SHOULD", "9.2", (SELLER,), "QUOTE is signed and verifies against the seller JWKS"),
     CheckDef("ONAA-C-SHOULD-002", "SHOULD", "5.2", (SELLER, SERVICE), "ONAA extension is declared required=true"),

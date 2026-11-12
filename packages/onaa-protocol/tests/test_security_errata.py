@@ -148,7 +148,9 @@ def test_h2_secured_requires_a_sandbox_handoff():
     led, msgs = _deal()
     oid = msgs["ORDER_PROPOSE"]["id"]
     led.orders[oid].state = "PAYMENT_PENDING"
-    led.handoffs["H"] = Handoff("H", "escrow", "mock", oid, "SECURED", "mock-escrow-service", True)
+    # provider card listed in the transcript QUOTE's settlement.accepted_provider_card_urls (v0.1.2)
+    led.handoffs["H"] = Handoff("H", "escrow", "mock", oid, "SECURED", "mock-escrow-service", True,
+                                party("escrow")["agent_card_url"])
     st = new_envelope("ORDER_STATUS", {"order_id": oid, "state": "SECURED", "handoff_reference": "H"},
                       sender=party("buyer"), recipient=party("seller"), signer=signer("buyer"), now=T0)
     assert _code(lambda: led.apply(st, now=AT)) == "invalid_transition"
@@ -341,15 +343,33 @@ def test_m3_pinned_transport_connects_to_the_checked_address_with_original_host(
 
 
 def test_m3_dns_rebinding_between_check_and_connect_fails_closed():
-    """First resolution (URL check) is loopback; the second (connect) rebinds to a private address."""
+    """A request that was NOT pre-checked resolves at connect time, and a private answer is refused there."""
+    h = _handler()
+    srv, port = _serve(h)
+    resolver = lambda host, p: ["10.0.0.7"]  # noqa: E731
+    try:
+        with safe_client(allow_localhost=True, resolver=resolver) as c, pytest.raises(UnsafeURLError):
+            c.get(f"http://rebind.test:{port}/x")
+        assert h.seen == []
+    finally:
+        srv.shutdown()
+
+
+def test_n4_rebinding_window_is_closed_by_resolving_once():
+    """v0.1.2: request_bytes resolves once and the transport connects to exactly that checked answer; a
+    rebinding second answer is never even asked for."""
     h = _handler()
     srv, port = _serve(h)
     answers = iter([["127.0.0.1"], ["10.0.0.7"]])
-    resolver = lambda host, p: next(answers)  # noqa: E731
+    calls: list[str] = []
+
+    def resolver(host, p):
+        calls.append(host)
+        return next(answers)
     try:
-        with safe_client(allow_localhost=True, resolver=resolver) as c, pytest.raises(UnsafeURLError):
+        with safe_client(allow_localhost=True, resolver=resolver) as c:
             fetch_json(c, f"http://rebind.test:{port}/x", allow_localhost=True, resolver=resolver)
-        assert h.seen == []
+        assert calls == ["rebind.test"] and len(h.seen) == 1
     finally:
         srv.shutdown()
 
@@ -508,8 +528,9 @@ def test_m5_key_cache_is_lru_bounded():
 
 
 def _rfq(i: int, **kw):
+    # 30 min: within the default unsigned retention window (v0.1.2 refuses unsigned lifetimes over 1 h)
     return new_envelope("RFQ", {"items": [{"sku": "a", "quantity": 1}], "currency": "USD"},
-                        sender={"agent_id": f"spoof-{i}"}, ttl=timedelta(hours=24), **kw)
+                        sender={"agent_id": f"spoof-{i}"}, ttl=timedelta(minutes=30), **kw)
 
 
 def test_m5_poc8_replay_guard_is_bounded():

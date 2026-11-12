@@ -149,7 +149,7 @@ def test_seller_answering_legacy_rfq_at_0_2_fails(network, monkeypatch):
 
 
 def test_buyer_without_replay_protection_fails(network, monkeypatch):
-    monkeypatch.setattr(network.buyer.guard, "reserve", lambda env, now=None: None)
+    monkeypatch.setattr(network.buyer.guard, "reserve", lambda env, now=None, **kw: None)
     report = run_live(network.buyer.base_url + AGENT_CARD_PATH, "buyer_agent", allow_loopback=True)
     assert set(_fails(report)) == {"ONAA-C-MUST-065"}, _fails(report)
     assert report["summary"]["verdict"] == "fail"

@@ -32,9 +32,12 @@ def parties():
     return buyer, seller, escrow, keys
 
 
+T_BUYER = {"agent_id": "t-buyer", "agent_card_url": "https://t-buyer.example/.well-known/agent-card.json"}
+
+
 def rfq(sender=None, **kw):
     body = kw.pop("body", {"items": [{"sku": "widget-std", "quantity": 3}], "currency": "USD"})
-    return new_envelope("RFQ", body, sender=sender or {"agent_id": "t-buyer"}, now=kw.pop("now", T0), **kw)
+    return new_envelope("RFQ", body, sender=sender or T_BUYER, now=kw.pop("now", T0), **kw)
 
 
 def _send(agent, env):
@@ -109,7 +112,7 @@ def test_seller_business_rejects(parties):
         ({"items": [{"sku": "widget-std", "quantity": 1}], "currency": "JPY"}, "unsupported_currency"),
         ({"items": [{"sku": "widget-std", "quantity": 10}], "currency": "USD", "max_total_minor": 100}, "over_budget"),
     ]:
-        r = _send(seller, new_envelope("RFQ", body, sender={"agent_id": "t-buyer"}))
+        r = _send(seller, new_envelope("RFQ", body, sender=T_BUYER))
         assert (r["type"], r["body"]["code"]) == ("REJECT", code)
 
 

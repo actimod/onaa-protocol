@@ -65,7 +65,7 @@ async def test_tools_are_read_only(fake_registry):
     reg, _ = fake_registry
     async with Client(build_server(reg)) as client:
         tools = (await client.list_tools()).tools
-    assert {t.name for t in tools} == {"search_agents", "search_services", "get_listing"}
+    assert {t.name for t in tools} == {"search_agents", "search_services", "get_listing", "get_vocabulary"}
     for t in tools:
         assert t.annotations.read_only_hint is True and t.annotations.destructive_hint is False
 
@@ -145,7 +145,7 @@ async def test_self_registration_tools_are_opt_in_and_keep_secrets_out_of_result
     key_file = tmp_path / "onaa.key"
     async with Client(build_server(reg, key_file=key_file)) as client:
         tools = {t.name: t for t in (await client.list_tools()).tools}
-        assert {"self_register_start", "self_register_complete"} <= set(tools)
+        assert {"self_register_start", "self_register_complete", "update_my_listing"} <= set(tools)
         assert tools["self_register_start"].annotations.read_only_hint is False
         started = await client.call_tool("self_register_start", {
             "display_name": "Seller", "agent_card_url": "https://s1.example.com/.well-known/agent-card.json",
@@ -176,6 +176,41 @@ async def test_self_registration_tools_absent_by_default(fake_registry):
     async with Client(build_server(reg)) as client:
         names = {t.name for t in (await client.list_tools()).tools}
     assert not any(n.startswith("self_register") for n in names)
+
+
+@pytest.mark.anyio
+async def test_new_filters_vocabulary_and_profile_shape(fake_registry):
+    reg, calls = fake_registry
+    async with Client(build_server(reg)) as client:
+        res = _payload(await client.call_tool("search_agents", {"country": ["KR"], "accepts": ["escrow"],
+                                                                 "skill": ["rfq"]}))
+        voc = _payload(await client.call_tool("get_vocabulary", {"top": 5}))
+    q = calls[0].url.params
+    assert q["country"] == "KR" and q["accepts"] == "escrow" and q["skill"] == "rfq"
+    assert "commerce" in res["items"][0]["untrusted_operator_content"]
+    assert calls[1].url.path == "/v1/vocabulary" and voc["error"]["status"] == 404
+
+
+@pytest.mark.anyio
+async def test_update_my_listing_reads_key_file_and_never_returns_it(tmp_path):
+    seen = []
+
+    def handler(request: httpx.Request):
+        seen.append(request)
+        return httpx.Response(200, json=_record(1, revision=2, commerce={"pricing": [{"model": "quote"}]}))
+
+    reg = OnaaClient("https://registry.example.com", http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+    key_file = tmp_path / "k"
+    async with Client(build_server(reg, key_file=key_file)) as client:
+        missing = _payload(await client.call_tool("update_my_listing", {
+            "listing_id": "agt_" + "0" * 24, "changes": {"commerce": None}}))
+        key_file.write_text(KEY + "\n")
+        done = _payload(await client.call_tool("update_my_listing", {
+            "listing_id": "agt_" + "0" * 24, "changes": {"commerce": {"pricing": [{"model": "quote"}]}}}))
+    assert missing["error"]["status"] == 401
+    assert seen[-1].method == "PATCH" and seen[-1].headers["authorization"] == f"Bearer {KEY}"
+    assert done["listing"]["revision"] == 2 and KEY not in json.dumps(done)
+    assert reg.api_key is None
 
 
 def test_refuses_operator_key():

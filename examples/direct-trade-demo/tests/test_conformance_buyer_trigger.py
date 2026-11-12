@@ -146,7 +146,7 @@ def _retyped_quote_without_state_machine(monkeypatch):
                                             _skip_checks_for("ORDER_CONFIRM", verify_signature=True)),
                  {"ONAA-C-MUST-087"}, True, id="confirm-signature-not-verified"),
     pytest.param(lambda mp, net: _trust_any_ack(mp), {"ONAA-C-MUST-089"}, True, id="ack-from-anyone"),
-    pytest.param(lambda mp, net: mp.setattr(net.buyer, "remember_deal", lambda ledger: None),
+    pytest.param(lambda mp, net: mp.setattr(net.buyer, "remember_deal", lambda ledger, **kw: None),
                  {"ONAA-C-MUST-090"}, True, id="notifications-without-deal-state"),
     pytest.param(lambda mp, net: _fetch_free_text_urls(mp), {"ONAA-C-MUST-091"}, True, id="acts-on-free-text"),
     pytest.param(lambda mp, net: _retyped_quote_without_state_machine(mp),

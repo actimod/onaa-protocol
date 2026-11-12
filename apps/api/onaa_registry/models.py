@@ -104,6 +104,16 @@ class Listing(Base):
     sandbox_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     sandbox_available: Mapped[bool] = mapped_column(Boolean, default=False)
     supported_interfaces: Mapped[list] = mapped_column(JSON, default=list)
+    # Optional agent-written profile blocks (commerce, jurisdiction, integration, data_handling, contacts,
+    # self_reported). All self-declared and untrusted; see docs/REGISTRY_FIELDS.md.
+    profile: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Namespaced extension fields (`com.example/field` or `x-name/field`); untrusted, size-capped.
+    extensions: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Untrusted summary parsed from the linked A2A Agent Card (skills, versions, interfaces, ONAA params).
+    card_summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    jwks_uri: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    # Incremented on every owner change or card change; exposed as `revision` and the HTTP ETag.
+    revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     # Self-declared by operator; NEVER treated as verified licences.
     regulatory_claims: Mapped[list] = mapped_column(JSON, default=list)
 
@@ -210,6 +220,28 @@ class SelfRegistration(Base):
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class VocabularyProposal(Base):
+    """Agent-proposed new field, capability, category, protocol token or service type. Support from distinct
+    identities plus observed usage is the promotion signal; a maintainer decision promotes it."""
+
+    __tablename__ = "vocabulary_proposals"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("vp"))
+    kind: Mapped[str] = mapped_column(String(20), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str] = mapped_column(Text)
+    example: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    proposer_operator_id: Mapped[str | None] = mapped_column(
+        ForeignKey("operators.id", ondelete="SET NULL"), nullable=True)
+    supporters: Mapped[list] = mapped_column(JSON, default=list)  # operator ids, distinct
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)  # open|accepted|declined
+    decision_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    decided_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (UniqueConstraint("kind", "name"),)
 
 
 class CertificationApplication(Base):
