@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
+import time
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any, Literal
 from urllib.parse import urlsplit
@@ -123,6 +124,57 @@ class OnaaClient:
 
     def me(self) -> dict:
         return self._request("GET", "/v1/operators/me", auth=True)
+
+    def update_profile(self, **fields) -> dict:
+        """Optional operator linkage, e.g. a self-registered agent attaching an organisation profile later."""
+        return self._request("PATCH", "/v1/operators/me", auth=True, json=fields)
+
+    # ---- agent self-registration (no human signup) ----
+    def current_terms_version(self) -> str:
+        return self.discovery_metadata()["onboarding"]["terms_version"]
+
+    def start_self_registration(self, listing: dict, *, kind: Literal["agent", "service"] = "agent",
+                                method: Literal["well_known", "dns_txt"] = "well_known",
+                                accept_terms_version: str | None = None) -> dict:
+        """Step 1. Returns the challenge: token (to publish), registration_secret (keep private), challenge_url
+        or dns_record_name. Nothing is listed until step 2 succeeds."""
+        tv = accept_terms_version or self.current_terms_version()
+        return self._request("POST", "/v1/self-register",
+                             json={"accept_terms_version": tv, "method": method, kind: listing})
+
+    def complete_self_registration(self, registration_id: str, registration_secret: str, *,
+                                   set_key: bool = True) -> dict:
+        """Step 2. On success returns {'operator', 'api_key', 'listing', 'next_steps'} and sets api_key on this
+        client. Raises OnaaError(422) with body['error'] while the proof is not visible yet."""
+        data = self._request("POST", f"/v1/self-register/{registration_id}/complete",
+                             json={"registration_secret": registration_secret})
+        if set_key:
+            self.api_key = data["api_key"]
+        return data
+
+    def self_register(self, listing: dict, publish: Callable[[dict], None], *,
+                      kind: Literal["agent", "service"] = "agent",
+                      method: Literal["well_known", "dns_txt"] = "well_known",
+                      accept_terms_version: str | None = None, attempts: int = 3,
+                      retry_delay: float = 2.0) -> dict:
+        """Register this agent end to end in one call.
+
+        `publish(challenge)` must make the token visible on the agent's own host: serve challenge['token'] at
+        challenge['challenge_url'] (well_known) or set the TXT record challenge['dns_record_name'] (dns_txt).
+        The proof is retried up to `attempts` times (the server allows 10) to absorb propagation delay.
+        Always passing the current terms version is the caller's acceptance of those terms.
+        """
+        chl = self.start_self_registration(listing, kind=kind, method=method,
+                                           accept_terms_version=accept_terms_version)
+        publish(chl)
+        for i in range(max(1, attempts)):
+            try:
+                return self.complete_self_registration(chl["registration_id"], chl["registration_secret"])
+            except OnaaError as exc:
+                if exc.status_code != 422 or i == attempts - 1:
+                    raise
+                time.sleep(retry_delay)
+        raise AssertionError("unreachable")
 
     def rotate_key(self) -> str:
         data = self._request("POST", "/v1/operators/me/keys/rotate", auth=True)

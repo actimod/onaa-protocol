@@ -718,6 +718,105 @@
         "title": "DiscoveredCreate",
         "type": "object"
       },
+      "DiscoveredServiceCreate": {
+        "additionalProperties": false,
+        "description": "A publicly documented provider (payment, escrow, logistics, ...) that has not registered itself.\n\nNo endpoint is required: many providers publish docs but no agent endpoint. Shown as `discovered`\n(unclaimed, not registered, not endorsed) with provenance until the provider registers or opts out.",
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "currencies": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Currencies",
+            "type": "array"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "display_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "documentation_url": {
+            "description": "Provider's official public documentation.",
+            "maxLength": 2048,
+            "title": "Documentation Url",
+            "type": "string"
+          },
+          "endpoint_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint Url"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Regions",
+            "type": "array"
+          },
+          "service_type": {
+            "enum": [
+              "payment",
+              "escrow",
+              "insurance",
+              "logistics",
+              "shipping",
+              "inspection",
+              "identity",
+              "dispute",
+              "tax",
+              "fraud",
+              "fx",
+              "hosting",
+              "other"
+            ],
+            "title": "Service Type",
+            "type": "string"
+          },
+          "source_url": {
+            "description": "Where ONAA observed it (provenance).",
+            "maxLength": 2048,
+            "title": "Source Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "display_name",
+          "service_type",
+          "documentation_url",
+          "source_url"
+        ],
+        "title": "DiscoveredServiceCreate",
+        "type": "object"
+      },
       "EntitlementOut": {
         "properties": {
           "cohort_size_limit": {
@@ -896,6 +995,11 @@
             "type": "boolean"
           },
           "operator_type": {
+            "enum": [
+              "individual",
+              "organization",
+              "agent"
+            ],
             "title": "Operator Type",
             "type": "string"
           },
@@ -926,6 +1030,66 @@
           "created_at"
         ],
         "title": "OperatorOut",
+        "type": "object"
+      },
+      "OperatorUpdate": {
+        "additionalProperties": false,
+        "description": "Optional operator linkage. A self-registered agent identity (operator_type 'agent') can later attach a\nhuman or organisation profile, e.g. before applying for paid operator verification.",
+        "properties": {
+          "country": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "operator_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "individual",
+                  "organization"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator Type"
+          },
+          "website_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website Url"
+          }
+        },
+        "title": "OperatorUpdate",
         "type": "object"
       },
       "RegistryRecord": {
@@ -1310,6 +1474,214 @@
           "offset"
         ],
         "title": "SearchPage",
+        "type": "object"
+      },
+      "SelfRegistrationChallenge": {
+        "properties": {
+          "challenge_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Challenge Url"
+          },
+          "complete_url": {
+            "title": "Complete Url",
+            "type": "string"
+          },
+          "dns_record_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dns Record Name"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "instructions": {
+            "title": "Instructions",
+            "type": "string"
+          },
+          "method": {
+            "enum": [
+              "well_known",
+              "dns_txt"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "registration_id": {
+            "title": "Registration Id",
+            "type": "string"
+          },
+          "registration_secret": {
+            "description": "Shown once. Keep it private and send it to complete; the published token is public.",
+            "title": "Registration Secret",
+            "type": "string"
+          },
+          "token": {
+            "description": "Shown once. Publish it exactly as instructed, then call complete.",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "registration_id",
+          "method",
+          "host",
+          "token",
+          "registration_secret",
+          "expires_at",
+          "complete_url",
+          "instructions"
+        ],
+        "title": "SelfRegistrationChallenge",
+        "type": "object"
+      },
+      "SelfRegistrationComplete": {
+        "additionalProperties": false,
+        "properties": {
+          "registration_secret": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Registration Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "registration_secret"
+        ],
+        "title": "SelfRegistrationComplete",
+        "type": "object"
+      },
+      "SelfRegistrationCompleted": {
+        "properties": {
+          "api_key": {
+            "description": "Agent-scoped key, shown once. ONAA keeps only a hash.",
+            "title": "Api Key",
+            "type": "string"
+          },
+          "listing": {
+            "$ref": "#/components/schemas/RegistryRecord"
+          },
+          "next_steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Next Steps",
+            "type": "array"
+          },
+          "operator": {
+            "$ref": "#/components/schemas/OperatorOut"
+          },
+          "registration_id": {
+            "title": "Registration Id",
+            "type": "string"
+          },
+          "status": {
+            "const": "completed",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "registration_id",
+          "status",
+          "operator",
+          "api_key",
+          "listing",
+          "next_steps"
+        ],
+        "title": "SelfRegistrationCompleted",
+        "type": "object"
+      },
+      "SelfRegistrationFailed": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "registration_id": {
+            "title": "Registration Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "registration_id",
+          "status",
+          "attempts",
+          "error"
+        ],
+        "title": "SelfRegistrationFailed",
+        "type": "object"
+      },
+      "SelfRegistrationStart": {
+        "additionalProperties": false,
+        "description": "Exactly one of `agent` or `service`. No human account fields: the registering agent is the principal.",
+        "properties": {
+          "accept_terms_version": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Accept Terms Version",
+            "type": "string"
+          },
+          "agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentCreate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "method": {
+            "default": "well_known",
+            "enum": [
+              "well_known",
+              "dns_txt"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "service": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ServiceCreate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "accept_terms_version"
+        ],
+        "title": "SelfRegistrationStart",
         "type": "object"
       },
       "ServiceCreate": {
@@ -1742,6 +2114,23 @@
             "title": "Reachability",
             "type": "string"
           },
+          "registration_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "operator_account",
+                  "agent_self_registration",
+                  "discovery_import"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "agent_self_registration means the agent proved control of its endpoint host once, at signup, as an anti-abuse gate. That is not the Endpoint Verified tier (endpoint_control_verified).",
+            "title": "Registration Method"
+          },
           "registration_status": {
             "enum": [
               "discovered",
@@ -1837,6 +2226,27 @@
           }
         },
         "summary": "ONAA's own discovery metadata (project convention, NOT an A2A standard document)",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/llms.txt": {
+      "get": {
+        "operationId": "llms_txt_llms_txt_get",
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Plain-text onboarding for LLM agents",
         "tags": [
           "meta"
         ]
@@ -1941,6 +2351,52 @@
           }
         ],
         "summary": "Import a publicly observed, unclaimed agent (discovery pipeline)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/discovered/services": {
+      "post": {
+        "operationId": "import_discovered_service_v1_admin_discovered_services_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscoveredServiceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Import a publicly documented, unregistered service provider (no endpoint needed)",
         "tags": [
           "admin"
         ]
@@ -3145,6 +3601,50 @@
         "tags": [
           "operators"
         ]
+      },
+      "patch": {
+        "operationId": "update_me_v1_operators_me_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperatorUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update the operator profile (optional linkage of a self-registered agent to a person/org)",
+        "tags": [
+          "operators"
+        ]
       }
     },
     "/v1/operators/me/keys/rotate": {
@@ -3216,6 +3716,99 @@
         "summary": "Report abuse, impersonation or a broken listing",
         "tags": [
           "trust"
+        ]
+      }
+    },
+    "/v1/self-register": {
+      "post": {
+        "operationId": "start_v1_self_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelfRegistrationStart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfRegistrationChallenge"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Agent self-registration, step 1: submit the listing and receive an endpoint-control challenge",
+        "tags": [
+          "self-registration"
+        ]
+      }
+    },
+    "/v1/self-register/{registration_id}/complete": {
+      "post": {
+        "operationId": "complete_v1_self_register__registration_id__complete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "registration_id",
+            "required": true,
+            "schema": {
+              "title": "Registration Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelfRegistrationComplete"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfRegistrationCompleted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfRegistrationFailed"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        },
+        "summary": "Agent self-registration, step 2: prove endpoint control and receive an agent API key",
+        "tags": [
+          "self-registration"
         ]
       }
     },

@@ -68,10 +68,20 @@ class OperatorCreate(StrictModel):
     accept_terms_version: str = Field(min_length=1, max_length=40)
 
 
+class OperatorUpdate(StrictModel):
+    """Optional operator linkage. A self-registered agent identity (operator_type 'agent') can later attach a
+    human or organisation profile, e.g. before applying for paid operator verification."""
+
+    display_name: str | None = Field(default=None, min_length=1, max_length=200)
+    operator_type: Literal["individual", "organization"] | None = None
+    country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
+    website_url: str | None = Field(default=None, max_length=2048)
+
+
 class OperatorOut(BaseModel):
     id: str
     display_name: str
-    operator_type: str
+    operator_type: Literal["individual", "organization", "agent"]
     country: str | None
     website_url: str | None
     status: str
@@ -223,6 +233,10 @@ class Trust(BaseModel):
     last_check_result: str | None = None
     review_flags: list[str] = Field(
         default_factory=list, description="Moderation hints set by ONAA (e.g. name_collision_review).")
+    registration_method: Literal["operator_account", "agent_self_registration", "discovery_import"] | None = Field(
+        default=None,
+        description="agent_self_registration means the agent proved control of its endpoint host once, at signup, "
+                    "as an anti-abuse gate. That is not the Endpoint Verified tier (endpoint_control_verified).")
     disclaimer: str = (
         "Registry trust metadata describes what ONAA checked. It is not a guarantee of legal "
         "eligibility, licensing, solvency or transaction outcome."
@@ -292,6 +306,50 @@ class ChallengeResult(BaseModel):
     error: str | None = None
 
 
+# ---------- agent self-registration ----------
+class SelfRegistrationStart(StrictModel):
+    """Exactly one of `agent` or `service`. No human account fields: the registering agent is the principal."""
+
+    accept_terms_version: str = Field(min_length=1, max_length=40)
+    method: Literal["well_known", "dns_txt"] = "well_known"
+    agent: AgentCreate | None = None
+    service: ServiceCreate | None = None
+
+
+class SelfRegistrationChallenge(BaseModel):
+    registration_id: str
+    method: Literal["well_known", "dns_txt"]
+    host: str
+    token: str = Field(description="Shown once. Publish it exactly as instructed, then call complete.")
+    registration_secret: str = Field(
+        description="Shown once. Keep it private and send it to complete; the published token is public.")
+    challenge_url: str | None = None
+    dns_record_name: str | None = None
+    expires_at: dt.datetime
+    complete_url: str
+    instructions: str
+
+
+class SelfRegistrationComplete(StrictModel):
+    registration_secret: str = Field(min_length=1, max_length=200)
+
+
+class SelfRegistrationCompleted(BaseModel):
+    registration_id: str
+    status: Literal["completed"]
+    operator: OperatorOut
+    api_key: str = Field(description="Agent-scoped key, shown once. ONAA keeps only a hash.")
+    listing: RegistryRecord
+    next_steps: list[str]
+
+
+class SelfRegistrationFailed(BaseModel):
+    registration_id: str
+    status: str
+    attempts: int
+    error: str
+
+
 # ---------- certification ----------
 class CertificationApplicationCreate(StrictModel):
     listing_id: str = Field(max_length=40)
@@ -347,6 +405,38 @@ class ReportOut(BaseModel):
     category: str
     state: str
     created_at: dt.datetime
+
+
+class DiscoveredServiceCreate(StrictModel):
+    """A publicly documented provider (payment, escrow, logistics, ...) that has not registered itself.
+
+    No endpoint is required: many providers publish docs but no agent endpoint. Shown as `discovered`
+    (unclaimed, not registered, not endorsed) with provenance until the provider registers or opts out."""
+
+    display_name: str = Field(min_length=1, max_length=200)
+    service_type: ServiceType
+    documentation_url: str = Field(max_length=2048, description="Provider's official public documentation.")
+    source_url: str = Field(max_length=2048, description="Where ONAA observed it (provenance).")
+    endpoint_url: str | None = Field(default=None, max_length=2048)
+    description: str | None = Field(default=None, max_length=2000)
+    capabilities: list[str] = Field(default_factory=list, max_length=64)
+    regions: list[str] = Field(default_factory=list, max_length=64)
+    currencies: list[str] = Field(default_factory=list, max_length=32)
+
+    @field_validator("capabilities")
+    @classmethod
+    def _v_caps(cls, v: list[str]) -> list[str]:
+        return _tokens(v, "capabilities")
+
+    @field_validator("regions")
+    @classmethod
+    def _v_regions(cls, v: list[str]) -> list[str]:
+        return _norm_regions(v)
+
+    @field_validator("currencies")
+    @classmethod
+    def _v_currencies(cls, v: list[str]) -> list[str]:
+        return _norm_currencies(v)
 
 
 class DiscoveredCreate(StrictModel):

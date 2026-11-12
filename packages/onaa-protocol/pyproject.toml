@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "onaa-protocol"
+version = "0.1.1"
+description = "ONAA Protocol v0.1 (DRAFT) reference library and conformance suite: an ONAA profile on A2A 1.0 / MCP 2026-07-28, not an official A2A or MCP specification."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "cryptography==50.0.2",
+  "httpx==0.28.1",
+  "jsonschema==4.25.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==8.4.2",
+  "ruff==0.14.4",
+]
+
+[project.scripts]
+onaa-conformance = "onaa_protocol.conformance.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+onaa_protocol = ["schemas/*.schema.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S"]

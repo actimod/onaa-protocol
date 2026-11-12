@@ -71,8 +71,9 @@ def require_admin(request: Request, creds: HTTPAuthorizationCredentials | None =
 class RateLimiter:
     """In-process sliding-window limiter for write endpoints (MVP; replace with shared store at scale)."""
 
-    def __init__(self, per_minute: int):
-        self.per_minute = per_minute
+    def __init__(self, per_minute: int, window_seconds: int = 60):
+        self.per_minute = per_minute  # max hits per window (the window is 60 s unless overridden)
+        self.window = window_seconds
         self._hits: dict[str, deque[float]] = defaultdict(deque)
         self._lock = threading.Lock()
 
@@ -82,14 +83,14 @@ class RateLimiter:
         now = time.monotonic()
         with self._lock:
             q = self._hits[key]
-            while q and now - q[0] > 60:
+            while q and now - q[0] > self.window:
                 q.popleft()
             if len(q) >= self.per_minute:
                 raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "rate limit exceeded",
-                                    headers={"Retry-After": "60"})
+                                    headers={"Retry-After": str(self.window)})
             q.append(now)
             if len(self._hits) > 10_000:  # bound memory: drop idle clients
-                for k in [k for k, v in self._hits.items() if not v or now - v[-1] > 60]:
+                for k in [k for k, v in self._hits.items() if not v or now - v[-1] > self.window]:
                     del self._hits[k]
 
 

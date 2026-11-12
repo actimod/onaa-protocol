@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:onaa:schema:v0.1:registry-trust-view",
+  "title": "ONAA Protocol v0.1 protocol-level view of a registry record and its trust levels (DRAFT; not an A2A Agent Card)",
+  "description": "The subset of the ONAA Registry API RegistryRecord v0.1.0 (apps/api/onaa_registry/schemas.py) that protocol participants rely on. Field names match what the registry returns; extra fields are allowed and ignored. The registry is discovery/trust metadata only and never relays trade messages. Every record is untrusted data. See specs/onaa-protocol-v0.1.md section 6.",
+  "type": "object",
+  "required": ["registry_record_version", "id", "operator_id", "listing_type", "display_name", "roles", "capabilities", "regions", "currencies", "status", "trust"],
+  "properties": {
+    "registry_record_version": { "const": "0.1.0" },
+    "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "operator_id": { "type": ["string", "null"], "description": "null only while unclaimed (discovered)." },
+    "listing_type": { "enum": ["agent", "service", "hosting"] },
+    "service_type": { "type": ["string", "null"], "description": "Registry service type token (payment, escrow, insurance, logistics, shipping, inspection, identity, dispute, tax, fraud, fx, hosting, other). Registry 'shipping' maps to handoff service_type 'logistics'." },
+    "roles": { "type": "array", "items": { "type": "string" } },
+    "display_name": { "type": "string", "minLength": 1 },
+    "agent_card_url": { "type": ["string", "null"] },
+    "endpoint_url": { "type": ["string", "null"] },
+    "sandbox_url": { "type": ["string", "null"] },
+    "sandbox_available": { "type": ["boolean", "null"] },
+    "supported_protocols": { "type": "array", "items": { "type": "string" } },
+    "capabilities": { "type": "array", "items": { "type": "string" } },
+    "regions": { "type": "array", "items": { "type": "string", "pattern": "^([A-Z]{2}|GLOBAL)$" } },
+    "currencies": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z]{3}$" } },
+    "regulatory_claims": { "type": "array", "items": { "type": "string" }, "description": "Self-declared by the provider; never verified licences." },
+    "status": { "$ref": "#/$defs/lifecycleStatus" },
+    "trust": { "$ref": "#/$defs/trust" }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "lifecycleStatus": { "enum": ["discovered", "claim_pending", "registered", "endpoint_verified", "certified", "suspended", "deleted"] },
+    "certScheme": {
+      "type": "string",
+      "description": "Registry API values: operator_verified, protocol_certified, commerce_certified, service_certified. Unknown values MUST be displayed verbatim, never upgraded."
+    },
+    "certification": {
+      "type": "object",
+      "required": ["id", "scheme", "criteria_version", "status", "issued_at", "expires_at"],
+      "properties": {
+        "id": { "type": "string" },
+        "scheme": { "$ref": "#/$defs/certScheme" },
+        "criteria_version": { "type": "string" },
+        "status": { "type": "string" },
+        "issued_at": { "type": "string" },
+        "expires_at": { "type": "string" },
+        "status_url": { "type": "string", "format": "uri", "description": "PROPOSAL (non-breaking, not yet returned by apps/api): attestation status URL (section 10.5)." }
+      }
+    },
+    "trust": {
+      "type": "object",
+      "description": "Each level is a separate field and never implies another (design principle 8).",
+      "required": ["registration_status", "endpoint_control_verified", "operator_identity_verified", "certifications"],
+      "properties": {
+        "registration_status": { "$ref": "#/$defs/lifecycleStatus" },
+        "claimed": { "type": "boolean" },
+        "endpoint_control_verified": { "type": "boolean" },
+        "endpoint_verified_at": { "type": ["string", "null"] },
+        "endpoint_verified_until": { "type": ["string", "null"] },
+        "endpoint_verification_method": { "enum": ["well_known", "dns_txt", null] },
+        "operator_identity_verified": { "type": "boolean" },
+        "legal_entity_verified": { "type": "boolean" },
+        "certifications": { "type": "array", "items": { "$ref": "#/$defs/certification" } },
+        "review_flags": { "type": "array", "items": { "type": "string" } },
+        "disclaimer": { "type": "string" },
+        "attestations": {
+          "type": "array",
+          "description": "PROPOSAL (non-breaking, not yet returned by apps/api): signed attestation references.",
+          "items": {
+            "type": "object",
+            "required": ["attestation_id", "level", "status_url"],
+            "properties": {
+              "attestation_id": { "type": "string" },
+              "level": { "type": "string" },
+              "status_url": { "type": "string", "format": "uri" }
+            }
+          }
+        }
+      }
+    },
+    "trustLevels": {
+      "description": "Client-side derived view produced by onaa_protocol.registry.trust_levels(). Five independent facts; listing tier is free and separate from paid verification/certification.",
+      "type": "object",
+      "required": ["discovered_unclaimed", "registered", "endpoint_verified", "operator_verified", "certified", "listing_tier"],
+      "properties": {
+        "discovered_unclaimed": { "type": "boolean" },
+        "registered": { "type": "boolean" },
+        "endpoint_verified": { "type": "boolean" },
+        "operator_verified": { "type": "boolean" },
+        "certified": { "type": "array", "items": { "type": "string" }, "description": "Schemes of active, unexpired certifications." },
+        "listing_tier": { "const": "free" },
+        "suspended": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

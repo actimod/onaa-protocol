@@ -112,3 +112,32 @@ def test_certification_and_report(env):
     assert reg.get_certification_application(app_["id"])["status"] == "submitted"
     anon = OnaaClient("http://testserver", http_client=env[3])
     assert anon.report(agent["id"], "spam", "test report")["state"] == "received"
+
+
+def test_agent_self_registers_in_one_call(env):
+    reg, fetcher, txt, _ = env
+    assert reg.api_key is None
+    published = []
+
+    def publish(chl):
+        published.append(chl)
+        fetcher.routes[chl["challenge_url"]] = (200, chl["token"])
+
+    out = reg.self_register({"display_name": "Self Seller", "roles": ["seller_agent"], "agent_card_url": CARD,
+                             "capabilities": ["commerce.quote.issue"]}, publish)
+    assert published and out["operator"]["operator_type"] == "agent"
+    assert reg.api_key == out["api_key"]
+    assert out["listing"]["trust"]["registration_method"] == "agent_self_registration"
+    assert out["listing"]["trust"]["endpoint_control_verified"] is False
+    assert reg.me()["operator_type"] == "agent"
+    assert reg.update_profile(operator_type="organization", display_name="Self Seller Ltd")["operator_type"] == \
+        "organization"
+
+
+def test_self_register_retries_then_fails(env):
+    reg, _, txt, _ = env
+    with pytest.raises(OnaaError) as ei:
+        reg.self_register({"display_name": "X", "roles": ["seller_agent"], "agent_card_url": CARD},
+                          lambda chl: None, method="dns_txt", attempts=2, retry_delay=0)
+    assert ei.value.status_code == 422 and ei.value.body["error"] == "txt_record_not_found"
+    assert reg.api_key is None

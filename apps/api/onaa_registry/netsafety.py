@@ -38,6 +38,10 @@ class UnsafeURLError(ValueError):
     """URL is not allowed for outbound fetches or registration."""
 
 
+class UnresolvedHostError(UnsafeURLError):
+    """The hostname has no DNS address (yet). Reported separately so agents can tell it from a blocked host."""
+
+
 Resolver = Callable[[str], list[str]]
 
 
@@ -88,9 +92,9 @@ def resolve_public(host: str, resolver: Resolver) -> str:
     try:
         addrs = resolver(host)
     except OSError as exc:
-        raise UnsafeURLError("hostname did not resolve") from exc
+        raise UnresolvedHostError("hostname did not resolve") from exc
     if not addrs:
-        raise UnsafeURLError("hostname did not resolve")
+        raise UnresolvedHostError("hostname did not resolve")
     for a in addrs:
         try:
             ip = ipaddress.ip_address(a.split("%", 1)[0])
