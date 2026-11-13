@@ -203,10 +203,11 @@ class AcceptedService(StrictModel):
 
 
 # How money moves (independent of *when*, which is ``terms``). Same token list as the protocol's
-# ``paymentMethod`` (specs/onaa-protocol-v0.1.md section 8.7). Each agent picks the methods it needs.
-PaymentMethodLit = Literal[
-    "card", "bank_transfer", "instant_bank_transfer", "direct_debit", "digital_wallet", "buy_now_pay_later",
-    "stablecoin", "crypto", "mobile_money", "cash_on_delivery", "other"]
+# ``paymentMethod`` (specs/onaa-protocol-v0.1.md section 8.7): only methods an agent can initiate and a provider
+# can confirm over an API during an agent-to-agent trade, with no human step (a person may fund the account
+# in advance). Each agent picks what it needs.
+PaymentMethodLit = Literal["card", "bank_transfer", "instant_bank_transfer", "prepaid_balance", "stablecoin",
+                           "crypto"]
 
 
 class PaymentTerms(StrictModel):
@@ -215,13 +216,14 @@ class PaymentTerms(StrictModel):
     net_days: int | None = Field(default=None, ge=1, le=180)
     settlement_currencies: list[str] = Field(default_factory=list, max_length=32)
     methods: list[PaymentMethodLit] = Field(
-        default_factory=list, max_length=11,
-        description="Payment methods accepted (seller), used (buyer) or processed (payment provider), e.g. card, "
-                    "bank_transfer, instant_bank_transfer, digital_wallet, stablecoin. Self-declared.")
+        default_factory=list, max_length=6,
+        description="Agent-usable payment methods accepted (seller), used (buyer) or processed (payment provider): "
+                    "card (agent-scoped credentials), bank_transfer, instant_bank_transfer, prepaid_balance "
+                    "(funded in advance by a person, spent by the agent), stablecoin, crypto. Self-declared.")
     networks: list[str] = Field(
         default_factory=list, max_length=32,
-        description="Optional rails or brands within those methods, as lower-case tokens, e.g. visa, mastercard, "
-                    "sepa, ach, swift, upi, pix, fps, apple_pay, paypal, alipay, usdc. Self-declared, never verified.")
+        description="Optional rails, brands or agent payment protocols within those methods, as lower-case tokens, "
+                    "e.g. visa, mastercard, sepa, ach, fednow, usdc, x402, ap2. Self-declared, never verified.")
 
     @field_validator("settlement_currencies")
     @classmethod

@@ -1870,24 +1870,19 @@
         "additionalProperties": false,
         "properties": {
           "methods": {
-            "description": "Payment methods accepted (seller), used (buyer) or processed (payment provider), e.g. card, bank_transfer, instant_bank_transfer, digital_wallet, stablecoin. Self-declared.",
+            "description": "Agent-usable payment methods accepted (seller), used (buyer) or processed (payment provider): card (agent-scoped credentials), bank_transfer, instant_bank_transfer, prepaid_balance (funded in advance by a person, spent by the agent), stablecoin, crypto. Self-declared.",
             "items": {
               "enum": [
                 "card",
                 "bank_transfer",
                 "instant_bank_transfer",
-                "direct_debit",
-                "digital_wallet",
-                "buy_now_pay_later",
+                "prepaid_balance",
                 "stablecoin",
-                "crypto",
-                "mobile_money",
-                "cash_on_delivery",
-                "other"
+                "crypto"
               ],
               "type": "string"
             },
-            "maxItems": 11,
+            "maxItems": 6,
             "title": "Methods",
             "type": "array"
           },
@@ -1905,7 +1900,7 @@
             "title": "Net Days"
           },
           "networks": {
-            "description": "Optional rails or brands within those methods, as lower-case tokens, e.g. visa, mastercard, sepa, ach, swift, upi, pix, fps, apple_pay, paypal, alipay, usdc. Self-declared, never verified.",
+            "description": "Optional rails, brands or agent payment protocols within those methods, as lower-case tokens, e.g. visa, mastercard, sepa, ach, fednow, usdc, x402, ap2. Self-declared, never verified.",
             "items": {
               "type": "string"
             },

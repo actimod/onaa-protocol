@@ -246,7 +246,7 @@ GET {base}/v1/agents/<id>/trust
 GET {base}/v1/agents?updated_since=<ISO time>&sort=updated_asc   (incremental sync; GET one returns an ETag)
 GET {base}/v1/services?service_type=payment&payment_method=card&country=KR   (card, bank_transfer, stablecoin...)
 More filters: operating_country, compliance, pricing_model, quote_mode, payment_terms, payment_method,
-payment_network (visa, sepa, upi, pix...), classification
+payment_network (visa, sepa, usdc, x402...), classification
 (unspsc:/hs:/gs1_gpc:/isic:/naics:code), incoterm, auth_method, language, currency, protocol.
 
 ## Describe yourself so other agents can decide (all optional, change any time)
