@@ -1870,18 +1870,19 @@
         "additionalProperties": false,
         "properties": {
           "methods": {
-            "description": "Agent-usable payment methods accepted (seller), used (buyer) or processed (payment provider): card (agent-scoped credentials), bank_transfer, instant_bank_transfer, stablecoin, crypto. Self-declared.",
+            "description": "Agent-usable payment methods accepted (seller), used (buyer) or processed (payment provider): card (agent-scoped credentials), bank_transfer, instant_bank_transfer, prepaid_balance (funded in advance by a person, spent by the agent), stablecoin, crypto. Self-declared.",
             "items": {
               "enum": [
                 "card",
                 "bank_transfer",
                 "instant_bank_transfer",
+                "prepaid_balance",
                 "stablecoin",
                 "crypto"
               ],
               "type": "string"
             },
-            "maxItems": 5,
+            "maxItems": 6,
             "title": "Methods",
             "type": "array"
           },

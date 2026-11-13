@@ -204,8 +204,10 @@ class AcceptedService(StrictModel):
 
 # How money moves (independent of *when*, which is ``terms``). Same token list as the protocol's
 # ``paymentMethod`` (specs/onaa-protocol-v0.1.md section 8.7): only methods an agent can initiate and a provider
-# can confirm over an API during an agent-to-agent trade, with no human step. Each agent picks what it needs.
-PaymentMethodLit = Literal["card", "bank_transfer", "instant_bank_transfer", "stablecoin", "crypto"]
+# can confirm over an API during an agent-to-agent trade, with no human step (a person may fund the account
+# in advance). Each agent picks what it needs.
+PaymentMethodLit = Literal["card", "bank_transfer", "instant_bank_transfer", "prepaid_balance", "stablecoin",
+                           "crypto"]
 
 
 class PaymentTerms(StrictModel):
@@ -214,10 +216,10 @@ class PaymentTerms(StrictModel):
     net_days: int | None = Field(default=None, ge=1, le=180)
     settlement_currencies: list[str] = Field(default_factory=list, max_length=32)
     methods: list[PaymentMethodLit] = Field(
-        default_factory=list, max_length=5,
+        default_factory=list, max_length=6,
         description="Agent-usable payment methods accepted (seller), used (buyer) or processed (payment provider): "
-                    "card (agent-scoped credentials), bank_transfer, instant_bank_transfer, stablecoin, crypto. "
-                    "Self-declared.")
+                    "card (agent-scoped credentials), bank_transfer, instant_bank_transfer, prepaid_balance "
+                    "(funded in advance by a person, spent by the agent), stablecoin, crypto. Self-declared.")
     networks: list[str] = Field(
         default_factory=list, max_length=32,
         description="Optional rails, brands or agent payment protocols within those methods, as lower-case tokens, "

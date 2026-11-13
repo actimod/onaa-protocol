@@ -156,7 +156,7 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         excludes listings that refuse it), ISO currency, protocol (e.g. a2a-1.0), settlement service they accept
         (accepts=escrow), A2A skill id/tag, pricing model, operating country, self-declared compliance (gdpr),
         product classification (unspsc:40141700), payment method accepted (payment_method=card, bank_transfer,
-        instant_bank_transfer, stablecoin, crypto) or free text. Returns records with separate trust levels."""
+        prepaid_balance, stablecoin, crypto, ...) or free text. Returns records with separate trust levels."""
         try:
             return _page(registry.search_agents(
                 capability=capability, role=role, region=region, currency=currency, protocol=protocol, q=query,
@@ -189,8 +189,8 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
     ) -> dict[str, Any]:
         """Find external service providers (escrow, payment, insurance, logistics, hosting, ...) by type, region
         or country served, operating country, data residency (ISO or EU), self-declared compliance and pricing
-        model, payment method processed (payment_method=card, bank_transfer, instant_bank_transfer, stablecoin,
-        crypto) and payment network or agent payment protocol (visa, sepa, usdc, x402, ap2, ...). Listing is not
+        model, payment method processed (payment_method=card, bank_transfer, prepaid_balance, stablecoin,
+        crypto, ...) and payment network or agent payment protocol (visa, sepa, usdc, x402, ap2, ...). Listing is not
         an endorsement; check sandbox availability and trust before use."""
         try:
             return _page(registry.search_services(

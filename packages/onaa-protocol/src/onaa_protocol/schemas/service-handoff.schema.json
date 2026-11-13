@@ -6,8 +6,8 @@
   "$defs": {
     "serviceType": { "enum": ["escrow", "payment", "insurance", "logistics", "inspection", "dispute"] },
     "paymentMethod": {
-      "description": "v0.1.3: how money moves, as a category (spec section 8.7). Only methods an agent can initiate and a provider can confirm over an API during an agent-to-agent trade, with no human step. Names a method only; it never carries an instrument, account or credential. Rails and brands (visa, sepa, upi, pix, ...) are registry metadata, not protocol fields.",
-      "enum": ["card", "bank_transfer", "instant_bank_transfer", "stablecoin", "crypto"]
+      "description": "v0.1.3: how money moves, as a category (spec section 8.7). Only methods an agent can initiate and a provider can confirm over an API during an agent-to-agent trade, with no human step. A person may fund the account in advance. Names a method only; it never carries an instrument, account or credential. Rails and brands (visa, sepa, upi, pix, ...) are registry metadata, not protocol fields.",
+      "enum": ["card", "bank_transfer", "instant_bank_transfer", "prepaid_balance", "stablecoin", "crypto"]
     },
     "mode": { "enum": ["mock", "sandbox"], "description": "'live' is reserved and MUST be rejected in v0.1 (live_mode_not_supported)." },
     "state": {
