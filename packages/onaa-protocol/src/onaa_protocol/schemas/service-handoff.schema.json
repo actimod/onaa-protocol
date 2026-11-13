@@ -5,6 +5,10 @@
   "description": "Bodies for SERVICE_HANDOFF_REQUEST, SERVICE_HANDOFF_ACK, SERVICE_STATUS_QUERY and SERVICE_STATUS, parameterised by service_type. External providers and future first-party ONAA services implement the same schema (founder decision 5). Carries no card, bank, wallet or personal data. In v0.1 mode MUST be mock or sandbox. See specs/onaa-protocol-v0.1.md section 8.",
   "$defs": {
     "serviceType": { "enum": ["escrow", "payment", "insurance", "logistics", "inspection", "dispute"] },
+    "paymentMethod": {
+      "description": "v0.1.3: how money moves, as a category (spec section 8.7). Names a method only; it never carries an instrument, account or credential. Rails and brands (visa, sepa, upi, pix, ...) are registry metadata, not protocol fields.",
+      "enum": ["card", "bank_transfer", "instant_bank_transfer", "direct_debit", "digital_wallet", "buy_now_pay_later", "stablecoin", "crypto", "mobile_money", "cash_on_delivery", "other"]
+    },
     "mode": { "enum": ["mock", "sandbox"], "description": "'live' is reserved and MUST be rejected in v0.1 (live_mode_not_supported)." },
     "state": {
       "enum": ["CREATED", "PENDING_ACTION", "IN_PROGRESS", "SECURED", "COMPLETED", "RELEASED", "REFUNDED", "DISPUTED", "CANCELLED", "FAILED"],
@@ -46,6 +50,7 @@
         },
         "currency": { "$ref": "#/$defs/currency" },
         "amount_minor": { "$ref": "#/$defs/minor" },
+        "payment_method": { "$ref": "#/$defs/paymentMethod", "description": "v0.1.3: for service_type=payment, the method the buyer chose in ORDER_PROPOSE settlement.payment_method (section 8.7)." },
         "params": {
           "type": "object",
           "description": "Service-type specific, non-sensitive parameters (e.g. insurance coverage_type, logistics origin_region/destination_region, dispute reason_code). Untrusted data.",

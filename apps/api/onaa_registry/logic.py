@@ -127,6 +127,8 @@ def _profile_facets(profile: dict) -> dict[str, set[str]]:
         "pricing_model": {p["model"] for p in c.get("pricing", [])},
         "quote_mode": {(c.get("quoting") or {}).get("mode")} - {None},
         "payment_terms": set((c.get("payment_terms") or {}).get("terms", [])),
+        "payment_method": set((c.get("payment_terms") or {}).get("methods", [])),
+        "payment_network": set((c.get("payment_terms") or {}).get("networks", [])),
         "classification": {f"{x['scheme']}:{x['code']}".lower() for x in c.get("classifications", [])},
         "incoterm": {x.lower() for x in c.get("incoterms", [])},
         "op_country": {j.get("operating_country")} - {None},

@@ -146,6 +146,9 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
         pricing_model: Annotated[list[str] | None, Query()] = None,
         quote_mode: Annotated[list[str] | None, Query()] = None,
         payment_terms: Annotated[list[str] | None, Query()] = None,
+        payment_method: Annotated[list[str] | None, Query(
+            description="accepts/processes this payment method, e.g. card, bank_transfer, stablecoin")] = None,
+        payment_network: Annotated[list[str] | None, Query(description="e.g. visa, sepa, upi, pix")] = None,
         classification: Annotated[list[str] | None, Query(description="scheme:code, e.g. unspsc:43211503")] = None,
         incoterm: Annotated[list[str] | None, Query()] = None,
         auth_method: Annotated[list[str] | None, Query()] = None,
@@ -168,6 +171,7 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
             "compliance": _norm_list(compliance), "accepts": _norm_list(accepts),
             "pricing_model": _norm_list(pricing_model), "quote_mode": _norm_list(quote_mode),
             "payment_terms": _norm_list(payment_terms), "classification": _norm_list(classification),
+            "payment_method": _norm_list(payment_method), "payment_network": _norm_list(payment_network),
             "incoterm": _norm_list(incoterm), "auth_method": _norm_list(auth_method), "skill": _norm_list(skill),
         }
         if country:

@@ -228,3 +228,29 @@ def test_vocabulary_usage_proposals_support_and_promotion(client, op):
     assert d.json()["status"] == "accepted"
     assert client.post(f"/v1/vocabulary/proposals/{p['id']}/support", headers=h2).status_code == 409
     assert [x["id"] for x in client.get("/v1/vocabulary/proposals", params={"status": "open"}).json()] == [cap["id"]]
+
+
+def test_payment_methods_and_networks_are_searchable(client, op):
+    """Agents and payment providers declare how money moves (card, bank transfer, stablecoin...); each agent
+    picks what it needs. Self-declared facets, never trust signals."""
+    _, h = op
+    terms = {"terms": ["prepay"], "methods": ["card", "bank_transfer", "card"],
+             "networks": ["Visa", "sepa", "UPI"]}
+    rec = _create(client, h, commerce={"payment_terms": terms})
+    assert rec["commerce"]["payment_terms"]["methods"] == ["bank_transfer", "card"]
+    assert rec["commerce"]["payment_terms"]["networks"] == ["sepa", "upi", "visa"]
+
+    def ids(**params):
+        return [x["id"] for x in client.get("/v1/agents", params=params).json()["items"]]
+
+    assert ids(payment_method="card") == [rec["id"]]
+    assert ids(payment_method="CARD,stablecoin") == [rec["id"]]
+    assert ids(payment_network="visa") == [rec["id"]]
+    assert ids(payment_method="stablecoin") == [] and ids(payment_network="pix") == []
+    assert rec["trust"]["endpoint_control_verified"] is False
+    for bad in ({"methods": ["cheque"]}, {"networks": ["Has Space"]}):
+        r = client.patch(f"/v1/agents/{rec['id']}", headers=h, json={"commerce": {"payment_terms": bad}})
+        assert r.status_code == 422, bad
+    used = client.get("/v1/vocabulary").json()
+    assert {"value": "card", "listings": 1} in used["in_use"]["payment_method"]
+    assert "bank_transfer" in used["canonical"]["payment_methods"]

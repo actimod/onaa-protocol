@@ -1,6 +1,6 @@
 # ONAA Protocol v0.1 (DRAFT)
 
-Owner: protocol-architect · Task: PROTO-001 (supersedes the ENG-014 v0 draft) · Status: **DRAFT, not in force** · Date: 2026-11-12 · Errata: v0.1.1 and v0.1.2 security errata (§15)
+Owner: protocol-architect · Task: PROTO-001 (supersedes the ENG-014 v0 draft) · Status: **DRAFT, not in force** · Date: 2026-11-12 · Errata: v0.1.1 and v0.1.2 security errata, v0.1.3 payment methods (§15)
 
 > **What this is.** An **ONAA profile on A2A 1.0 (spec text v1.0.1) and MCP 2026-07-28**. It is **not** an official A2A, MCP, AP2, UCP or ACP specification, and no standards body has reviewed it. It defines no new transport and does not redefine any A2A or MCP field. ONAA data travels only inside standard extension points: A2A `capabilities.extensions[].params`, A2A `Part.data`, and (for MCP adapters) ONAA-namespaced `_meta` keys.
 >
@@ -314,7 +314,7 @@ The ORDER and handoff machines are interface conventions, not a ledger. Each pro
 
 #### 7.5.2 QUOTE
 
-Required: `rfq_id` (= the RFQ `id`), `revision` (integer ≥ 1), `terms_hash`, `seller_agent_id` (= `sender.agent_id`), `currency` (= the RFQ currency), `line_items[{sku, description?, quantity, unit_price_minor, line_total_minor}]`, `total_minor`. Optional: `buyer_agent_id`, `shipping_minor`, `tax_minor`, `tax_policy` (`included` | `added` | `not_included`), `delivery_terms` (e.g. an Incoterms 2020 code), `delivery_region`, `return_policy_url`, `settlement{escrow_required, accepted_service_types[], accepted_provider_card_urls[]}`, `sample`. `accepted_provider_card_urls` (v0.1.2; at most 16 Agent Card URLs) names the service providers the seller accepts. It is covered by `terms_hash`, so a buyer that orders against the QUOTE agrees to the list; §8.4.5 uses it for SECURED.
+Required: `rfq_id` (= the RFQ `id`), `revision` (integer ≥ 1), `terms_hash`, `seller_agent_id` (= `sender.agent_id`), `currency` (= the RFQ currency), `line_items[{sku, description?, quantity, unit_price_minor, line_total_minor}]`, `total_minor`. Optional: `buyer_agent_id`, `shipping_minor`, `tax_minor`, `tax_policy` (`included` | `added` | `not_included`), `delivery_terms` (e.g. an Incoterms 2020 code), `delivery_region`, `return_policy_url`, `settlement{escrow_required, accepted_service_types[], accepted_provider_card_urls[], accepted_payment_methods[]}`, `sample`. `accepted_payment_methods` (v0.1.3) lists the payment methods the seller accepts (§8.7). `accepted_provider_card_urls` (v0.1.2; at most 16 Agent Card URLs) names the service providers the seller accepts. It is covered by `terms_hash`, so a buyer that orders against the QUOTE agrees to the list; §8.4.5 uses it for SECURED.
 
 * Receivers **MUST** check: `line_total_minor = unit_price_minor × quantity`; `total_minor = Σ line_total_minor + shipping_minor + (tax_minor if tax_policy = "added")` (absent amounts count as 0).
 * **`terms_hash`** = `"sha256:" + hex(SHA-256(JCS(body without its terms_hash member)))`. Receivers **MUST** recompute it and reject a mismatch with `invalid_body`. It binds every quoted term, including ones the receiver does not understand.
@@ -323,7 +323,7 @@ Required: `rfq_id` (= the RFQ `id`), `revision` (integer ≥ 1), `terms_hash`, `
 
 #### 7.5.3 ORDER_PROPOSE (quote acceptance)
 
-Required: `quote_id`, `quote_revision`, `quote_terms_hash`, `rfq_id`, `buyer_agent_id` (= `sender.agent_id` = the RFQ sender), `seller_agent_id` (= the QUOTE sender), `currency`, `total_minor`. Optional: `delivery_region`, `settlement{service_type, provider_agent_id}`, `buyer_authority{max_total_minor, human_approval}`.
+Required: `quote_id`, `quote_revision`, `quote_terms_hash`, `rfq_id`, `buyer_agent_id` (= `sender.agent_id` = the RFQ sender), `seller_agent_id` (= the QUOTE sender), `currency`, `total_minor`. Optional: `delivery_region`, `settlement{service_type, provider_agent_id, payment_method}` (`payment_method` v0.1.3, §8.7), `buyer_authority{max_total_minor, human_approval}`.
 
 The seller **MUST** reject the order with:
 
@@ -333,6 +333,7 @@ The seller **MUST** reject the order with:
 | not the latest revision | `quote_superseded` |
 | `now ≥ QUOTE.expires_at`, with `now` the seller's clock (never the ORDER_PROPOSE `created_at`) | `quote_expired` |
 | `quote_terms_hash` or `quote_revision` differs from the QUOTE | `terms_mismatch` |
+| `settlement.payment_method` is not in the QUOTE's `settlement.accepted_payment_methods` (v0.1.3, §8.7) | `terms_mismatch` |
 | `total_minor` or `currency` differs from the QUOTE | `amount_mismatch` |
 | sender is not the RFQ buyer | `not_a_party` |
 | `total_minor > buyer_authority.max_total_minor` | `invalid_body` |
@@ -404,7 +405,7 @@ One generic interface, parameterised by `service_type`, serves every external pr
 
 ### 8.3 SERVICE_HANDOFF_REQUEST → SERVICE_HANDOFF_ACK
 
-Request body: `service_type`, `mode`, `order_id` (the ORDER_PROPOSE `id`), `parties{buyer_agent_id, seller_agent_id}`, `currency`, `amount_minor`, and optionally `order_terms_hash`, `quote_id`, `quote_expires_at` and `params{}`. `params` is service-specific and non-sensitive, for example insurance `coverage_type`, logistics `origin_region`/`destination_region`, or dispute `reason_code`.
+Request body: `service_type`, `mode`, `order_id` (the ORDER_PROPOSE `id`), `parties{buyer_agent_id, seller_agent_id}`, `currency`, `amount_minor`, and optionally `order_terms_hash`, `quote_id`, `quote_expires_at`, `payment_method` (v0.1.3, §8.7) and `params{}`. `params` is service-specific and non-sensitive, for example insurance `coverage_type`, logistics `origin_region`/`destination_region`, or dispute `reason_code`.
 
 ACK body: `service_type`, `mode`, `mock: true` **or** `sandbox: true` (it **MUST** match `mode`), `label` (human-readable, e.g. `MOCK ESCROW - NO REAL FUNDS ...`), `handoff_reference` (`[A-Za-z0-9._:-]{1,128}`), `state` (§7.4.3), `provider_confirmed` (boolean), and optionally `provider_state`, `order_id`, `currency`, `amount_minor`, `funds_held_minor` and `next_step`.
 
@@ -433,6 +434,35 @@ ACK body: `service_type`, `mode`, `mock: true` **or** `sandbox: true` (it **MUST
 * **Canonical:** escrow is `SERVICE_HANDOFF_REQUEST` / `SERVICE_HANDOFF_ACK` with `service_type: "escrow"`. v0.1 senders **MUST** emit the canonical types.
 * **Aliases:** `ESCROW_HANDOFF_REQUEST` / `ESCROW_HANDOFF_ACK` are **accepted-on-receipt legacy aliases, valid only at `spec_version` 0.1.x**, in the v0 body shape (`commerce-extension.md` §4), unsigned and mock or sandbox only. At `0.2.0` they are `unsupported_type`. Escrow providers **SHOULD** accept them until the next minor release (`ONAA-C-SHOULD-012`). They answer in the legacy shape at 0.1.0. `onaa_protocol.envelope.canonical_type()` maps each alias to its canonical type.
 * Rationale: this keeps the v0 demo and any early integrator working without keeping two escrow vocabularies in v0.1. The alias carries no signature, so it can never satisfy a MUST-sign rule.
+
+### 8.7 Payment methods (v0.1.3)
+
+ONAA does not process payments. Card, bank transfer, wallet, stablecoin and other payments are run by external payment providers that list on the registry as `service_type: payment` (founder decisions 2, 3 and 5). The protocol only lets the parties agree **which method** is used and hand the order to a provider that offers it. Each agent picks the methods it needs.
+
+`paymentMethod` tokens (schema `service-handoff.schema.json#/$defs/paymentMethod`):
+
+| Token | Meaning (examples are illustrative, not endorsements or integrations) |
+|---|---|
+| `card` | Credit, debit or prepaid card, including network tokens and agent-specific card credentials |
+| `bank_transfer` | Account-to-account credit transfer (e.g. SWIFT, SEPA Credit Transfer, ACH credit) |
+| `instant_bank_transfer` | Real-time account-to-account transfer (e.g. SEPA Instant, FedNow, RTP, UPI, Pix, Faster Payments) |
+| `direct_debit` | Payee-initiated debit under a mandate (e.g. SEPA Direct Debit, ACH debit, BACS) |
+| `digital_wallet` | Wallet or app balance or pass-through (e.g. Apple Pay, Google Pay, PayPal, Alipay) |
+| `buy_now_pay_later` | Instalment or deferred payment from a BNPL provider |
+| `stablecoin` | Fiat-referenced token transfer |
+| `crypto` | Other crypto-asset transfer |
+| `mobile_money` | Mobile-network-operator money (e.g. M-Pesa) |
+| `cash_on_delivery` | Paid to the carrier or seller on delivery |
+| `other` | Anything else; details in the provider's own channel |
+
+Rules:
+
+1. A seller **MAY** list the methods it accepts in QUOTE `settlement.accepted_payment_methods`. The list is covered by `terms_hash`.
+2. A buyer **MAY** name the method it will use in ORDER_PROPOSE `settlement.payment_method`. When the accepted QUOTE lists `accepted_payment_methods`, that method **MUST** be one of them; otherwise the seller rejects the order with `terms_mismatch`. When the QUOTE lists none, the method is informative.
+3. A SERVICE_HANDOFF_REQUEST with `service_type: payment` **SHOULD** carry the chosen `payment_method`. A provider that does not offer it answers `unsupported_service_type` or explains in `next_step`.
+4. A method token names a category only. Envelopes **MUST NOT** carry card numbers, account numbers, wallet keys, one-time codes or any other instrument data (§8.3). The buyer pays in the provider's own channel, under the provider's terms and licences.
+5. Rails and brands (Visa, SEPA, UPI, Pix, ...) are registry metadata (`commerce.payment_terms.networks`), not protocol fields, and are self-declared.
+6. A listed method is a self-declared capability. It does not imply a licence, an integration with ONAA, or any trust level (§6.2).
 
 ## 9. Signing
 
@@ -598,7 +628,7 @@ v0.1 carries no trade messages over MCP. The registry MCP adapter (`apps/mcp-reg
 
 ### 11.6 External commerce objects
 
-v0.1 defines no payment, mandate or checkout object. `references[{scheme, ref}]` is reserved for pointers to AP2 mandates or UCP checkout or order objects, and the field mapping is **UNVERIFIED**. Do not claim AP2, UCP, ACP or x402 compatibility.
+v0.1 defines no payment instrument, mandate or checkout object; §8.7 (v0.1.3) only names the payment *method* the parties agree on. `references[{scheme, ref}]` is reserved for pointers to AP2 mandates or UCP checkout or order objects, and the field mapping is **UNVERIFIED**. Do not claim AP2, UCP, ACP or x402 compatibility.
 
 ## 12. Conformance suite and test vectors
 
@@ -711,6 +741,7 @@ A harness seller or provider serves its own card, JWKS and A2A endpoint on its o
 | 0.1.1 errata (envelope 0.2.0, unchanged) | 2026-11-12 | Security errata after a security review of the reference library and demo. **Stricter (may refuse previously accepted traffic):** signed envelopes other than REJECT carry `recipient`, with `agent_card_url` on requests, and receivers reject misaddressed ones with the new code `recipient_mismatch` (§7.1, §7.2 step 7a). ORDER_STATUS is MUST-sign when it changes state, and a bound party's state-changing envelopes must be signed (§7.4, §9.2). SERVICE_HANDOFF_ACK is bound to the request's `recipient.agent_card_url`, handoff references are single-use, and SECURED needs a `sandbox` handoff (§8.4.5). Quote expiry uses the receiver's clock (§7.5.3). A reused RFQ id never resets a deal (§7.4). Signatures accept only canonical base64url, and duplicate JSON members are refused (§7.1, §9.5). Status records are not used after `next_update` (§10.5). REJECT messages do not disclose resolution results (§7.8). Replay stores are atomic and bounded (§7.6.7). SSRF, resource-exhaustion and rendering rules are extended (§13.2, §13.11, §13.12; numbered as since v0.1.2, when the two items were moved to the end of §13 so that §13.3–§13.10 keep their numbers). New vectors: `recipient.json`; new tests `ONAA-C-MUST-077`, `ONAA-C-MUST-078`, `ONAA-V-MUST-013` (suite 0.3.0; no id renumbered). The wire format, `spec_version` and extension URI are unchanged. |
 | 0.1.1 + conformance trade trigger (envelope 0.2.0, unchanged) | 2026-11-12 | **Additive, conformance-only.** New §12.1: an OPTIONAL, opt-in buyer hook (`params.conformance.trade_trigger`) through which a conformance harness starts one signed, recipient-bound, single-use, mock-only test trade against harness counterparties that mark themselves with `params.conformance.harness_counterparty`. New schema `conformance-trigger.schema.json`; `jws-signature` lists the `typ` `onaa-conformance-trigger+jws`; the params schema describes the two `conformance` members. New buyer tests `ONAA-C-MUST-080` to `ONAA-C-MUST-091` (suite 0.4.0; `n/a` without the opt-in; no id renumbered). Agents that do not opt in are unaffected: no envelope type, code or wire rule changed. |
 | 0.1.2 errata (envelope 0.2.0, unchanged) | 2026-11-12 | Security errata after a security re-review of v0.1.1. **Stricter (may refuse previously accepted traffic):** an RFQ at 0.2.0 names `sender.agent_card_url` (§7.1; `invalid_envelope`), a seller accepts an ORDER_PROPOSE only from a buyer the RFQ bound (§7.4), and a refused envelope binds nothing (§7.4, §9.4.4). A handoff addressed to, or acknowledged from, a card URL of the buyer or seller is `not_a_party`, and an order becomes SECURED only through a provider listed in the accepted QUOTE's new optional `settlement.accepted_provider_card_urls` (§7.5.2, §8.4.5). An ORDER_STATUS from a bound party must be signed even when it repeats the current state (§7.4.2, §9.2; the reference already behaved so). Receivers may cap the retention of unsigned envelopes at 1 h and then refuse longer-lived ones; bounded stores use per-source quotas and expiry (§7.6.6, §7.6.7). Total deadlines include name resolution, names are resolved once and pinned, key fetches fail fast when busy and are limited per origin, handlers run on a bounded executor (§13.2, §13.11). `fec0::/10` and `5f00::/16` are refused (§13.2); Unicode tag characters are escaped for display (§13.12). Conformance trigger: allowlist before key fetch, per-sender quota, time-boxed run, separate deal store (§12.1.3, §12.1.5). §13 items 11 and 12 moved to the end of the list (numbers unchanged in references). New vectors in `envelopes-invalid.json` and `state-machines.json`; the transcript QUOTE lists its escrow provider. New tests `ONAA-C-MUST-092` and `ONAA-C-MUST-093` (suite 0.5.0; no id renumbered). The wire format, `spec_version`, extension URI and error codes are unchanged. |
+| 0.1.3 (envelope 0.2.0, unchanged) | 2026-11-13 | **Additive, optional.** New §8.7 payment methods: `paymentMethod` tokens (card, bank_transfer, instant_bank_transfer, direct_debit, digital_wallet, buy_now_pay_later, stablecoin, crypto, mobile_money, cash_on_delivery, other); QUOTE `settlement.accepted_payment_methods`, ORDER_PROPOSE `settlement.payment_method` (must be one of the QUOTE's list when present, else `terms_mismatch`) and SERVICE_HANDOFF_REQUEST `payment_method`. No instrument data, ONAA still processes no payments. Registry `commerce.payment_terms.methods`/`networks` with `payment_method`/`payment_network` search filters. New state-machine vector `order-payment-method-not-offered`. Senders that omit the new fields are unaffected. |
 
 ## Appendix A. Minimal seller Agent Card (illustrative)
 

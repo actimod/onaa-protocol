@@ -1869,6 +1869,28 @@
       "PaymentTerms": {
         "additionalProperties": false,
         "properties": {
+          "methods": {
+            "description": "Payment methods accepted (seller), used (buyer) or processed (payment provider), e.g. card, bank_transfer, instant_bank_transfer, digital_wallet, stablecoin. Self-declared.",
+            "items": {
+              "enum": [
+                "card",
+                "bank_transfer",
+                "instant_bank_transfer",
+                "direct_debit",
+                "digital_wallet",
+                "buy_now_pay_later",
+                "stablecoin",
+                "crypto",
+                "mobile_money",
+                "cash_on_delivery",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 11,
+            "title": "Methods",
+            "type": "array"
+          },
           "net_days": {
             "anyOf": [
               {
@@ -1881,6 +1903,15 @@
               }
             ],
             "title": "Net Days"
+          },
+          "networks": {
+            "description": "Optional rails or brands within those methods, as lower-case tokens, e.g. visa, mastercard, sepa, ach, swift, upi, pix, fps, apple_pay, paypal, alipay, usdc. Self-declared, never verified.",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Networks",
+            "type": "array"
           },
           "settlement_currencies": {
             "items": {
@@ -4742,6 +4773,48 @@
             }
           },
           {
+            "description": "accepts/processes this payment method, e.g. card, bank_transfer, stablecoin",
+            "in": "query",
+            "name": "payment_method",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "accepts/processes this payment method, e.g. card, bank_transfer, stablecoin",
+              "title": "Payment Method"
+            }
+          },
+          {
+            "description": "e.g. visa, sepa, upi, pix",
+            "in": "query",
+            "name": "payment_network",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "e.g. visa, sepa, upi, pix",
+              "title": "Payment Network"
+            }
+          },
+          {
             "description": "scheme:code, e.g. unspsc:43211503",
             "in": "query",
             "name": "classification",
@@ -6272,6 +6345,48 @@
                 }
               ],
               "title": "Payment Terms"
+            }
+          },
+          {
+            "description": "accepts/processes this payment method, e.g. card, bank_transfer, stablecoin",
+            "in": "query",
+            "name": "payment_method",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "accepts/processes this payment method, e.g. card, bank_transfer, stablecoin",
+              "title": "Payment Method"
+            }
+          },
+          {
+            "description": "e.g. visa, sepa, upi, pix",
+            "in": "query",
+            "name": "payment_network",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "e.g. visa, sepa, upi, pix",
+              "title": "Payment Network"
             }
           },
           {

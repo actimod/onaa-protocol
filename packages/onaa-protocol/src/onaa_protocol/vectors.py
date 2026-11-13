@@ -373,6 +373,16 @@ def state_machines(tr: dict[str, Any]) -> dict[str, Any]:
     order_on_rev2 = order_env("order-rev2", quote_id=quote2["id"], quote_revision=2,
                               quote_terms_hash=quote2["body"]["terms_hash"], total_minor=4800)
     late = order_env("order-late", at=16 * 60)
+    # v0.1.3 (section 8.7): the seller offers payment methods; the buyer picks one of them.
+    quote_pm = _env("QUOTE", dict(copy.deepcopy(qb), revision=2, terms_hash=None, settlement=dict(
+        qb["settlement"], escrow_required=False, accepted_service_types=["escrow", "payment"],
+        accepted_payment_methods=["card", "bank_transfer", "instant_bank_transfer"])),
+        "quote-pm", "seller", at=10, in_reply_to=rfq["id"], recipient="buyer")
+
+    def order_pm(tag: str, method: str) -> dict[str, Any]:
+        return order_env(tag, quote_id=quote_pm["id"], quote_revision=2,
+                         quote_terms_hash=quote_pm["body"]["terms_hash"],
+                         settlement={"service_type": "payment", "payment_method": method})
     bad_confirm = _env("ORDER_CONFIRM", dict(confirm["body"], order_terms_hash="sha256:" + "0" * 64),
                        "confirm-bad-hash", "seller", at=21, in_reply_to=order["id"], recipient="buyer")
     buyer_confirm = _env("ORDER_CONFIRM", confirm["body"], "confirm-by-buyer", "buyer", at=21,
@@ -444,6 +454,9 @@ def state_machines(tr: dict[str, Any]) -> dict[str, Any]:
          [step(order_env("order-total", total_minor=4999), "amount_mismatch")]),
         ("order-currency-differs-from-quote", [rfq, quote],
          [step(order_env("order-ccy", currency="EUR"), "amount_mismatch")]),
+        ("order-payment-method-not-offered", [rfq, quote, quote_pm],
+         [step(order_pm("order-pm-stablecoin", "stablecoin"), "terms_mismatch"),
+          step(order_pm("order-pm-card", "card"))]),
         ("order-revision-differs-from-quote", [rfq, quote],
          [step(order_env("order-rev", quote_revision=2), "terms_mismatch")]),
         ("order-unknown-quote", [rfq, quote],
