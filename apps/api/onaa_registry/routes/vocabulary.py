@@ -69,7 +69,8 @@ def _out(session: Session, p: VocabularyProposal, ext_counts: Counter | None = N
 def vocabulary(top: Annotated[int, Query(ge=1, le=200)] = 50, session: Session = Depends(get_session)):
     used: dict[str, list[dict]] = {}
     for facet in ("capability", "category", "protocol", "skill", "language", "region", "currency", "compliance",
-                  "classification", "accepts", "pricing_model", "payment_terms", "op_country", "residency"):
+                  "classification", "accepts", "pricing_model", "payment_terms", "payment_method",
+                  "payment_network", "op_country", "residency"):
         rows = session.execute(
             select(ListingFacet.value, func.count(func.distinct(ListingFacet.listing_id)).label("n"))
             .join(Listing, Listing.id == ListingFacet.listing_id)
@@ -86,6 +87,7 @@ def vocabulary(top: Annotated[int, Query(ge=1, le=200)] = 50, session: Session =
             "roles": list(get_args(schemas.Role)),
             "service_types": list(get_args(schemas.ServiceType)),
             "pricing_models": list(get_args(schemas.Pricing.model_fields["model"].annotation)),
+            "payment_methods": list(get_args(schemas.PaymentMethodLit)),
             "recommended_protocol_tokens": RECOMMENDED_PROTOCOL_TOKENS,
             "classification_schemes": list(get_args(schemas.Classification.model_fields["scheme"].annotation)),
             "profile_blocks": list(schemas.PROFILE_BLOCKS),

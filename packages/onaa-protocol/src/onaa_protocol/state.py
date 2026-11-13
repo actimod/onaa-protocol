@@ -254,6 +254,12 @@ class TradeLedger:
             raise ProtocolError("not_a_party", "the RFQ named no buyer Agent Card; the buyer is not bound")
         if b["seller_agent_id"] != quote["sender"]["agent_id"] or b["rfq_id"] != self.rfq["id"]:
             raise ProtocolError("terms_mismatch", "seller_agent_id/rfq_id do not match the QUOTE")
+        q_settle = qb.get("settlement") if isinstance(qb.get("settlement"), dict) else {}
+        o_settle = b.get("settlement") if isinstance(b.get("settlement"), dict) else {}
+        offered = q_settle.get("accepted_payment_methods")
+        if "payment_method" in o_settle and isinstance(offered, list) and o_settle["payment_method"] not in offered:
+            # v0.1.3: the buyer picks one of the methods the seller offered (spec section 8.7).
+            raise ProtocolError("terms_mismatch", "payment_method is not in the QUOTE's accepted_payment_methods")
         if env["id"] in self.orders:
             raise ProtocolError("replay", "order id already used")
         check_transition("quote", self.quote_state, "ACCEPTED")

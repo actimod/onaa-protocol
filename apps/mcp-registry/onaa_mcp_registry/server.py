@@ -144,6 +144,7 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         operating_country: list[str] | None = None,
         compliance: list[str] | None = None,
         classification: list[str] | None = None,
+        payment_method: list[str] | None = None,
         updated_since: str | None = None,
         verified_only: bool = False,
         certified_only: bool = False,
@@ -154,13 +155,15 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         """Find agents by capability (e.g. commerce.quote.issue), role, region/country you are in (ISO, e.g. US;
         excludes listings that refuse it), ISO currency, protocol (e.g. a2a-1.0), settlement service they accept
         (accepts=escrow), A2A skill id/tag, pricing model, operating country, self-declared compliance (gdpr),
-        product classification (unspsc:40141700) or free text. Returns records with separate trust levels."""
+        product classification (unspsc:40141700), payment method accepted (payment_method=card, bank_transfer,
+        stablecoin, ...) or free text. Returns records with separate trust levels."""
         try:
             return _page(registry.search_agents(
                 capability=capability, role=role, region=region, currency=currency, protocol=protocol, q=query,
                 country=country, accepts=accepts, skill=skill, pricing_model=pricing_model,
                 operating_country=operating_country, compliance=compliance, classification=classification,
-                updated_since=updated_since, verified_only=verified_only, certified_only=certified_only,
+                payment_method=payment_method, updated_since=updated_since, verified_only=verified_only,
+                certified_only=certified_only,
                 claimed_only=claimed_only, limit=max(1, min(limit, MAX_LIMIT)), offset=max(0, offset)))
         except OnaaError as exc:
             return _err(exc)
@@ -178,19 +181,24 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         data_residency: list[str] | None = None,
         compliance: list[str] | None = None,
         pricing_model: list[str] | None = None,
+        payment_method: list[str] | None = None,
+        payment_network: list[str] | None = None,
         verified_only: bool = False,
         limit: int = 10,
         offset: int = 0,
     ) -> dict[str, Any]:
         """Find external service providers (escrow, payment, insurance, logistics, hosting, ...) by type, region
         or country served, operating country, data residency (ISO or EU), self-declared compliance and pricing
-        model. Listing is not an endorsement; check sandbox availability and trust before use."""
+        model, payment method processed (payment_method=card, bank_transfer, instant_bank_transfer, digital_wallet,
+        stablecoin, ...) and payment network (visa, sepa, upi, pix, ...). Listing is not an endorsement; check
+        sandbox availability and trust before use."""
         try:
             return _page(registry.search_services(
                 type=service_type, capability=capability, region=region, currency=currency, q=query,
                 country=country, operating_country=operating_country, data_residency=data_residency,
-                compliance=compliance, pricing_model=pricing_model,
-                verified_only=verified_only, limit=max(1, min(limit, MAX_LIMIT)), offset=max(0, offset)))
+                compliance=compliance, pricing_model=pricing_model, payment_method=payment_method,
+                payment_network=payment_network, verified_only=verified_only,
+                limit=max(1, min(limit, MAX_LIMIT)), offset=max(0, offset)))
         except OnaaError as exc:
             return _err(exc)
 

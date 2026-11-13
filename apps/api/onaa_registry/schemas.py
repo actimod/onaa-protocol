@@ -202,16 +202,41 @@ class AcceptedService(StrictModel):
         return _refs(v, ("svc", "hst"))
 
 
+# How money moves (independent of *when*, which is ``terms``). Same token list as the protocol's
+# ``paymentMethod`` (specs/onaa-protocol-v0.1.md section 8.7). Each agent picks the methods it needs.
+PaymentMethodLit = Literal[
+    "card", "bank_transfer", "instant_bank_transfer", "direct_debit", "digital_wallet", "buy_now_pay_later",
+    "stablecoin", "crypto", "mobile_money", "cash_on_delivery", "other"]
+
+
 class PaymentTerms(StrictModel):
     terms: list[Literal["prepay", "escrow", "on_delivery", "net", "milestone", "subscription"]] = Field(
         default_factory=list, max_length=6)
     net_days: int | None = Field(default=None, ge=1, le=180)
     settlement_currencies: list[str] = Field(default_factory=list, max_length=32)
+    methods: list[PaymentMethodLit] = Field(
+        default_factory=list, max_length=11,
+        description="Payment methods accepted (seller), used (buyer) or processed (payment provider), e.g. card, "
+                    "bank_transfer, instant_bank_transfer, digital_wallet, stablecoin. Self-declared.")
+    networks: list[str] = Field(
+        default_factory=list, max_length=32,
+        description="Optional rails or brands within those methods, as lower-case tokens, e.g. visa, mastercard, "
+                    "sepa, ach, swift, upi, pix, fps, apple_pay, paypal, alipay, usdc. Self-declared, never verified.")
 
     @field_validator("settlement_currencies")
     @classmethod
     def _cur(cls, v: list[str]) -> list[str]:
         return _norm_currencies(v)
+
+    @field_validator("methods")
+    @classmethod
+    def _methods(cls, v: list[str]) -> list[str]:
+        return sorted(set(v))
+
+    @field_validator("networks")
+    @classmethod
+    def _networks(cls, v: list[str]) -> list[str]:
+        return _tokens(v, "payment network")
 
 
 class Policies(StrictModel):
