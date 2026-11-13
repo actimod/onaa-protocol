@@ -248,7 +248,7 @@ def test_payment_methods_and_networks_are_searchable(client, op):
     assert ids(payment_network="visa") == [rec["id"]]
     assert ids(payment_method="stablecoin") == [] and ids(payment_network="pix") == []
     assert rec["trust"]["endpoint_control_verified"] is False
-    for bad in ({"methods": ["cheque"]}, {"networks": ["Has Space"]}):
+    for bad in ({"methods": ["cheque"]}, {"methods": ["cash_on_delivery"]}, {"networks": ["Has Space"]}):
         r = client.patch(f"/v1/agents/{rec['id']}", headers=h, json={"commerce": {"payment_terms": bad}})
         assert r.status_code == 422, bad
     used = client.get("/v1/vocabulary").json()

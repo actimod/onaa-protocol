@@ -181,8 +181,8 @@
               "items": { "type": "string", "format": "uri", "maxLength": 2048 }
             },
             "accepted_payment_methods": {
-              "type": "array", "maxItems": 11, "uniqueItems": true,
-              "description": "v0.1.3: payment methods the seller accepts (card, bank_transfer, stablecoin, ...). Covered by terms_hash. When present, an ORDER_PROPOSE that names a payment_method MUST name one of these (spec section 8.7). No instrument data.",
+              "type": "array", "maxItems": 5, "uniqueItems": true,
+              "description": "v0.1.3: payment methods the seller accepts (card, bank_transfer, instant_bank_transfer, stablecoin, crypto). Covered by terms_hash. When present, an ORDER_PROPOSE that names a payment_method MUST name one of these (spec section 8.7). No instrument data.",
               "items": { "$ref": "urn:onaa:schema:v0.1:service-handoff#/$defs/paymentMethod" }
             }
           }
