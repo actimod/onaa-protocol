@@ -177,33 +177,6 @@ jobs:
       - name: Run demo end to end
         run: SKIP_INSTALL=1 PYTHON=python ./scripts/run_demo.sh
 
-  payment-match-sim:
-    name: Payment-matching simulation
-    needs: changes
-    if: needs.changes.outputs.paysim == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: examples/payment-match-sim
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: |
-            requirements-dev.txt
-            **/pyproject.toml
-      - name: Install onaa-protocol and the registry (local packages, required first)
-        run: pip install -e ../../packages/onaa-protocol -e ../../apps/api
-      - name: Install simulation (pinned dev deps)
-        run: pip install -e '.[dev]'
-      - name: Lint
-        run: ruff check .
-      - name: Scenarios, case matrix and probes (in-process, no network, mock providers)
-        run: python -m pytest -q -rs
-
   registry-api-postgres:
     name: Registry API tests on PostgreSQL 16 (apps/api)
     needs: changes

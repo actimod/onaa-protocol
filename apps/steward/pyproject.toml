@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "onaa-steward"
+version = "0.1.0"
+description = "ONAA Registry Steward: an A2A agent that validates, health-checks and diagnoses registry listings. All registry changes go through the registry Policy Service."
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+dependencies = [
+  "httpx>=0.27,<0.29",
+  "starlette>=0.40",
+  "onaa-protocol>=0.1.2,<0.2",
+  "anthropic>=2.8,<3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9", "onaa-registry"]
+
+[project.scripts]
+onaa-steward = "onaa_steward.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["onaa_steward*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
