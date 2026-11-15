@@ -65,7 +65,8 @@ async def test_tools_are_read_only(fake_registry):
     reg, _ = fake_registry
     async with Client(build_server(reg)) as client:
         tools = (await client.list_tools()).tools
-    assert {t.name for t in tools} == {"search_agents", "search_services", "get_listing", "get_vocabulary"}
+    assert {t.name for t in tools} == {"search_agents", "search_services", "get_listing", "get_vocabulary",
+                                       "verify_attestations", "find_stores", "can_i_buy_here", "how_to_buy"}
     for t in tools:
         assert t.annotations.read_only_hint is True and t.annotations.destructive_hint is False
 
@@ -253,3 +254,39 @@ async def test_remote_self_registration_returns_secret_and_key_to_the_caller_onl
     assert seen_ctx and all(c is not None for c in seen_ctx)
     assert reg._http.is_closed is False  # injected client is not closed per call
     assert not any("authorization" in c.headers for c in calls)
+
+
+@pytest.mark.anyio
+async def test_verify_attestations_fails_closed(fake_registry):
+    reg, _ = fake_registry
+    async with Client(build_server(reg)) as client:
+        no_pin = _payload(await client.call_tool("verify_attestations", {"listing_id": "agt_" + "1" * 24}))
+        bad_id = _payload(await client.call_tool("verify_attestations", {"listing_id": "../admin"}))
+    assert no_pin["verified"] is False and no_pin["error"] == "no_pinned_root_key"
+    assert bad_id["error"]["status"] == 400
+    pytest.importorskip("onaa_protocol")
+    root = {"kty": "OKP", "crv": "Ed25519", "kid": "test-root-1", "x": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"}
+    async with Client(build_server(reg, root_jwk=root, allow_test_only=True)) as client:
+        res = _payload(await client.call_tool("verify_attestations", {"listing_id": "agt_" + "1" * 24}))
+    # The fake registry serves no issuer manifest: nothing is vouched for.
+    assert res["verified"] is False and res["error"] == "manifest_unavailable"
+    assert res["pinned_root_kid"] == "test-root-1"
+
+
+@pytest.mark.anyio
+async def test_claimed_and_reachable_filters_reach_the_api_and_trust_keeps_probe_state(fake_registry):
+    """Buyers can ask for operator-registered, reachable listings only, on agents and services alike."""
+    reg, calls = fake_registry
+    async with Client(build_server(reg)) as client:
+        res = await client.call_tool("search_agents", {"claimed_only": True, "reachable_only": True})
+        q = calls[-1].url.params
+        assert q["claimed_only"] == "true" and q["reachable_only"] == "true"
+        await client.call_tool("search_services", {"service_type": "escrow", "claimed_only": True,
+                                                   "reachable_only": True})
+        q = calls[-1].url.params
+        assert q["claimed_only"] == "true" and q["reachable_only"] == "true" and q["type"] == "escrow"
+        default = await client.call_tool("search_services", {})
+        assert "claimed_only" not in calls[-1].url.params  # discovered listings stay available by default
+    trust = _payload(res)["items"][0]["trust"]
+    assert {"registration_status", "reachability", "last_check_result", "registration_method"} <= set(trust)
+    assert _payload(default)["items"]

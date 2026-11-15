@@ -26,13 +26,19 @@ class FakeFetcher:
         return FetchResult(url, status, body.encode(), "text/plain", 1)
 
 
+def _passing_runner(req):
+    """Offline stand-in for the live conformance suite (no network in SDK tests)."""
+    return {"suite_version": "0.5.0", "results": [],
+            "summary": {"verdict": "pass", "must": {"total": 1, "passed": 1}, "should": {"total": 0, "passed": 0}}}
+
+
 @pytest.fixture
 def env():
     fetcher, txt = FakeFetcher(), {}
     settings = Settings(database_url="sqlite://", admin_token="adm", write_rate_limit_per_minute=0,
                         operator_write_limit_per_minute=0, auto_create_schema=True,
                         require_verification_entitlement=False)
-    app = registry.create_app(settings, fetcher, lambda name: txt.get(name, []))
+    app = registry.create_app(settings, fetcher, lambda name: txt.get(name, []), _passing_runner)
     with TestClient(app) as http:
         yield OnaaClient("http://testserver", http_client=http), fetcher, txt, http
 

@@ -55,6 +55,18 @@ def normalise_url(url: str | None, field: str) -> str | None:
     return urlunsplit((p.scheme, (p.hostname or "").lower().rstrip("."), p.path or "/", p.query, ""))
 
 
+AGENT_CARD_PATH = "/.well-known/agent-card.json"
+
+
+def require_card_path(url: str | None, field: str = "agent_card_url") -> None:
+    """ONAA Protocol 5.1/9.3: the card is served at https://{host}/.well-known/agent-card.json. Counterparties
+    refuse any other path, so a listing with another path would be discoverable but unable to trade."""
+    if url is not None and (urlsplit(url).path != AGENT_CARD_PATH or urlsplit(url).query):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            f"{field} must be https://<your-host>{AGENT_CARD_PATH} (ONAA Protocol section 5.1); "
+                            "other paths are refused by counterparties")
+
+
 def host_of(url: str) -> str:
     return (urlsplit(url).hostname or "").lower().rstrip(".")
 
@@ -129,6 +141,10 @@ def _profile_facets(profile: dict) -> dict[str, set[str]]:
         "payment_terms": set((c.get("payment_terms") or {}).get("terms", [])),
         "payment_method": set((c.get("payment_terms") or {}).get("methods", [])),
         "payment_network": set((c.get("payment_terms") or {}).get("networks", [])),
+        "human_setup": set((c.get("human_approval") or {}).get("setup", [])),
+        "human_per_payment": {(c.get("human_approval") or {}).get("per_payment")} - {None},
+        "escrow_release": {(c.get("human_approval") or {}).get("escrow_release")} - {None},
+        "human_approval": schemas.human_approval_summary(c.get("human_approval")),
         "classification": {f"{x['scheme']}:{x['code']}".lower() for x in c.get("classifications", [])},
         "incoterm": {x.lower() for x in c.get("incoterms", [])},
         "op_country": {j.get("operating_country")} - {None},
@@ -327,10 +343,13 @@ def to_record(listing: Listing, operator: Operator | None = None) -> schemas.Reg
             operator_identity_verified=bool(claimed and operator and operator.identity_verified),
             certifications=[schemas.CertificationOut(
                 id=c.id, scheme=c.scheme, criteria_version=c.criteria_version, status=c.status,
-                issued_at=aware(c.issued_at), expires_at=aware(c.expires_at)) for c in certs],
+                issued_at=aware(c.issued_at), expires_at=aware(c.expires_at),
+                attestation_url=f"/v1/attestations/{c.id}" if c.attestation else None,
+                status_url=f"/v1/attestations/{c.id}/status" if c.attestation else None) for c in certs],
         ),
         agent_card=card,
         provenance=provenance,
+        agent_checkout=listing.agent_checkout,
         last_checked_at=aware(listing.last_checked_at),
         status=status_,
         created_at=aware(listing.created_at),

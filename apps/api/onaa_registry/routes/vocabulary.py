@@ -70,7 +70,8 @@ def vocabulary(top: Annotated[int, Query(ge=1, le=200)] = 50, session: Session =
     used: dict[str, list[dict]] = {}
     for facet in ("capability", "category", "protocol", "skill", "language", "region", "currency", "compliance",
                   "classification", "accepts", "pricing_model", "payment_terms", "payment_method",
-                  "payment_network", "op_country", "residency"):
+                  "payment_network", "human_approval", "human_setup", "human_per_payment", "escrow_release",
+                  "op_country", "residency"):
         rows = session.execute(
             select(ListingFacet.value, func.count(func.distinct(ListingFacet.listing_id)).label("n"))
             .join(Listing, Listing.id == ListingFacet.listing_id)
@@ -88,6 +89,10 @@ def vocabulary(top: Annotated[int, Query(ge=1, le=200)] = 50, session: Session =
             "service_types": list(get_args(schemas.ServiceType)),
             "pricing_models": list(get_args(schemas.Pricing.model_fields["model"].annotation)),
             "payment_methods": list(get_args(schemas.PaymentMethodLit)),
+            "human_approval": {"summary": ["none", "at_setup", "in_advance", "per_payment", "at_release"],
+                               "setup": list(get_args(schemas.HumanSetupLit)),
+                               "per_payment": list(get_args(schemas.HumanPerPaymentLit)),
+                               "escrow_release": list(get_args(schemas.EscrowReleaseLit))},
             "recommended_protocol_tokens": RECOMMENDED_PROTOCOL_TOKENS,
             "classification_schemes": list(get_args(schemas.Classification.model_fields["scheme"].annotation)),
             "profile_blocks": list(schemas.PROFILE_BLOCKS),

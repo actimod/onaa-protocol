@@ -4,7 +4,7 @@ Central **discovery, registration and trust metadata** for ONAA (Open Network fo
 The Registry is a control plane only: buyers, sellers and service providers transact **directly** over
 their own A2A/HTTPS endpoints. The Registry never relays commerce messages, holds funds, or hosts seller data.
 
-Status: development build. Not deployed anywhere; no production credentials exist.
+Status: development build. This code runs the **development** registry at https://api.onaa.net (no SLA, no real money movement); there is no production deployment. Running it locally, as below, needs no credentials.
 
 ## Run locally
 
@@ -69,7 +69,10 @@ python scripts/export_openapi.py         # writes ../../specs/openapi.json
 | POST | `/v1/agents/{id}/verify-domain`, `/v1/agents/{id}/verification-complete` | operator (owner) |
 | GET | `/v1/services?type=escrow&region=US&currency=USD...` and `/v1/services/{id}[/trust]` | public |
 | POST / PATCH / DELETE | `/v1/services`, `/v1/services/{id}` (+ verify-domain, verification-complete) | operator (owner) |
-| POST / GET | `/v1/certifications/applications`, `/v1/certifications/{id}` | operator |
+| POST / GET | `/v1/certifications/applications`, `/v1/certifications/{id}`, POST `/v1/certifications/precheck` | operator |
+| GET | `/.well-known/onaa/issuer-jwks.json`, `/v1/attestations?subject_id=`, `/v1/attestations/{id}[/status]` | public |
+| GET | `/v1/transparency/checkpoint`, `/v1/transparency/entries`, `/v1/transparency/proof/{inclusion,consistency}` | public |
+| POST | `/v1/admin/jobs/verification-monitor`, `/v1/admin/verification/observations`, `/v1/admin/certifications/issued/{id}/status` | admin token |
 | POST | `/v1/reports` | public or operator |
 | POST | `/v1/admin/discovered`, `/v1/admin/discovered/services`, `/v1/admin/listings/{id}/suspend`, `/v1/admin/certifications/{id}/decision` | admin token |
 
@@ -138,6 +141,10 @@ and they are not registered or endorsed. Search shows them by default; `claimed_
 provider self-registers on the same host and service type (or the same Agent Card), the discovered copy is retired.
 `scripts/import_discovered.py SEED` validates a seed file offline; `--apply` posts it with `ONAA_ADMIN_TOKEN`.
 Importing into a public registry needs founder approval and a live opt-out page.
+Opt-out: `GET /opt-out` (human page) and `POST /v1/discovered/opt-out {"url", "scope": "host"|"url"}` (no account,
+no proof) remove matching discovered entries immediately, erase their content and store only SHA-256 hashes of the
+URL/host so admin imports of that URL/host return 410. Registered listings are never affected; the optional reason
+is not stored.
 
 ## Endpoint health (ENG-011)
 
@@ -146,6 +153,20 @@ SSRF-guarded GET to the endpoint (or Agent Card) with a 10 s deadline. Any answe
 consecutive failures set `trust.reachability: "unreachable"`. That is a signal, not a revocation, and it never changes
 other statuses. Search with `reachable_only=true` to hide unreachable listings. A probe also runs after successful
 verification; the result is recorded but doesn't block the verification.
+
+## Verification operations (CERT-009..011)
+
+Details and env vars: `docs/VERIFICATION_OPERATIONS.md`. In short:
+
+* **Pre-check:** `POST /v1/certifications/precheck` runs the public conformance suite against your own
+  endpoint-verified listing (free, rate-limited per listing). Applying for `protocol_certified`,
+  `commerce_certified` or `service_certified` files a run automatically. An admin can approve only with a passing
+  run younger than `ONAA_CONFORMANCE_MAX_AGE_DAYS` and a named `reviewer` (the human approval record).
+* **Monitoring:** `POST /v1/admin/jobs/verification-monitor` (cron) compares the Agent Card and signer JWKS hashes
+  with the issuance baselines, runs unannounced re-checks at random times (`ONAA_RECHECK_MIN_DAYS`..`MAX_DAYS`),
+  suspends on a failing re-check, expires lapsed certifications and re-signs status records.
+* **Signed and logged:** approvals produce a TEST-ONLY attestation, a 7-day signed status record and an entry in a
+  Merkle transparency log. Keys come from `scripts/issuer_ceremony_dryrun.py` (staging `test-` keys only).
 
 ## Trust model (design principle 8)
 

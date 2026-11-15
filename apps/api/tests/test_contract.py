@@ -186,10 +186,11 @@ def test_certification_is_separate_and_requires_review(client, op, fetcher):
 
     # Operators cannot decide their own application.
     r = client.post(f"/v1/admin/certifications/{app_['id']}/decision", headers=headers,
-                    json={"decision": "approve", "reason": "self"})
+                    json={"decision": "approve", "reviewer": "founder", "reason": "self"})
     assert r.status_code == 403
     r = client.post(f"/v1/admin/certifications/{app_['id']}/decision", headers=admin_headers(),
-                    json={"decision": "approve", "reason": "Passed protocol test suite draft-0.1", "valid_days": 30})
+                    json={"decision": "approve", "reviewer": "founder", "reason": "Passed protocol suite draft-0.1",
+                          "valid_days": 30})
     assert r.status_code == 200 and r.json()["status"] == "approved"
     rec = client.get(f"/v1/agents/{aid}").json()
     jsonschema.validate(rec, SCHEMA)
@@ -247,3 +248,43 @@ def test_openapi_snapshot_is_current(client):
     assert committed.exists(), "run: python scripts/export_openapi.py"
     assert _api_signature(json.loads(committed.read_text())) == _api_signature(current), (
         "specs/openapi.json is stale; run: python scripts/export_openapi.py")
+
+
+def test_root_robots_and_sitemap_point_agents_at_onboarding(client):
+    r = client.get("/", headers={"accept": "application/json"})
+    assert r.status_code == 200 and r.json()["start_here"].endswith("/llms.txt")
+    assert 'rel="describedby"' in r.headers["link"]
+    page = client.get("/", headers={"accept": "text/html,application/xhtml+xml,*/*;q=0.8"})
+    assert page.headers["content-type"].startswith("text/html") and "llms.txt" in page.text
+    robots = client.get("/robots.txt").text
+    assert "Allow: /" in robots and "Sitemap: " in robots and "/v1/admin/" in robots
+    sm = client.get("/sitemap.xml")
+    assert sm.headers["content-type"].startswith("application/xml") and "/llms.txt</loc>" in sm.text
+    llms = client.get("/llms.txt").text
+    assert "/.well-known/agent-card.json" in llms and "Buying agents: start here" in llms
+
+
+def test_free_text_search_matches_type_role_and_capability(client, op):
+    """Free text is split into terms (AND) and also matches service_type, roles and capabilities, so an
+    agent typing "escrow" or "find an escrow service" sees escrow providers whose names do not say escrow."""
+    _, headers = op
+    client.post("/v1/services", headers=headers, json=dict(
+        SERVICE, display_name="Trustworthy Holdings", capabilities=["funds.hold"],
+        description="Funds held until delivery is confirmed."))
+    client.post("/v1/services", headers=headers, json=dict(
+        SERVICE, display_name="Fast Parcel Co", service_type="logistics", capabilities=["shipping.label"],
+        description="Labels and tracking.", endpoint_url="https://parcel.example.org/api"))
+
+    def names(q, kind="services"):
+        r = client.get(f"/v1/{kind}", params={"q": q})
+        assert r.status_code == 200
+        return sorted(i["display_name"] for i in r.json()["items"])
+
+    assert names("escrow") == ["Trustworthy Holdings"]
+    assert names("ESCROW") == ["Trustworthy Holdings"]
+    assert names("find an escrow service") == ["Trustworthy Holdings"]
+    assert names("shipping") == ["Fast Parcel Co"]          # capability match
+    assert names("parcel tracking") == ["Fast Parcel Co"]  # terms AND across name and description
+    assert names("escrow tracking") == []
+    assert names("100%") == [] and names("e_c") == []      # LIKE wildcards are literal
+    assert names("service") == ["Fast Parcel Co", "Trustworthy Holdings"]  # stopword-only query still searches

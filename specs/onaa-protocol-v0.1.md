@@ -173,7 +173,7 @@ Rules:
 
 ### 6.3 Registry service types
 
-Registry `service_type` tokens map to the handoff `service_type` (§8.2) as follows: `escrow`, `payment`, `insurance`, `logistics`, `inspection` and `dispute` map to themselves, and **registry `shipping` maps to handoff `logistics`**. The other registry types (`identity`, `tax`, `fraud`, `fx`, `hosting`, `other`) have no v0.1 handoff profile.
+Registry `service_type` tokens map to the handoff `service_type` (§8.2) as follows: `escrow`, `payment`, `insurance`, `logistics`, `inspection` and `dispute` map to themselves, and **registry `shipping` maps to handoff `logistics`**. The other registry types (`identity`, `tax`, `fraud`, `fx`, `hosting`, `marketplace`, `other`) have no v0.1 handoff profile.
 
 ### 6.4 Registry is not a relay
 

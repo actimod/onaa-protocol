@@ -66,7 +66,7 @@ def test_approved_endpoint_verified_application_unlocks_listing(gated, fetcher):
     assert app_["status"] == "submitted"
     assert gated.post(f"/v1/services/{sid}/verify-domain", headers=h).status_code == 402  # applying != paying
     gated.post(f"/v1/admin/certifications/{app_['id']}/decision", headers=admin_headers(),
-               json={"decision": "approve", "reason": "fee received out of band (sandbox)"})
+               json={"decision": "approve", "reviewer": "founder", "reason": "fee received out of band (sandbox)"})
     verify_listing(gated, fetcher, "services", sid, h)
     rec = gated.get(f"/v1/services/{sid}").json()
     # The entitlement itself is not displayed as a certification.

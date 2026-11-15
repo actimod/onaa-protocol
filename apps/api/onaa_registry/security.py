@@ -68,6 +68,16 @@ def require_admin(request: Request, creds: HTTPAuthorizationCredentials | None =
     return "admin"
 
 
+def require_steward(request: Request, creds: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> str:
+    """Registry Steward service identity. It is NOT an admin: it may only file Policy Service requests."""
+    expected = request.app.state.settings.steward_token
+    if not expected:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "policy service disabled")
+    if creds is None or not hmac.compare_digest(creds.credentials.encode(), expected.encode()):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "steward token required")
+    return "steward"
+
+
 class RateLimiter:
     """In-process sliding-window limiter for write endpoints (MVP; replace with shared store at scale)."""
 

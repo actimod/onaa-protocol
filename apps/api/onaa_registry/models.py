@@ -145,6 +145,14 @@ class Listing(Base):
     consecutive_check_failures: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # unknown | reachable | unreachable (health signal only, never a revocation)
     reachability: Mapped[str] = mapped_column(String(20), default="unknown", server_default="unknown", index=True)
+    # Buying channels: ONAA's last observed "agent can get to checkout" probe (search -> cart/checkout, never pays).
+    # An observation, not verification or endorsement. Searchable through the `agent_checkout` facet.
+    agent_checkout: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # CERT-009 monitoring: JCS SHA-256 of the signer JWKS last observed, and the next unannounced re-check time.
+    # next_recheck_at is internal scheduling data and is never published (unannounced re-checks).
+    jwks_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    jwks_fetched_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_recheck_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
 
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
@@ -222,6 +230,17 @@ class SelfRegistration(Base):
     completed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class Suppression(Base):
+    """Opt-out record for discovered (unregistered) entries. Holds only hashes, never content or contact data,
+    so the same entry is not re-imported (growth DISCOVERY_POLICY section 7)."""
+
+    __tablename__ = "suppressions"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("sup"))
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True)  # sha256 of "url:<canonical>" or "host:<host>"
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class VocabularyProposal(Base):
     """Agent-proposed new field, capability, category, protocol token or service type. Support from distinct
     identities plus observed usage is the promotion signal; a maintainer decision promotes it."""
@@ -254,6 +273,8 @@ class CertificationApplication(Base):
     criteria_version: Mapped[str] = mapped_column(String(40), default="draft-0.1")
     evidence_urls: Mapped[list] = mapped_column(JSON, default=list)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Automated conformance pre-check run when the application was filed (CERT-009); evidence for the reviewer.
+    conformance_run_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="submitted")  # submitted|approved|rejected|withdrawn
     decision_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -268,12 +289,59 @@ class Certification(Base):
     application_id: Mapped[str] = mapped_column(ForeignKey("certification_applications.id"))
     scheme: Mapped[str] = mapped_column(String(40))
     criteria_version: Mapped[str] = mapped_column(String(40))
-    status: Mapped[str] = mapped_column(String(20), default="active")  # active|revoked|expired
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active|suspended|revoked|expired
     issued_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    status_changed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # CERT-011: TEST-ONLY signed attestation (None when no staging signing key is configured), the latest signed
+    # status record, the human approval record the signature rests on, and the baselines monitored afterwards.
+    attestation: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    status_record: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    status_record_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    approval: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    baseline_card_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    baseline_jwks_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    conformance_run_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
     listing: Mapped[Listing] = relationship(back_populates="certifications")
+
+
+class VerificationRun(Base):
+    """One automated verification observation (CERT-009): a conformance run or a card/JWKS observation.
+
+    Holds only hashes, counts and test ids, never the target's raw replies (they are untrusted data).
+    """
+
+    __tablename__ = "verification_runs"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("vrun"))
+    listing_id: Mapped[str] = mapped_column(ForeignKey("listings.id", ondelete="CASCADE"), index=True)
+    application_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # precheck | application | recheck | change_recheck | observation
+    kind: Mapped[str] = mapped_column(String(20))
+    vantage: Mapped[str] = mapped_column(String(64))
+    seed: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    role: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    verdict: Mapped[str] = mapped_column(String(20))  # pass | fail | incomplete | error | observed
+    summary: Mapped[dict] = mapped_column(JSON, default=dict)
+    report_sha256: Mapped[str | None] = mapped_column(String(71), nullable=True)
+    card_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    jwks_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class TransparencyEntry(Base):
+    """Append-only Merkle log leaf (CERT-011). `idx` is the 0-based leaf index; rows are never updated."""
+
+    __tablename__ = "transparency_entries"
+
+    idx: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    entry: Mapped[dict] = mapped_column(JSON)
+    leaf_hash: Mapped[str] = mapped_column(String(64))
+    attestation_id: Mapped[str] = mapped_column(String(40), index=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class AbuseReport(Base):
@@ -300,3 +368,61 @@ class AuditEvent(Base):
     result: Mapped[str] = mapped_column(String(20), default="ok")
     detail: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Incident(Base):
+    """Operational incident on a listing (reachability, reported errors, metadata or compatibility problems).
+
+    Opened and resolved through the Policy Service (`onaa_registry.policy`), normally by the Registry Steward.
+    An incident is a health record, never a sanction: it does not change registration, verification or
+    certification status. `summary` and `detail` may quote text from the affected agent (untrusted data)."""
+
+    __tablename__ = "incidents"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("inc"))
+    listing_id: Mapped[str] = mapped_column(ForeignKey("listings.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(30))  # unreachable | error_report | metadata_mismatch | compat_failure
+    state: Mapped[str] = mapped_column(String(20), default="open", index=True)  # open | resolved
+    summary: Mapped[str] = mapped_column(String(500))
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)
+    opened_by: Mapped[str] = mapped_column(String(20))  # steward | admin
+    resolution: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    opened_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    resolved_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PolicyRequest(Base):
+    """Every privileged change request from the Registry Steward (or another system actor) and its decision.
+
+    `decision`: applied (allowed automatically by policy) | pending_approval (needs a human decision) |
+    approved | rejected (human decision) | denied (not permitted for this actor)."""
+
+    __tablename__ = "policy_requests"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("pol"))
+    actor: Mapped[str] = mapped_column(String(20))
+    action: Mapped[str] = mapped_column(String(40), index=True)
+    subject_id: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    params: Mapped[dict] = mapped_column(JSON, default=dict)
+    rationale: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    decision: Mapped[str] = mapped_column(String(20), index=True)
+    decision_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    result: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    decided_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class UsageCounter(Base):
+    """Anonymous daily usage counts (no IPs, no user agents verbatim, no query text).
+
+    kind: http (key = "<path group>|<agent class>"), mcp_tool (key = tool name), store_check (key = outcome),
+    store_asked (key = an unlisted store domain an agent asked about; a public host name, never personal data)."""
+
+    __tablename__ = "usage_counters"
+    __table_args__ = (UniqueConstraint("day", "kind", "key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    day: Mapped[str] = mapped_column(String(10), index=True)  # ISO date (UTC)
+    kind: Mapped[str] = mapped_column(String(20))
+    key: Mapped[str] = mapped_column(String(160))
+    count: Mapped[int] = mapped_column(Integer, default=0)

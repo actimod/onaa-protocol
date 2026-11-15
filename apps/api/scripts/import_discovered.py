@@ -16,6 +16,9 @@ import argparse
 import json
 import os
 import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import httpx
@@ -54,6 +57,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("seed", type=Path)
     ap.add_argument("--apply", action="store_true", help="send to the registry (default: validate only)")
     ap.add_argument("--registry-url", default="http://localhost:8000")
+    ap.add_argument("--workers", type=int, default=1, help="parallel requests (max 16)")
     args = ap.parse_args(argv)
 
     bodies, errors = [], 0
@@ -69,19 +73,35 @@ def main(argv: list[str] | None = None) -> int:
     token = os.environ.get("ONAA_ADMIN_TOKEN")
     if not token:
         raise SystemExit("ONAA_ADMIN_TOKEN is not set")
-    created = skipped = failed = 0
-    with httpx.Client(base_url=args.registry_url.rstrip("/"), timeout=15,
-                      headers={"Authorization": f"Bearer {token}"}) as http:
-        for path, body in bodies:
-            r = http.post(path, json=body)
-            if r.status_code == 201:
-                created += 1
-            elif r.status_code == 409:
-                skipped += 1  # already listed, or host owned by a verified operator
+    counts = {201: 0, 200: 0, 409: 0, "failed": 0}
+    lock = threading.Lock()
+
+    def send(http: httpx.Client, path: str, body: dict) -> None:
+        for attempt in range(4):
+            try:
+                r = http.post(path, json=body)
+            except httpx.HTTPError as exc:
+                status, detail = "failed", type(exc).__name__
             else:
-                failed += 1
-                print(f"{body['display_name']}: HTTP {r.status_code}", file=sys.stderr)
-    print(f"created {created}, skipped {skipped} (already listed or owned), failed {failed}")
+                status, detail = r.status_code, f"HTTP {r.status_code}"
+                if status not in (429, 502, 503, 504):
+                    break
+            time.sleep(2 ** attempt)
+        key = status if status in (200, 201, 409) else "failed"
+        with lock:
+            counts[key] += 1
+        if key == "failed":
+            print(f"{body['display_name']}: {detail}", file=sys.stderr)
+
+    workers = max(1, min(16, args.workers))
+    with httpx.Client(base_url=args.registry_url.rstrip("/"), timeout=15,
+                      headers={"Authorization": f"Bearer {token}", "User-Agent": "onaa-import-discovered/1",
+                               "X-ONAA-Traffic": "internal"}) as http:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(lambda pb: send(http, *pb), bodies))
+    # 201 created; 200 still unclaimed, observed payment methods refreshed; 409 already listed or owned
+    created, updated, skipped, failed = counts[201], counts[200], counts[409], counts["failed"]
+    print(f"created {created}, updated {updated}, skipped {skipped} (already listed or owned), failed {failed}")
     return 1 if failed or errors else 0
 
 
