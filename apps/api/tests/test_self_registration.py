@@ -504,6 +504,8 @@ def test_buying_channels_seed_validates():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     seed = Path(__file__).resolve().parents[3] / "growth" / "seed" / "discovered_buying_channels.seed.json"
+    if not seed.is_file():  # the researched seed is maintainer data, not part of the public repository
+        pytest.skip("maintainer seed data is not in this checkout")
     entries = mod.load_entries(seed)
     assert entries
     for e in entries:
