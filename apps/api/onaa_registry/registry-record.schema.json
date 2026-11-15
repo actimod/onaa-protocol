@@ -109,9 +109,10 @@
             "operator_account",
             "agent_self_registration",
             "discovery_import",
+            "system",
             null
           ],
-          "description": "How the listing joined. agent_self_registration = the agent proved host control once at signup (anti-abuse gate), not the Endpoint Verified tier."
+          "description": "How the listing joined. agent_self_registration = the agent proved host control once at signup (anti-abuse gate), not the Endpoint Verified tier. system = an ONAA system agent (the Registry Steward) on the registry's own host."
         }
       }
     },

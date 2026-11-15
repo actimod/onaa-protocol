@@ -10,7 +10,7 @@
     "id": { "type": "string", "minLength": 1, "maxLength": 64 },
     "operator_id": { "type": ["string", "null"], "description": "null only while unclaimed (discovered)." },
     "listing_type": { "enum": ["agent", "service", "hosting"] },
-    "service_type": { "type": ["string", "null"], "description": "Registry service type token (payment, escrow, insurance, logistics, shipping, inspection, identity, dispute, tax, fraud, fx, hosting, other). Registry 'shipping' maps to handoff service_type 'logistics'." },
+    "service_type": { "type": ["string", "null"], "description": "Registry service type token (payment, escrow, insurance, logistics, shipping, inspection, identity, dispute, tax, fraud, fx, hosting, marketplace, other). Registry 'shipping' maps to handoff service_type 'logistics'." },
     "roles": { "type": "array", "items": { "type": "string" } },
     "display_name": { "type": "string", "minLength": 1 },
     "agent_card_url": { "type": ["string", "null"] },

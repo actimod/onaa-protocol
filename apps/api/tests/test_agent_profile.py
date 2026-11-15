@@ -58,7 +58,7 @@ def test_full_profile_round_trip_and_minimal_still_valid(client, op):
     # Self-declared blocks never change trust levels.
     assert rec["trust"]["endpoint_control_verified"] is False and rec["status"] == "registered"
     _, h2 = make_operator(client, "Minimal Op")
-    minimal = client.post("/v1/agents", headers=h2, json=dict(AGENT, agent_card_url="https://min.example.com/c.json"))
+    minimal = client.post("/v1/agents", headers=h2, json=dict(AGENT, agent_card_url="https://min.example.com/.well-known/agent-card.json"))
     assert minimal.status_code == 201
     m = minimal.json()
     assert m["commerce"] is None and m["extensions"] == {} and m["revision"] == 1
@@ -254,3 +254,54 @@ def test_payment_methods_and_networks_are_searchable(client, op):
     used = client.get("/v1/vocabulary").json()
     assert {"value": "card", "listings": 1} in used["in_use"]["payment_method"]
     assert "bank_transfer" in used["canonical"]["payment_methods"]
+
+
+def test_human_approval_declared_and_searchable(client, op):
+    """Payment/escrow providers say where a person must act: once at setup, on every payment, or to release
+    escrow. Buyer agents filter for providers they can use with no person in the loop. Self-declared, never a
+    trust signal."""
+    _, h = op
+
+    def svc(name, host, stype, approval):
+        body = {**SERVICE, "display_name": name, "service_type": stype, "endpoint_url": f"https://api.{host}/v1",
+                "sandbox_url": None, "sandbox_available": False,
+                "supported_interfaces": [], "terms_url": None, "commerce": {"human_approval": approval}}
+        r = client.post("/v1/services", headers=h, json=body)
+        assert r.status_code == 201, r.text
+        return r.json()
+
+    wallet = svc("USDC wallet", "wallet.example.net", "payment",
+                 {"setup": ["account_funding", "identity_check"], "per_payment": "none"})
+    cards = svc("Agent cards", "cards.example.net", "payment",
+                {"setup": ["application_review", "identity_check"], "per_payment": "pre_authorized"})
+    bank = svc("Pay by bank", "bank.example.net", "payment", {"setup": ["none"], "per_payment": "per_transaction"})
+    chain = svc("Contract escrow", "chain.example.net", "escrow", {"setup": ["none"], "escrow_release": "automatic"})
+    legal = svc("Legal escrow", "legal.example.net", "escrow",
+                {"setup": ["partner_agreement"], "escrow_release": "human", "notes": "Inspection period applies."})
+    assert wallet["commerce"]["human_approval"]["setup"] == ["account_funding", "identity_check"]
+
+    def ids(**params):
+        return {x["id"] for x in client.get("/v1/services", params=params).json()["items"]}
+
+    assert ids(human_approval="none") == {wallet["id"], chain["id"]}
+    assert ids(human_approval="at_setup") == {cards["id"], legal["id"]}
+    assert ids(human_approval="per_payment") == {bank["id"]}
+    assert ids(human_approval="at_release") == {legal["id"]}
+    assert ids(human_approval="in_advance") == {cards["id"]}
+    assert ids(human_per_payment=["none", "pre_authorized"]) == {wallet["id"], cards["id"]}
+    assert ids(human_setup="application_review") == {cards["id"]}
+    assert ids(escrow_release="automatic", type="escrow") == {chain["id"]}
+    assert ids(human_approval="none", type="escrow") == {chain["id"]}
+    assert wallet["trust"]["endpoint_control_verified"] is False
+
+    for bad in ({"setup": ["none", "identity_check"]}, {"per_payment": "sometimes"}, {"escrow_release": "admin"},
+                {"setup": ["kyc"]}):
+        r = client.patch(f"/v1/services/{wallet['id']}", headers=h, json={"commerce": {"human_approval": bad}})
+        assert r.status_code == 422, bad
+    # Removing the block removes the facets: "not stated" is never shown as "no approval".
+    r = client.patch(f"/v1/services/{wallet['id']}", headers=h, json={"commerce": {}})
+    assert r.status_code == 200, r.text
+    assert wallet["id"] not in ids(human_approval="none")
+    voc = client.get("/v1/vocabulary").json()
+    assert voc["canonical"]["human_approval"]["per_payment"] == ["none", "pre_authorized", "per_transaction"]
+    assert {"value": "at_setup", "listings": 2} in voc["in_use"]["human_approval"]

@@ -33,6 +33,7 @@
               "fraud",
               "fx",
               "hosting",
+              "marketplace",
               "other"
             ],
             "title": "Service Type",
@@ -43,6 +44,242 @@
           "service_type"
         ],
         "title": "AcceptedService",
+        "type": "object"
+      },
+      "AgentCheckoutObservation": {
+        "additionalProperties": false,
+        "description": "One probe result recorded by ONAA's checker (admin only). Probes stop before payment: no order is placed.",
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Short plain-text reason. Untrusted.",
+            "title": "Detail"
+          },
+          "requirements": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentCheckoutRequirements"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "checkout_ready",
+              "buyer_step_required",
+              "auth_required",
+              "no_checkout",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "enum": [
+                "tools_list",
+                "search",
+                "cart",
+                "checkout",
+                "cancel"
+              ],
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "AgentCheckoutObservation",
+        "type": "object"
+      },
+      "AgentCheckoutRequirements": {
+        "additionalProperties": false,
+        "description": "What the probe observed an agent needs to reach checkout and pay at this store (\"how to buy here\").",
+        "properties": {
+          "accepted_agents_hint": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "which agents the store appears to serve when it refuses anonymous agents, inferred from its manifest. Not confirmed",
+            "title": "Accepted Agents Hint"
+          },
+          "agent_auth_required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "endpoint refused an unauthenticated agent",
+            "title": "Agent Auth Required"
+          },
+          "agent_profile_required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "UCP-Agent profile URL must be sent",
+            "title": "Agent Profile Required"
+          },
+          "autonomous_payment": {
+            "anyOf": [
+              {
+                "enum": [
+                  "after_one_time_link",
+                  "none_observed",
+                  "not_offered"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "after_one_time_link: a handler (Shop Pay identity linking) lets an agent pay alone after the buyer approves once; none_observed: every offered handler needs the buyer per purchase or undocumented approval; not_offered: no agent payment handler at checkout",
+            "title": "Autonomous Payment"
+          },
+          "buyer_confirmation_required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "checkout asked for the buyer's own input or approval (requires_escalation)",
+            "title": "Buyer Confirmation Required"
+          },
+          "buyer_info_required": {
+            "description": "message codes the checkout reported, e.g. buyer_identity_contact_method_required, delivery_address_required",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Buyer Info Required",
+            "type": "array"
+          },
+          "currencies_seen": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Currencies Seen",
+            "type": "array"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "manifest_payment_handlers": {
+            "description": "payment handler namespaces in the store's UCP manifest, e.g. com.google.pay, dev.shopify.shop_pay",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Manifest Payment Handlers",
+            "type": "array"
+          },
+          "no_shipping_to": {
+            "description": "tested countries where the checkout reported no delivery",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "No Shipping To",
+            "type": "array"
+          },
+          "payment_handlers": {
+            "description": "handler ids offered at checkout, e.g. shopify.card, shop_pay, gpay",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Payment Handlers",
+            "type": "array"
+          },
+          "protocol": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "e.g. ucp-mcp, shop-mcp",
+            "title": "Protocol"
+          },
+          "protocol_version": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Protocol Version"
+          },
+          "ships_to": {
+            "description": "tested countries (ISO 3166-1) where a checkout reported delivery",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Ships To",
+            "type": "array"
+          },
+          "tested_country": {
+            "anyOf": [
+              {
+                "maxLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tested Country"
+          }
+        },
+        "title": "AgentCheckoutRequirements",
         "type": "object"
       },
       "AgentCreate": {
@@ -669,6 +906,17 @@
       },
       "CertificationApplicationOut": {
         "properties": {
+          "conformance_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerificationRunOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Automated conformance pre-check filed with the application (CERT-009)."
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -766,6 +1014,20 @@
             "title": "Reason",
             "type": "string"
           },
+          "reviewer": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Human reviewer who made the decision. Required to approve protocol/commerce/service certifications: the signed attestation rests on this approval record.",
+            "title": "Reviewer"
+          },
           "valid_days": {
             "default": 365,
             "maximum": 730.0,
@@ -783,6 +1045,18 @@
       },
       "CertificationOut": {
         "properties": {
+          "attestation_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "TEST-ONLY signed attestation (staging). Verify it with `onaa verify`.",
+            "title": "Attestation Url"
+          },
           "criteria_version": {
             "title": "Criteria Version",
             "type": "string"
@@ -808,6 +1082,18 @@
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "status_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Signed, short-lived status record (max age 7 days).",
+            "title": "Status Url"
           }
         },
         "required": [
@@ -819,6 +1105,39 @@
           "expires_at"
         ],
         "title": "CertificationOut",
+        "type": "object"
+      },
+      "CertificationStatusChange": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "reviewer": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Reviewer",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "suspended",
+              "revoked",
+              "active"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "reason",
+          "reviewer"
+        ],
+        "title": "CertificationStatusChange",
         "type": "object"
       },
       "ChallengeCreated": {
@@ -1008,6 +1327,16 @@
             "title": "Classifications",
             "type": "array"
           },
+          "human_approval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HumanApproval"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "incoterms": {
             "description": "ICC Incoterms 2020, for physical goods",
             "items": {
@@ -1187,6 +1516,31 @@
         "title": "DataHandling",
         "type": "object"
       },
+      "DecisionIn": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "reason"
+        ],
+        "title": "DecisionIn",
+        "type": "object"
+      },
       "DiscoveredCreate": {
         "additionalProperties": false,
         "properties": {
@@ -1295,6 +1649,43 @@
             ],
             "title": "Endpoint Url"
           },
+          "human_approval": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HumanApproval"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where a person must act, as the provider's public docs describe it (stored as commerce.human_approval). Observed by ONAA, not declared by the provider."
+          },
+          "payment_methods": {
+            "description": "Agent-usable payment methods the provider's public docs describe (stored as commerce.payment_terms.methods). Observed by ONAA, not declared by the provider.",
+            "items": {
+              "enum": [
+                "card",
+                "bank_transfer",
+                "instant_bank_transfer",
+                "prepaid_balance",
+                "stablecoin",
+                "crypto"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "title": "Payment Methods",
+            "type": "array"
+          },
+          "payment_networks": {
+            "description": "e.g. visa, mastercard, usdc, x402, ap2",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Payment Networks",
+            "type": "array"
+          },
           "regions": {
             "items": {
               "type": "string"
@@ -1317,6 +1708,7 @@
               "fraud",
               "fx",
               "hosting",
+              "marketplace",
               "other"
             ],
             "title": "Service Type",
@@ -1451,6 +1843,77 @@
           "actor_type"
         ],
         "title": "HistoryEntry",
+        "type": "object"
+      },
+      "HumanApproval": {
+        "additionalProperties": false,
+        "description": "Where a person must act. Self-declared by the listing (or observed by ONAA from public docs for a\ndiscovered provider); never verified and not a trust level. Omitted fields mean \"not stated\".",
+        "properties": {
+          "escrow_release": {
+            "anyOf": [
+              {
+                "enum": [
+                  "automatic",
+                  "evaluator",
+                  "human"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Escrow providers: who releases or refunds held funds. automatic (the parties' agents over an API or contract), evaluator (a named third-party agent or contract decides), human (provider staff or a party's person must act).",
+            "title": "Escrow Release"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Plain-language detail. Untrusted text.",
+            "title": "Notes"
+          },
+          "per_payment": {
+            "anyOf": [
+              {
+                "enum": [
+                  "none",
+                  "pre_authorized",
+                  "per_transaction"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For each payment: none (the agent pays on its own, within limits a person may have set once at setup), pre_authorized (a person approves each purchase intent or mandate BEFORE the agent pays; the agent then completes it alone), per_transaction (a person confirms each payment while it happens, e.g. checkout page, bank strong authentication, PIN).",
+            "title": "Per Payment"
+          },
+          "setup": {
+            "description": "One-time steps a person completes before an agent can use the service: none, identity_check (KYC/KYB, may be automated), application_review (the provider reviews and approves the use, e.g. card issuing programmes), partner_agreement (a signed contract or partner programme), account_funding (a person tops up a balance or sets limits in advance).",
+            "items": {
+              "enum": [
+                "none",
+                "identity_check",
+                "application_review",
+                "partner_agreement",
+                "account_funding"
+              ],
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Setup",
+            "type": "array"
+          }
+        },
+        "title": "HumanApproval",
         "type": "object"
       },
       "Integration": {
@@ -1866,6 +2329,76 @@
         "title": "OperatorUpdate",
         "type": "object"
       },
+      "OptOutRequest": {
+        "additionalProperties": false,
+        "description": "Remove discovered (never registered) entries for a URL or a whole host and stop re-importing them.",
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional; do not include personal data",
+            "title": "Reason"
+          },
+          "scope": {
+            "default": "host",
+            "description": "host = every discovered entry on that host (default); url = only that URL",
+            "enum": [
+              "url",
+              "host"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "url": {
+            "description": "Agent Card URL, documentation URL or any https URL on the host",
+            "maxLength": 2048,
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "OptOutRequest",
+        "type": "object"
+      },
+      "OptOutResult": {
+        "properties": {
+          "note": {
+            "default": "Discovered entries matching this request are removed and will not be re-imported. Registered listings are not affected: their owner can delete them with their own key.",
+            "title": "Note",
+            "type": "string"
+          },
+          "removed_listing_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Removed Listing Ids",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "removed",
+              "suppressed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "removed_listing_ids"
+        ],
+        "title": "OptOutResult",
+        "type": "object"
+      },
       "PaymentTerms": {
         "additionalProperties": false,
         "properties": {
@@ -2003,6 +2536,75 @@
           }
         },
         "title": "Policies",
+        "type": "object"
+      },
+      "PolicyRequestIn": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "maxLength": 40,
+            "title": "Action",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "title": "Params",
+            "type": "object"
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rationale"
+          },
+          "subject_id": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Id"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "PolicyRequestIn",
+        "type": "object"
+      },
+      "PrecheckCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "listing_id": {
+            "maxLength": 40,
+            "title": "Listing Id",
+            "type": "string"
+          },
+          "scheme": {
+            "default": "protocol_certified",
+            "enum": [
+              "protocol_certified",
+              "commerce_certified",
+              "service_certified"
+            ],
+            "title": "Scheme",
+            "type": "string"
+          }
+        },
+        "required": [
+          "listing_id"
+        ],
+        "title": "PrecheckCreate",
         "type": "object"
       },
       "Pricing": {
@@ -2209,6 +2811,19 @@
               }
             ],
             "title": "Agent Card Url"
+          },
+          "agent_checkout": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Buying channels: ONAA's last probe of whether an outside agent can search and reach checkout (stops before payment). status checkout_ready, buyer_step_required, auth_required, no_checkout or failed, with checked_at. An observation, not a verification or endorsement.",
+            "title": "Agent Checkout"
           },
           "capabilities": {
             "items": {
@@ -3169,6 +3784,7 @@
               "fraud",
               "fx",
               "hosting",
+              "marketplace",
               "other"
             ],
             "title": "Service Type",
@@ -3673,7 +4289,8 @@
                 "enum": [
                   "operator_account",
                   "agent_self_registration",
-                  "discovery_import"
+                  "discovery_import",
+                  "system"
                 ],
                 "type": "string"
               },
@@ -3748,6 +4365,127 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VantageObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "card_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Sha256"
+          },
+          "jwks_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jwks Sha256"
+          },
+          "listing_id": {
+            "maxLength": 40,
+            "title": "Listing Id",
+            "type": "string"
+          },
+          "vantage": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Vantage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "listing_id",
+          "vantage"
+        ],
+        "title": "VantageObservation",
+        "type": "object"
+      },
+      "VerificationRunOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "listing_id": {
+            "title": "Listing Id",
+            "type": "string"
+          },
+          "note": {
+            "default": "Automated pre-check evidence only. It is not a certification; issuance needs human review (and real issuance needs founder approval).",
+            "title": "Note",
+            "type": "string"
+          },
+          "report_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Sha256"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "summary": {
+            "additionalProperties": true,
+            "title": "Summary",
+            "type": "object"
+          },
+          "vantage": {
+            "title": "Vantage",
+            "type": "string"
+          },
+          "verdict": {
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "listing_id",
+          "kind",
+          "vantage",
+          "role",
+          "verdict",
+          "summary",
+          "report_sha256",
+          "created_at"
+        ],
+        "title": "VerificationRunOut",
         "type": "object"
       },
       "VocabularyDecision": {
@@ -3924,8 +4662,8 @@
     }
   },
   "info": {
-    "description": "Central discovery, registration and trust metadata for ONAA (Open Network for AI Agents). The Registry never relays buyer/seller transactions, holds funds, or hosts seller data. Development build: not a production service.",
-    "title": "ONAA Registry API",
+    "description": "Find stores and marketplaces AI buying agents can actually buy from, with each store's tested checkout requirements (UCP, Shop MCP); links only. Also lists payment and other providers and buyer and seller agents. This registry API holds listings and trust metadata only; it never relays buyer/seller transactions, holds funds, or hosts seller data.",
+    "title": "ONAA API (Open Network for AI Agents)",
     "version": "0.1.0"
   },
   "openapi": "3.1.0",
@@ -3949,6 +4687,65 @@
         ]
       }
     },
+    "/.well-known/onaa/issuer-jwks.json": {
+      "get": {
+        "operationId": "issuer_manifest__well_known_onaa_issuer_jwks_json_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Root-signed issuer key manifest (pin the root key, not this URL)",
+        "tags": [
+          "trust"
+        ]
+      }
+    },
+    "/agent/ucp-profile.json": {
+      "get": {
+        "operationId": "ucp_agent_profile_agent_ucp_profile_json_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "ONAA's UCP platform (agent) profile, sent as UCP-Agent when the checkout checker probes stores",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/llms-full.txt": {
+      "get": {
+        "operationId": "llms_full_txt_llms_full_txt_get",
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "llms.txt plus every listed store and its tested checkout, in one plain-text file",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
     "/llms.txt": {
       "get": {
         "operationId": "llms_txt_llms_txt_get",
@@ -3967,6 +4764,101 @@
         "summary": "Plain-text onboarding for LLM agents",
         "tags": [
           "meta"
+        ]
+      }
+    },
+    "/stores.csv": {
+      "get": {
+        "operationId": "stores_csv_stores_csv_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "All stores as CSV (one row per store)",
+        "tags": [
+          "stores"
+        ]
+      }
+    },
+    "/stores.json": {
+      "get": {
+        "description": "The full store feed: every listed store with ONAA's last checkout probe (protocol, payment handlers,\nwhether an agent can pay alone, buyer info required, tested shipping countries) and links. Supports\nIf-None-Match. Same document as /v1/stores.json.",
+        "operationId": "stores_feed_stores_json_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "All stores AI buying agents can buy from, with checkout requirements (one file)",
+        "tags": [
+          "stores"
+        ]
+      }
+    },
+    "/v1/admin/certifications/issued/{cert_id}/status": {
+      "post": {
+        "operationId": "change_status_v1_admin_certifications_issued__cert_id__status_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cert_id",
+            "required": true,
+            "schema": {
+              "title": "Cert Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CertificationStatusChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Suspend, revoke or reinstate an issued certification (logged and re-signed)",
+        "tags": [
+          "certifications",
+          "admin"
         ]
       }
     },
@@ -4190,6 +5082,124 @@
         ]
       }
     },
+    "/v1/admin/jobs/verification-monitor": {
+      "post": {
+        "operationId": "verification_monitor_v1_admin_jobs_verification_monitor_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "detect_limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 1000,
+              "minimum": 0,
+              "title": "Detect Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "recheck_limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 200,
+              "minimum": 0,
+              "title": "Recheck Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Card/JWKS change detection, due unannounced re-checks, expiry and status re-issue",
+        "tags": [
+          "trust",
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/listings/{listing_id}/agent-checkout": {
+      "post": {
+        "operationId": "record_agent_checkout_v1_admin_listings__listing_id__agent_checkout_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "listing_id",
+            "required": true,
+            "schema": {
+              "title": "Listing Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCheckoutObservation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Record ONAA's checkout probe for a buying channel (never a purchase)",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/v1/admin/listings/{listing_id}/suspend": {
       "post": {
         "operationId": "suspend_v1_admin_listings__listing_id__suspend_post",
@@ -4243,6 +5253,52 @@
         ],
         "summary": "Suspend",
         "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/listings/{listing_id}/verification-runs": {
+      "get": {
+        "operationId": "list_runs_v1_admin_listings__listing_id__verification_runs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "listing_id",
+            "required": true,
+            "schema": {
+              "title": "Listing Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Runs",
+        "tags": [
+          "trust",
           "admin"
         ]
       }
@@ -4353,6 +5409,174 @@
         ]
       }
     },
+    "/v1/admin/policy/requests": {
+      "get": {
+        "operationId": "list_requests_v1_admin_policy_requests_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "decision",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 20,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "pending_approval",
+              "title": "Decision"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Requests",
+        "tags": [
+          "policy",
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/policy/requests/{request_id}/decision": {
+      "post": {
+        "operationId": "decide_v1_admin_policy_requests__request_id__decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "title": "Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Decide",
+        "tags": [
+          "policy",
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/verification/observations": {
+      "post": {
+        "operationId": "observation_v1_admin_verification_observations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VantageObservation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Record a card/JWKS observation from another vantage point (cloaking detection)",
+        "tags": [
+          "trust",
+          "admin"
+        ]
+      }
+    },
     "/v1/admin/vocabulary/proposals/{proposal_id}/decision": {
       "post": {
         "operationId": "decide_v1_admin_vocabulary_proposals__proposal_id__decision_post",
@@ -4416,6 +5640,7 @@
         "operationId": "list_listings_v1_agents_get",
         "parameters": [
           {
+            "description": "Free text. Every word must match the name, description, service type, role, capability, category, card skill or accepted settlement service, e.g. q=escrow",
             "in": "query",
             "name": "q",
             "required": false,
@@ -4429,6 +5654,7 @@
                   "type": "null"
                 }
               ],
+              "description": "Free text. Every word must match the name, description, service type, role, capability, category, card skill or accepted settlement service, e.g. q=escrow",
               "title": "Q"
             }
           },
@@ -4807,6 +6033,111 @@
               ],
               "description": "e.g. visa, sepa, upi, pix",
               "title": "Payment Network"
+            }
+          },
+          {
+            "description": "where a person must approve: none (no approval at any stated stage), at_setup, in_advance (each purchase approved before the agent pays), per_payment, at_release. Self-declared or ONAA-observed, never verified",
+            "in": "query",
+            "name": "human_approval",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "where a person must approve: none (no approval at any stated stage), at_setup, in_advance (each purchase approved before the agent pays), per_payment, at_release. Self-declared or ONAA-observed, never verified",
+              "title": "Human Approval"
+            }
+          },
+          {
+            "description": "none, identity_check, application_review, partner_agreement, account_funding",
+            "in": "query",
+            "name": "human_setup",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "none, identity_check, application_review, partner_agreement, account_funding",
+              "title": "Human Setup"
+            }
+          },
+          {
+            "description": "none, pre_authorized, per_transaction",
+            "in": "query",
+            "name": "human_per_payment",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "none, pre_authorized, per_transaction",
+              "title": "Human Per Payment"
+            }
+          },
+          {
+            "description": "automatic, evaluator, human",
+            "in": "query",
+            "name": "escrow_release",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "automatic, evaluator, human",
+              "title": "Escrow Release"
+            }
+          },
+          {
+            "description": "buying channels: ONAA's last checkout probe, e.g. checkout_ready, buyer_step_required (observation, not verification)",
+            "in": "query",
+            "name": "agent_checkout",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "buying channels: ONAA's last checkout probe, e.g. checkout_ready, buyer_step_required (observation, not verification)",
+              "title": "Agent Checkout"
             }
           },
           {
@@ -5581,6 +6912,405 @@
         ]
       }
     },
+    "/v1/attestations": {
+      "get": {
+        "operationId": "list_attestations_v1_attestations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "subject_id",
+            "required": true,
+            "schema": {
+              "maxLength": 40,
+              "title": "Subject Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Attestations for a subject, any status (TEST-ONLY in staging)",
+        "tags": [
+          "trust"
+        ]
+      }
+    },
+    "/v1/attestations/{att_id}": {
+      "get": {
+        "operationId": "get_attestation_v1_attestations__att_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "att_id",
+            "required": true,
+            "schema": {
+              "title": "Att Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Signed TEST-ONLY attestation",
+        "tags": [
+          "trust"
+        ]
+      }
+    },
+    "/v1/attestations/{att_id}/status": {
+      "get": {
+        "operationId": "get_status_v1_attestations__att_id__status_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "att_id",
+            "required": true,
+            "schema": {
+              "title": "Att Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Signed status record (re-issued; max age 7 days)",
+        "tags": [
+          "trust"
+        ]
+      }
+    },
+    "/v1/buying/check": {
+      "get": {
+        "operationId": "check_v1_buying_check_get",
+        "parameters": [
+          {
+            "description": "svc_ id, store domain or any URL on the store; repeat or comma-separate, e.g. the shops in Shop MCP results",
+            "in": "query",
+            "name": "store",
+            "required": true,
+            "schema": {
+              "description": "svc_ id, store domain or any URL on the store; repeat or comma-separate, e.g. the shops in Shop MCP results",
+              "items": {
+                "type": "string"
+              },
+              "title": "Store",
+              "type": "array"
+            }
+          },
+          {
+            "description": "ISO 3166-1 country to ship to, e.g. KR",
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO 3166-1 country to ship to, e.g. KR",
+              "title": "Country"
+            }
+          },
+          {
+            "description": "your agent or platform, e.g. gemini, chatgpt, claude",
+            "in": "query",
+            "name": "agent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 60,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "your agent or platform, e.g. gemini, chatgpt, claude",
+              "title": "Agent"
+            }
+          },
+          {
+            "description": "payment methods you or your buyer can use: shop_pay, card, google_pay (comma-separated or repeated)",
+            "in": "query",
+            "name": "payment",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "payment methods you or your buyer can use: shop_pay, card, google_pay (comma-separated or repeated)",
+              "title": "Payment"
+            }
+          },
+          {
+            "description": "only stores where the agent can pay without the buyer each time (observed: after a one-time Shop Pay link)",
+            "in": "query",
+            "name": "pay_alone",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "only stores where the agent can pay without the buyer each time (observed: after a one-time Shop Pay link)",
+              "title": "Pay Alone",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Can I buy at these stores, and how? (ids, domains or product URLs, up to 25)",
+        "tags": [
+          "buying"
+        ]
+      }
+    },
+    "/v1/buying/stores": {
+      "get": {
+        "operationId": "stores_v1_buying_stores_get",
+        "parameters": [
+          {
+            "description": "ISO 3166-1 country to ship to, e.g. KR",
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO 3166-1 country to ship to, e.g. KR",
+              "title": "Country"
+            }
+          },
+          {
+            "description": "your agent or platform, e.g. gemini, chatgpt, claude",
+            "in": "query",
+            "name": "agent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 60,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "your agent or platform, e.g. gemini, chatgpt, claude",
+              "title": "Agent"
+            }
+          },
+          {
+            "description": "payment methods you or your buyer can use: shop_pay, card, google_pay (comma-separated or repeated)",
+            "in": "query",
+            "name": "payment",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "payment methods you or your buyer can use: shop_pay, card, google_pay (comma-separated or repeated)",
+              "title": "Payment"
+            }
+          },
+          {
+            "description": "only stores where the agent can pay without the buyer each time (observed: after a one-time Shop Pay link)",
+            "in": "query",
+            "name": "pay_alone",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "only stores where the agent can pay without the buyer each time (observed: after a one-time Shop Pay link)",
+              "title": "Pay Alone",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "words in the store name or description; product search stays with each store",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "words in the store name or description; product search stays with each store",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "buyable = yes answers only; possible (default) adds 'maybe' (e.g. delivery untested); all adds no/unknown with reasons",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "default": "possible",
+              "description": "buyable = yes answers only; possible (default) adds 'maybe' (e.g. delivery untested); all adds no/unknown with reasons",
+              "enum": [
+                "buyable",
+                "possible",
+                "all"
+              ],
+              "title": "Include",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 10000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stores an agent can buy from under your conditions (ship-to, payment, pay alone)",
+        "tags": [
+          "buying"
+        ]
+      }
+    },
     "/v1/certifications/applications": {
       "post": {
         "operationId": "apply_v1_certifications_applications_post",
@@ -5622,6 +7352,52 @@
           }
         ],
         "summary": "Apply for certification (separate from free listing)",
+        "tags": [
+          "certifications"
+        ]
+      }
+    },
+    "/v1/certifications/precheck": {
+      "post": {
+        "operationId": "precheck_v1_certifications_precheck_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrecheckCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationRunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Free automated conformance pre-check of your endpoint-verified listing (CERT-009)",
         "tags": [
           "certifications"
         ]
@@ -5674,6 +7450,47 @@
         ]
       }
     },
+    "/v1/discovered/opt-out": {
+      "post": {
+        "operationId": "opt_out_v1_discovered_opt_out_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OptOutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptOutResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove discovered (unregistered) entries for a URL or host and block re-import",
+        "tags": [
+          "opt-out"
+        ]
+      }
+    },
     "/v1/health": {
       "get": {
         "operationId": "health_v1_health_get",
@@ -5690,6 +7507,87 @@
         "summary": "Health",
         "tags": [
           "meta"
+        ]
+      }
+    },
+    "/v1/incidents": {
+      "get": {
+        "operationId": "incidents_v1_incidents_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "listing_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Listing Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "open",
+                    "resolved"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Operational incident history (health records, not sanctions)",
+        "tags": [
+          "policy",
+          "trust"
         ]
       }
     },
@@ -5847,6 +7745,69 @@
         ]
       }
     },
+    "/v1/policy/requests": {
+      "post": {
+        "operationId": "file_request_v1_policy_requests_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "File a steward change request (policy decides)",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
+    "/v1/policy/rules": {
+      "get": {
+        "operationId": "rules_v1_policy_rules_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "What the steward may do alone, what needs approval",
+        "tags": [
+          "policy"
+        ]
+      }
+    },
     "/v1/reports": {
       "post": {
         "operationId": "report_v1_reports_post",
@@ -5991,6 +7952,7 @@
         "operationId": "list_listings_v1_services_get",
         "parameters": [
           {
+            "description": "Free text. Every word must match the name, description, service type, role, capability, category, card skill or accepted settlement service, e.g. q=escrow",
             "in": "query",
             "name": "q",
             "required": false,
@@ -6004,6 +7966,7 @@
                   "type": "null"
                 }
               ],
+              "description": "Free text. Every word must match the name, description, service type, role, capability, category, card skill or accepted settlement service, e.g. q=escrow",
               "title": "Q"
             }
           },
@@ -6382,6 +8345,111 @@
               ],
               "description": "e.g. visa, sepa, upi, pix",
               "title": "Payment Network"
+            }
+          },
+          {
+            "description": "where a person must approve: none (no approval at any stated stage), at_setup, in_advance (each purchase approved before the agent pays), per_payment, at_release. Self-declared or ONAA-observed, never verified",
+            "in": "query",
+            "name": "human_approval",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "where a person must approve: none (no approval at any stated stage), at_setup, in_advance (each purchase approved before the agent pays), per_payment, at_release. Self-declared or ONAA-observed, never verified",
+              "title": "Human Approval"
+            }
+          },
+          {
+            "description": "none, identity_check, application_review, partner_agreement, account_funding",
+            "in": "query",
+            "name": "human_setup",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "none, identity_check, application_review, partner_agreement, account_funding",
+              "title": "Human Setup"
+            }
+          },
+          {
+            "description": "none, pre_authorized, per_transaction",
+            "in": "query",
+            "name": "human_per_payment",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "none, pre_authorized, per_transaction",
+              "title": "Human Per Payment"
+            }
+          },
+          {
+            "description": "automatic, evaluator, human",
+            "in": "query",
+            "name": "escrow_release",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "automatic, evaluator, human",
+              "title": "Escrow Release"
+            }
+          },
+          {
+            "description": "buying channels: ONAA's last checkout probe, e.g. checkout_ready, buyer_step_required (observation, not verification)",
+            "in": "query",
+            "name": "agent_checkout",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "buying channels: ONAA's last checkout probe, e.g. checkout_ready, buyer_step_required (observation, not verification)",
+              "title": "Agent Checkout"
             }
           },
           {
@@ -7081,6 +9149,475 @@
         ]
       }
     },
+    "/v1/stats/usage": {
+      "get": {
+        "operationId": "usage_v1_stats_usage_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 14,
+              "maximum": 90,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Anonymous daily usage counts by agent class, path, MCP tool and store check",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/v1/stores": {
+      "get": {
+        "description": "Stores ONAA lists, filtered on ONAA's last checkout probe. ONAA has no product data: to find a product,\nuse the store's own catalog search (its MCP endpoint) or Shop MCP, then check the store here or with\n/v1/stores/check. For the whole list in one request use /stores.json.",
+        "operationId": "list_stores_v1_stores_get",
+        "parameters": [
+          {
+            "description": "ISO country the checkout reported delivery to (tested: US, GB, DE, JP, KR)",
+            "in": "query",
+            "name": "ships_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO country the checkout reported delivery to (tested: US, GB, DE, JP, KR)",
+              "title": "Ships To"
+            }
+          },
+          {
+            "description": "true: an agent can pay alone after the buyer approves a one-time link (Shop Pay identity linking)",
+            "in": "query",
+            "name": "pays_alone",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "true: an agent can pay alone after the buyer approves a one-time link (Shop Pay identity linking)",
+              "title": "Pays Alone"
+            }
+          },
+          {
+            "description": "last probe status: checkout_ready, buyer_step_required, auth_required, no_checkout, failed, not_checked_yet",
+            "in": "query",
+            "name": "checkout",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "last probe status: checkout_ready, buyer_step_required, auth_required, no_checkout, failed, not_checked_yet",
+              "title": "Checkout"
+            }
+          },
+          {
+            "description": "ucp, shop-mcp",
+            "in": "query",
+            "name": "protocol",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ucp, shop-mcp",
+              "title": "Protocol"
+            }
+          },
+          {
+            "description": "e.g. shop_pay, shopify.card, gpay",
+            "in": "query",
+            "name": "payment_handler",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "e.g. shop_pay, shopify.card, gpay",
+              "title": "Payment Handler"
+            }
+          },
+          {
+            "description": "currency seen at checkout, ISO 4217",
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "currency seen at checkout, ISO 4217",
+              "title": "Currency"
+            }
+          },
+          {
+            "description": "store name or domain contains",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "store name or domain contains",
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Find stores an AI agent can buy from (filter by shipping country, pay-alone, ...)",
+        "tags": [
+          "stores"
+        ]
+      }
+    },
+    "/v1/stores/check": {
+      "get": {
+        "description": "Answers per store: verdict (yes, yes_buyer_finishes, maybe, no, unknown), reasons, cautions and how to\nbuy. A store ONAA has not listed is looked up live at its /.well-known/ucp (robots.txt honoured); if it\npublishes a UCP shopping endpoint, ONAA adds it (links only) and answers from its declared protocol.",
+        "operationId": "check_get_v1_stores_check_get",
+        "parameters": [
+          {
+            "description": "product or store URL, domain or svc_ id; repeat or comma-separate (max 25), e.g. the shops in Shop MCP results",
+            "in": "query",
+            "name": "url",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "product or store URL, domain or svc_ id; repeat or comma-separate (max 25), e.g. the shops in Shop MCP results",
+              "title": "Url"
+            }
+          },
+          {
+            "description": "ship-to country, ISO 3166-1",
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ship-to country, ISO 3166-1",
+              "title": "Country"
+            }
+          },
+          {
+            "description": "your agent platform, e.g. gemini",
+            "in": "query",
+            "name": "agent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 60,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "your agent platform, e.g. gemini",
+              "title": "Agent"
+            }
+          },
+          {
+            "description": "payment methods you can use: shop_pay, card, google_pay",
+            "in": "query",
+            "name": "payment",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "payment methods you can use: shop_pay, card, google_pay",
+              "title": "Payment"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pay_alone",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Pay Alone",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Can an AI agent buy here? Any product URL, store domain or svc_ id",
+        "tags": [
+          "stores"
+        ]
+      },
+      "post": {
+        "operationId": "check_post_v1_stores_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "examples": [
+                  {
+                    "country": "KR",
+                    "pay_alone": true,
+                    "stores": [
+                      "https://example-shop.com/products/x",
+                      "svc_..."
+                    ]
+                  }
+                ],
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Same as GET /v1/stores/check, with a JSON body",
+        "tags": [
+          "stores"
+        ]
+      }
+    },
+    "/v1/stores/{store}": {
+      "get": {
+        "operationId": "get_store_v1_stores__store__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "store",
+            "required": true,
+            "schema": {
+              "title": "Store",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "One store by listing id or domain, with how to buy there",
+        "tags": [
+          "stores"
+        ]
+      }
+    },
     "/v1/terms": {
       "get": {
         "operationId": "terms_v1_terms_get",
@@ -7118,6 +9655,203 @@
         "summary": "Current registry terms text",
         "tags": [
           "meta"
+        ]
+      }
+    },
+    "/v1/transparency/checkpoint": {
+      "get": {
+        "operationId": "get_checkpoint_v1_transparency_checkpoint_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Signed tree head of the attestation transparency log",
+        "tags": [
+          "trust"
+        ]
+      }
+    },
+    "/v1/transparency/entries": {
+      "get": {
+        "operationId": "get_entries_v1_transparency_entries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Start",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End"
+            }
+          },
+          {
+            "in": "query",
+            "name": "attestation_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Attestation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Log entries by index range or by attestation id",
+        "tags": [
+          "trust"
+        ]
+      }
+    },
+    "/v1/transparency/proof/consistency": {
+      "get": {
+        "operationId": "consistency_v1_transparency_proof_consistency_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "first",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "First",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "second",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Second",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Merkle consistency proof (RFC 9162 section 2.1.4)",
+        "tags": [
+          "trust"
+        ]
+      }
+    },
+    "/v1/transparency/proof/inclusion": {
+      "get": {
+        "operationId": "inclusion_v1_transparency_proof_inclusion_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "minimum": 0,
+              "title": "Index",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tree_size",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Tree Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Merkle inclusion proof (RFC 9162 section 2.1.3)",
+        "tags": [
+          "trust"
         ]
       }
     },

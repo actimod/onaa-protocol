@@ -320,7 +320,7 @@ def _certify(client, fetcher, headers, scheme="protocol_certified", days=30):
     app_id = client.post("/v1/certifications/applications", json={"listing_id": aid, "scheme": scheme},
                          headers=headers).json()["id"]
     r = client.post(f"/v1/admin/certifications/{app_id}/decision", headers=admin_headers(),
-                    json={"decision": "approve", "reason": "ok", "valid_days": days})
+                    json={"decision": "approve", "reviewer": "founder", "reason": "ok", "valid_days": days})
     assert r.status_code == 200, r.text
     return aid
 
@@ -357,7 +357,7 @@ def test_cannot_approve_for_suspended_listing(client, op, fetcher):
                          headers=headers).json()["id"]
     client.post(f"/v1/admin/listings/{aid}/suspend", headers=admin_headers())
     r = client.post(f"/v1/admin/certifications/{app_id}/decision", headers=admin_headers(),
-                    json={"decision": "approve", "reason": "ok"})
+                    json={"decision": "approve", "reviewer": "founder", "reason": "ok"})
     assert r.status_code == 409
 
 
@@ -376,9 +376,9 @@ def test_squatting_blocked_by_host_not_exact_url(client, op, other_op, fetcher):
     real = client.post("/v1/agents", json=AGENT, headers=owner).json()["id"]
     verify_listing(client, fetcher, "agents", real, owner)
     variant = dict(AGENT, agent_card_url=AGENT["agent_card_url"] + "?x=1")
-    assert client.post("/v1/agents", json=variant, headers=squatter).status_code == 409
-    # The owner can still register more agents on their own verified host.
-    assert client.post("/v1/agents", json=variant, headers=owner).status_code == 201
+    assert client.post("/v1/agents", json=variant, headers=squatter).status_code == 422  # card must be at the root path
+    other_name = dict(AGENT, display_name="Squatter copy")
+    assert client.post("/v1/agents", json=other_name, headers=squatter).status_code == 409
 
 
 def test_safe_fetcher_rejects_compressed_body(monkeypatch):

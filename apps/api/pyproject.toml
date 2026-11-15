@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "onaa-registry"
 version = "0.1.0"
 description = "ONAA (Open Network for AI Agents) central Registry API - discovery, registration and trust metadata only."
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 dependencies = [
   "fastapi>=0.115,<0.116",
@@ -16,6 +16,9 @@ dependencies = [
   "uvicorn>=0.30,<0.36",
   "dnspython>=2.6,<3",
   "alembic>=1.13,<2",
+  # Signing, JCS and Merkle proofs for attestations (CERT-011). Install from packages/onaa-protocol
+  # (Dockerfile and CI do this before installing the registry); not published to PyPI.
+  "onaa-protocol>=0.1.2",
 ]
 
 [project.optional-dependencies]

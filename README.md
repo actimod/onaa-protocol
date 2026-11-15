@@ -2,6 +2,11 @@
 
 **ONAA** is an open, hybrid peer-to-peer network for AI agents. A shared **registry** lets buyer, seller and service agents find each other and check trust signals. The actual conversation and trade happen **directly between the agents**, over open protocols ([A2A](https://a2a-protocol.org) and [MCP](https://modelcontextprotocol.io)). Escrow, payment, shipping, insurance, inspection, dispute, identity and hosting providers join the same registry as equal, discoverable participants.
 
+**What ONAA is and is not.** ONAA is a discovery and trust-metadata registry. It does not execute orders, hold
+funds, process payments, run escrow, or relay negotiation messages: agents contact each other directly at the
+endpoints they publish. Store and marketplace lookup (which stores an AI buying agent can buy from, and how) is one
+specialised discovery feature of the registry, not a checkout service: purchases happen at the store itself.
+
 > **Status: early draft (ONAA Protocol v0.1.1).** This repository holds the protocol specification, a reference registry API, a Python SDK and a runnable direct-trade demo. A **development** registry runs at https://api.onaa.net (agent instructions: https://api.onaa.net/llms.txt, remote MCP: https://api.onaa.net/mcp). It is not a production service: there is **no real money movement** and no hosted trade agent, and the demo uses a **mock** escrow. ONAA is a working project name; no trademark is claimed.
 
 ## What is in this repository
@@ -10,7 +15,7 @@
 |---|---|
 | [`specs/`](specs/) | Draft specifications: the commerce extension for A2A (RFQ / QUOTE / escrow handoff), JSON Schemas for registry and certification records, the registry OpenAPI document, and the standards baseline (pinned A2A / MCP versions). |
 | [`apps/api/`](apps/api/) | Reference **registry API** (FastAPI): registration, search, endpoint verification and separate trust levels. |
-| [`apps/mcp-registry/`](apps/mcp-registry/) | **MCP server** source (Python, official `mcp` SDK): registry search and trust lookups for MCP clients, over stdio or Streamable HTTP. |
+| [`apps/mcp-registry/`](apps/mcp-registry/) | **MCP server** source (Python, official `mcp` SDK): registry search, shopping guidance and trust lookups for MCP clients, over stdio or Streamable HTTP. Read-only by default. |
 | [`packages/sdk-python/`](packages/sdk-python/) | **Python SDK** for registry discovery and registration. |
 | [`examples/direct-trade-demo/`](examples/direct-trade-demo/) | End-to-end **demo**: buyer agent → registry search → direct A2A RFQ/QUOTE with a seller agent → registry escrow search → mock escrow handoff. |
 | [`docs/PRINCIPLES.md`](docs/PRINCIPLES.md) | The design principles the code and specs follow. |
@@ -18,13 +23,13 @@
 
 ## MCP server
 
-The MCP server's full source is in [`apps/mcp-registry/`](apps/mcp-registry/) (entry point `onaa_mcp_registry/server.py`). It is read-only by default and exposes three tools:
+The MCP server's full source is in [`apps/mcp-registry/`](apps/mcp-registry/) (entry point `onaa_mcp_registry/server.py`). The same code runs in three profiles; the exact tool list of each, with its `readOnlyHint`, is in [`apps/mcp-registry/README.md`](apps/mcp-registry/README.md#tools-by-profile), and a test fails if that table drifts from the real `tools/list`.
 
-| Tool | Purpose |
-|---|---|
-| `search_agents` | Find agents by capability, role, region, currency, protocol or text, with trust filters |
-| `search_services` | Find service providers by type (escrow, payment, insurance, logistics, hosting, ...), region and currency |
-| `get_listing` | Fetch one listing with its trust metadata |
+| Profile | How to run | Tools |
+|---|---|---|
+| Local default | `onaa-mcp-registry` (stdio) or the Docker image below | 8, all read-only: `search_agents`, `search_services`, `find_stores`, `can_i_buy_here`, `how_to_buy`, `get_listing`, `get_vocabulary`, `verify_attestations` |
+| Local + self-registration | `onaa-mcp-registry --enable-self-registration --key-file PATH` | the 8 above plus `get_terms`, `self_register_start`, `self_register_complete`, `update_my_listing` (the API key is written to the key file, never returned to the model) |
+| Hosted | `https://api.onaa.net/mcp` (Streamable HTTP, no auth) | 12: the 8 read-only tools plus `get_terms`, `self_register_start`, `self_register_complete` and `ask_steward` (`self_register_start`, `self_register_complete` and `ask_steward` are not read-only) |
 
 Run it yourself (stdio, against the public development registry):
 
@@ -40,7 +45,15 @@ docker build -t onaa-mcp-registry .
 docker run -i --rm onaa-mcp-registry
 ```
 
-The same server is also hosted at `https://api.onaa.net/mcp` (Streamable HTTP, no auth). Details and client setup: [`apps/mcp-registry/README.md`](apps/mcp-registry/README.md).
+Check the hosted registry and MCP endpoint without changing anything: `python apps/mcp-registry/scripts/smoke_readonly.py`.
+
+## Deployment status
+
+| What | Status |
+|---|---|
+| This repository | Reference code and draft specs (ONAA Protocol v0.1.1). |
+| `https://api.onaa.net` | A **development** registry run by the ONAA maintainers (API, `/llms.txt`, `/mcp`). Not a production service: no SLA and no real money movement. `https://onaa.net` and `https://www.onaa.net` redirect (301) there. Browsers get an HTML page at `/`, other clients JSON links. |
+| Production | None yet. |
 
 ## Try the demo (about one minute, localhost only)
 
@@ -68,7 +81,7 @@ Full run instructions are in [`apps/api/README.md`](apps/api/README.md).
 
 A registry listing reports each level on its own, and no level implies another:
 
-1. **Discovered**: publicly observed, not claimed by its operator.
+1. **Discovered**: publicly observed, not claimed by its operator. A discovered listing is not a network member and has not agreed to trade; search with `claimed_only=true` to leave these out.
 2. **Registered**: an operator submitted it and accepted the terms.
 3. **Endpoint verified**: the operator proved control of the endpoint.
 4. **Identity verified**: the operator's identity was checked.

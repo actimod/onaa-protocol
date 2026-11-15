@@ -22,7 +22,7 @@ LifecycleStatus = Literal[
 Role = Literal["buyer_agent", "seller_agent", "service_provider", "hosting_provider", "adapter_gateway"]
 ServiceType = Literal[
     "payment", "escrow", "insurance", "logistics", "shipping", "inspection", "identity", "dispute",
-    "tax", "fraud", "fx", "hosting", "other",
+    "tax", "fraud", "fx", "hosting", "marketplace", "other",
 ]
 CertScheme = Literal["endpoint_verified", "operator_verified", "protocol_certified", "commerce_certified",
                      "service_certified"]
@@ -129,7 +129,7 @@ RESERVED_EXT_NAMESPACES = ("onaa.", "net.onaa.")
 
 TOKEN_PATTERN = r"^[a-z0-9][a-z0-9._-]{0,119}$"
 ServiceTypeLit = Literal["payment", "escrow", "insurance", "logistics", "shipping", "inspection", "identity",
-                         "dispute", "tax", "fraud", "fx", "hosting", "other"]
+                         "dispute", "tax", "fraud", "fx", "hosting", "marketplace", "other"]
 LISTING_REF_RE = re.compile(r"^(agt|svc|hst)_[0-9a-f]{24}$")
 
 
@@ -241,6 +241,69 @@ class PaymentTerms(StrictModel):
         return _tokens(v, "payment network")
 
 
+# When a person has to act before or during an agent's use of a service (founder request 2026-11-14). ONAA
+# trades are agent-to-agent; a buyer agent needs to know whether a provider can be used with no person in the
+# loop, only after a one-time human set-up, or only with a person confirming every payment or escrow release.
+HumanSetupLit = Literal["none", "identity_check", "application_review", "partner_agreement", "account_funding"]
+HumanPerPaymentLit = Literal["none", "pre_authorized", "per_transaction"]
+EscrowReleaseLit = Literal["automatic", "evaluator", "human"]
+# Setup steps that need someone's APPROVAL (a provider reviewer or a signed agreement), as opposed to a check or
+# a top-up an agent's owner can complete on its own.
+SETUP_APPROVAL_STEPS = frozenset({"application_review", "partner_agreement"})
+
+
+class HumanApproval(StrictModel):
+    """Where a person must act. Self-declared by the listing (or observed by ONAA from public docs for a
+    discovered provider); never verified and not a trust level. Omitted fields mean "not stated"."""
+
+    setup: list[HumanSetupLit] = Field(
+        default_factory=list, max_length=5,
+        description="One-time steps a person completes before an agent can use the service: none, identity_check "
+                    "(KYC/KYB, may be automated), application_review (the provider reviews and approves the use, "
+                    "e.g. card issuing programmes), partner_agreement (a signed contract or partner programme), "
+                    "account_funding (a person tops up a balance or sets limits in advance).")
+    per_payment: HumanPerPaymentLit | None = Field(
+        default=None,
+        description="For each payment: none (the agent pays on its own, within limits a person may have set once "
+                    "at setup), pre_authorized (a person approves each purchase intent or mandate BEFORE the agent "
+                    "pays; the agent then completes it alone), per_transaction (a person confirms each payment "
+                    "while it happens, e.g. checkout page, bank strong authentication, PIN).")
+    escrow_release: EscrowReleaseLit | None = Field(
+        default=None,
+        description="Escrow providers: who releases or refunds held funds. automatic (the parties' agents over an "
+                    "API or contract), evaluator (a named third-party agent or contract decides), human (provider "
+                    "staff or a party's person must act).")
+    notes: str | None = Field(default=None, max_length=500, description="Plain-language detail. Untrusted text.")
+
+    @field_validator("setup")
+    @classmethod
+    def _setup(cls, v: list[str]) -> list[str]:
+        v = sorted(set(v))
+        if "none" in v and len(v) > 1:
+            raise ValueError("setup 'none' cannot be combined with other steps")
+        return v
+
+
+def human_approval_summary(h: dict | None) -> set[str]:
+    """Search facet ``human_approval``: where an APPROVAL by a person is needed (at_setup, in_advance of each
+    purchase, per_payment while paying, at_release of escrow). ``none`` when at least one stage is
+    stated and no stated stage needs an approval; nothing when the block is absent (not stated)."""
+    if not h:
+        return set()
+    out = set()
+    if SETUP_APPROVAL_STEPS & set(h.get("setup") or []):
+        out.add("at_setup")
+    if h.get("per_payment") == "per_transaction":
+        out.add("per_payment")
+    if h.get("per_payment") == "pre_authorized":
+        out.add("in_advance")
+    if h.get("escrow_release") == "human":
+        out.add("at_release")
+    if not out and (h.get("setup") or h.get("per_payment") or h.get("escrow_release")):
+        out.add("none")
+    return out
+
+
 class Policies(StrictModel):
     """Links to the operator's own policies. ONAA does not adjudicate them."""
 
@@ -265,6 +328,7 @@ class Commerce(StrictModel):
     capacity: Capacity | None = None
     accepts_services: list[AcceptedService] = Field(default_factory=list, max_length=13)
     payment_terms: PaymentTerms | None = None
+    human_approval: HumanApproval | None = None
     policies: Policies | None = None
     classifications: list[Classification] = Field(default_factory=list, max_length=20)
     incoterms: list[Literal["EXW", "FCA", "CPT", "CIP", "DAP", "DPU", "DDP", "FAS", "FOB", "CFR", "CIF"]] = Field(
@@ -526,6 +590,9 @@ class CertificationOut(BaseModel):
     status: str
     issued_at: dt.datetime
     expires_at: dt.datetime
+    attestation_url: str | None = Field(
+        default=None, description="TEST-ONLY signed attestation (staging). Verify it with `onaa verify`.")
+    status_url: str | None = Field(default=None, description="Signed, short-lived status record (max age 7 days).")
 
 
 class Trust(BaseModel):
@@ -547,7 +614,8 @@ class Trust(BaseModel):
     last_check_result: str | None = None
     review_flags: list[str] = Field(
         default_factory=list, description="Moderation hints set by ONAA (e.g. name_collision_review).")
-    registration_method: Literal["operator_account", "agent_self_registration", "discovery_import"] | None = Field(
+    registration_method: Literal["operator_account", "agent_self_registration", "discovery_import",
+                                 "system"] | None = Field(
         default=None,
         description="agent_self_registration means the agent proved control of its endpoint host once, at signup, "
                     "as an anti-abuse gate. That is not the Endpoint Verified tier (endpoint_control_verified).")
@@ -592,10 +660,91 @@ class RegistryRecord(BaseModel):
     trust: Trust
     agent_card: dict | None = Field(default=None, description="Cache metadata for the linked card; content untrusted.")
     provenance: dict | None = None
+    agent_checkout: dict | None = Field(
+        default=None, description="Buying channels: ONAA's last probe of whether an outside agent can search and "
+                                  "reach checkout (stops before payment). status checkout_ready, buyer_step_required, "
+                                  "auth_required, no_checkout or failed, with checked_at. An observation, not a "
+                                  "verification or endorsement.")
     last_checked_at: dt.datetime | None
     status: LifecycleStatus
     created_at: dt.datetime
     updated_at: dt.datetime
+
+
+AgentCheckoutStatus = Literal[
+    "checkout_ready",        # agent created a checkout that only needs the buyer's approval and payment
+    "buyer_step_required",   # checkout created; the buyer must finish details/payment at the store's continue_url
+    "auth_required",         # endpoint refuses agents that are not authenticated or approved (partner only)
+    "no_checkout",           # no checkout tool, or search returned nothing purchasable
+    "failed",                # protocol or network error during the probe
+]
+
+
+class AgentCheckoutRequirements(StrictModel):
+    """What the probe observed an agent needs to reach checkout and pay at this store ("how to buy here")."""
+
+    protocol: str | None = Field(default=None, max_length=40, description="e.g. ucp-mcp, shop-mcp")
+    protocol_version: str | None = Field(default=None, max_length=20)
+    agent_profile_required: bool | None = Field(default=None, description="UCP-Agent profile URL must be sent")
+    agent_auth_required: bool | None = Field(default=None, description="endpoint refused an unauthenticated agent")
+    payment_handlers: list[str] = Field(default_factory=list, max_length=16,
+                                        description="handler ids offered at checkout, e.g. shopify.card, shop_pay, "
+                                                    "gpay")
+    buyer_info_required: list[str] = Field(default_factory=list, max_length=16,
+                                           description="message codes the checkout reported, e.g. "
+                                                       "buyer_identity_contact_method_required, "
+                                                       "delivery_address_required")
+    buyer_confirmation_required: bool | None = Field(
+        default=None, description="checkout asked for the buyer's own input or approval (requires_escalation)")
+    tested_country: str | None = Field(default=None, max_length=2)
+    currency: str | None = Field(default=None, max_length=3)
+    ships_to: list[str] = Field(default_factory=list, max_length=32,
+                                description="tested countries (ISO 3166-1) where a checkout reported delivery")
+    no_shipping_to: list[str] = Field(default_factory=list, max_length=32,
+                                      description="tested countries where the checkout reported no delivery")
+    currencies_seen: list[str] = Field(default_factory=list, max_length=16)
+    manifest_payment_handlers: list[str] = Field(
+        default_factory=list, max_length=16, description="payment handler namespaces in the store's UCP manifest, "
+                                                         "e.g. com.google.pay, dev.shopify.shop_pay")
+    accepted_agents_hint: str | None = Field(
+        default=None, max_length=200, description="which agents the store appears to serve when it refuses "
+                                                  "anonymous agents, inferred from its manifest. Not confirmed")
+    autonomous_payment: Literal["after_one_time_link", "none_observed", "not_offered"] | None = Field(
+        default=None, description="after_one_time_link: a handler (Shop Pay identity linking) lets an agent pay "
+                                  "alone after the buyer approves once; none_observed: every offered handler needs "
+                                  "the buyer per purchase or undocumented approval; not_offered: no agent payment "
+                                  "handler at checkout")
+
+    @field_validator("ships_to", "no_shipping_to")
+    @classmethod
+    def _v_cc(cls, v: list[str]) -> list[str]:
+        out = sorted({x.strip().upper() for x in v})
+        if any(len(x) != 2 or not x.isalpha() for x in out):
+            raise ValueError("countries must be ISO 3166-1 alpha-2")
+        return out
+
+    @field_validator("currencies_seen")
+    @classmethod
+    def _v_cur(cls, v: list[str]) -> list[str]:
+        out = sorted({x.strip().upper() for x in v})
+        if any(len(x) != 3 or not x.isalpha() for x in out):
+            raise ValueError("currencies must be ISO 4217")
+        return out
+
+    @field_validator("payment_handlers", "buyer_info_required", "manifest_payment_handlers")
+    @classmethod
+    def _v_tok(cls, v: list[str]) -> list[str]:
+        return _tokens(v, "requirement")
+
+
+class AgentCheckoutObservation(StrictModel):
+    """One probe result recorded by ONAA's checker (admin only). Probes stop before payment: no order is placed."""
+
+    status: AgentCheckoutStatus
+    steps: list[Literal["tools_list", "search", "cart", "checkout", "cancel"]] = Field(default_factory=list,
+                                                                                    max_length=5)
+    detail: str | None = Field(default=None, max_length=500, description="Short plain-text reason. Untrusted.")
+    requirements: AgentCheckoutRequirements | None = None
 
 
 class HistoryEntry(BaseModel):
@@ -689,6 +838,23 @@ class SelfRegistrationFailed(BaseModel):
     error: str
 
 
+# ---------- opt-out of discovered entries ----------
+class OptOutRequest(StrictModel):
+    """Remove discovered (never registered) entries for a URL or a whole host and stop re-importing them."""
+
+    url: str = Field(max_length=2048, description="Agent Card URL, documentation URL or any https URL on the host")
+    scope: Literal["url", "host"] = Field(
+        default="host", description="host = every discovered entry on that host (default); url = only that URL")
+    reason: str | None = Field(default=None, max_length=500, description="Optional; do not include personal data")
+
+
+class OptOutResult(BaseModel):
+    status: Literal["removed", "suppressed"]
+    removed_listing_ids: list[str]
+    note: str = ("Discovered entries matching this request are removed and will not be re-imported. Registered "
+                 "listings are not affected: their owner can delete them with their own key.")
+
+
 # ---------- vocabulary evolution ----------
 VocabularyKind = Literal["field", "capability", "category", "protocol", "service_type", "skill_tag", "compliance",
                          "data_category"]
@@ -743,6 +909,20 @@ class CertificationApplicationCreate(StrictModel):
     notes: str | None = Field(default=None, max_length=4000)
 
 
+class VerificationRunOut(BaseModel):
+    id: str
+    listing_id: str
+    kind: str
+    vantage: str
+    role: str | None
+    verdict: str
+    summary: dict
+    report_sha256: str | None
+    created_at: dt.datetime
+    note: str = ("Automated pre-check evidence only. It is not a certification; issuance needs human review "
+                 "(and real issuance needs founder approval).")
+
+
 class CertificationApplicationOut(BaseModel):
     id: str
     listing_id: str
@@ -754,6 +934,8 @@ class CertificationApplicationOut(BaseModel):
     decision_reason: str | None
     created_at: dt.datetime
     decided_at: dt.datetime | None
+    conformance_run: VerificationRunOut | None = Field(
+        default=None, description="Automated conformance pre-check filed with the application (CERT-009).")
     note: str = "Application fees (if any) are separate from the decision; payment never guarantees approval."
 
 
@@ -774,6 +956,28 @@ class CertificationDecision(StrictModel):
     decision: Literal["approve", "reject"]
     reason: str = Field(min_length=1, max_length=500)
     valid_days: int = Field(default=365, ge=1, le=730)
+    reviewer: str | None = Field(
+        default=None, min_length=1, max_length=120,
+        description="Human reviewer who made the decision. Required to approve protocol/commerce/service "
+                    "certifications: the signed attestation rests on this approval record.")
+
+
+class CertificationStatusChange(StrictModel):
+    status: Literal["suspended", "revoked", "active"]
+    reason: str = Field(min_length=1, max_length=200)
+    reviewer: str = Field(min_length=1, max_length=120)
+
+
+class PrecheckCreate(StrictModel):
+    listing_id: str = Field(max_length=40)
+    scheme: Literal["protocol_certified", "commerce_certified", "service_certified"] = "protocol_certified"
+
+
+class VantageObservation(StrictModel):
+    listing_id: str = Field(max_length=40)
+    vantage: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._:-]+$")
+    card_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    jwks_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
 # ---------- reports / discovery ----------
@@ -807,11 +1011,30 @@ class DiscoveredServiceCreate(StrictModel):
     capabilities: list[str] = Field(default_factory=list, max_length=64)
     regions: list[str] = Field(default_factory=list, max_length=64)
     currencies: list[str] = Field(default_factory=list, max_length=32)
+    payment_methods: list[PaymentMethodLit] = Field(
+        default_factory=list, max_length=6,
+        description="Agent-usable payment methods the provider's public docs describe (stored as "
+                    "commerce.payment_terms.methods). Observed by ONAA, not declared by the provider.")
+    payment_networks: list[str] = Field(default_factory=list, max_length=32,
+                                        description="e.g. visa, mastercard, usdc, x402, ap2")
+    human_approval: HumanApproval | None = Field(
+        default=None, description="Where a person must act, as the provider's public docs describe it (stored as "
+                                  "commerce.human_approval). Observed by ONAA, not declared by the provider.")
 
     @field_validator("capabilities")
     @classmethod
     def _v_caps(cls, v: list[str]) -> list[str]:
         return _tokens(v, "capabilities")
+
+    @field_validator("payment_methods")
+    @classmethod
+    def _v_methods(cls, v: list[str]) -> list[str]:
+        return sorted(set(v))
+
+    @field_validator("payment_networks")
+    @classmethod
+    def _v_networks(cls, v: list[str]) -> list[str]:
+        return _tokens(v, "payment network")
 
     @field_validator("regions")
     @classmethod

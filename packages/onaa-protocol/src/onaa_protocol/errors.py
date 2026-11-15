@@ -20,7 +20,7 @@ SIGNATURE_CODES = frozenset({
 ATTESTATION_CODES = frozenset({
     "attestation_invalid", "attestation_not_yet_valid", "attestation_expired", "attestation_suspended",
     "attestation_revoked", "attestation_superseded", "attestation_status_stale", "issuer_untrusted",
-    "attestation_test_only",
+    "attestation_test_only", "manifest_invalid", "manifest_stale",
 })
 ALL_CODES = ENVELOPE_CODES | SIGNATURE_CODES | ATTESTATION_CODES
 

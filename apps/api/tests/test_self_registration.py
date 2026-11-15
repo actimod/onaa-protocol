@@ -355,6 +355,35 @@ def test_discovered_service_import_without_endpoint(client):
     assert client.post("/v1/admin/discovered/services", headers=admin_headers(), json=bad).status_code == 422
 
 
+def test_discovered_payment_provider_observed_payment_methods(client):
+    """ONAA can record the agent-usable payment methods a provider's public docs describe; a re-import of a
+    still unclaimed listing refreshes only those, and they are searchable like self-declared ones."""
+    svc = dict(DISCOVERED_SVC, display_name="Example Pay", service_type="payment",
+               documentation_url="https://docs.pay.example.net/agents", source_url="https://docs.pay.example.net/agents",
+               payment_methods=["stablecoin"], payment_networks=["USDC", "x402"])
+    r = client.post("/v1/admin/discovered/services", headers=admin_headers(), json=svc)
+    assert r.status_code == 201, r.text
+    rec = r.json()
+    assert rec["commerce"]["payment_terms"]["methods"] == ["stablecoin"]
+    assert rec["commerce"]["payment_terms"]["networks"] == ["usdc", "x402"]
+    assert rec["trust"]["claimed"] is False and rec["status"] == "discovered"
+
+    def ids(**params):
+        return [x["id"] for x in client.get("/v1/services", params=params).json()["items"]]
+
+    assert ids(payment_method="stablecoin") == [rec["id"]] and ids(payment_method="card") == []
+    r = client.post("/v1/admin/discovered/services", headers=admin_headers(),
+                    json=dict(svc, payment_methods=["card", "stablecoin"], display_name="Renamed"))
+    assert r.status_code == 200, r.text
+    again = r.json()
+    assert again["id"] == rec["id"] and again["display_name"] == "Example Pay"  # only payment terms refresh
+    assert ids(payment_method="card") == [rec["id"]]
+    no_terms = {k: v for k, v in svc.items() if not k.startswith("payment_")}
+    assert client.post("/v1/admin/discovered/services", headers=admin_headers(), json=no_terms).status_code == 409
+    bad = dict(svc, payment_methods=["cash_on_delivery"])
+    assert client.post("/v1/admin/discovered/services", headers=admin_headers(), json=bad).status_code == 422
+
+
 def test_self_registered_provider_retires_discovered_service_on_same_host(client, fetcher):
     disc = client.post("/v1/admin/discovered/services", headers=admin_headers(),
                        json=dict(DISCOVERED_SVC, endpoint_url="https://api.escrow.example.net/v1")).json()
@@ -416,3 +445,124 @@ def test_unresolvable_host_reports_host_not_resolved():
     err = check_host_proof(SafeFetcher(resolver=resolver), lambda name: [], host="nx.example.com",
                            method="well_known", challenge_id="sreg_x", nonce_hash="0" * 64)
     assert err == "host_not_resolved"
+
+
+def test_agent_card_must_be_at_the_well_known_root_path(client):
+    for bad in ("https://seller.example.com/seller/.well-known/agent-card.json",
+                "https://seller.example.com/card.json",
+                "https://seller.example.com/.well-known/agent-card.json?x=1"):
+        r = start(client, agent=dict(AGENT, agent_card_url=bad))
+        assert r.status_code == 422 and "/.well-known/agent-card.json" in r.text, bad
+    svc = dict(SERVICE, agent_card_url="https://" + SERVICE["endpoint_url"].split("/")[2] + "/x/agent-card.json")
+    assert start(client, service=svc).status_code == 422
+
+
+def test_discovered_provider_observed_human_approval(client):
+    """ONAA can record from public docs where a person must act for a discovered provider; a re-import of a
+    still unclaimed listing refreshes it, and it is searchable like a self-declared one."""
+    svc = dict(DISCOVERED_SVC, display_name="Example Escrow", service_type="escrow",
+               documentation_url="https://docs.escrow2.example.net/api",
+               source_url="https://docs.escrow2.example.net/api",
+               human_approval={"setup": ["partner_agreement"], "escrow_release": "human"})
+    r = client.post("/v1/admin/discovered/services", headers=admin_headers(), json=svc)
+    assert r.status_code == 201, r.text
+    rec = r.json()
+    assert rec["commerce"]["human_approval"] == {"setup": ["partner_agreement"], "escrow_release": "human"}
+
+    def ids(**params):
+        return [x["id"] for x in client.get("/v1/services", params=params).json()["items"]]
+
+    assert ids(human_approval="at_release") == [rec["id"]] and ids(human_approval="none") == []
+    r = client.post("/v1/admin/discovered/services", headers=admin_headers(),
+                    json=dict(svc, human_approval={"setup": ["none"], "escrow_release": "automatic"}))
+    assert r.status_code == 200, r.text
+    assert ids(human_approval="none") == [rec["id"]] and ids(human_approval="at_release") == []
+    assert "payment_terms" not in r.json()["commerce"]  # only what was observed is stored
+
+
+def test_discovered_buying_channel_marketplace(client):
+    """A marketplace buying channel is a links-only discovered service: searchable by type and capability."""
+    svc = {"display_name": "Example Catalog MCP", "service_type": "marketplace",
+           "endpoint_url": "https://mcp.catalog.example.net", "documentation_url": "https://docs.catalog.example.net",
+           "source_url": "https://docs.catalog.example.net", "capabilities": ["catalog_search", "checkout"],
+           "human_approval": {"setup": ["none"], "per_payment": "per_transaction"}}
+    r = client.post("/v1/admin/discovered/services", headers=admin_headers(), json=svc)
+    assert r.status_code == 201, r.text
+    rec = r.json()
+    assert rec["status"] == "discovered" and rec["trust"]["claimed"] is False
+    assert rec["service_type"] == "marketplace"
+    page = client.get("/v1/services", params={"service_type": "marketplace", "capability": "checkout"}).json()
+    assert [x["id"] for x in page["items"]] == [rec["id"]]
+
+
+def test_buying_channels_seed_validates():
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location(
+        "import_discovered", Path(__file__).resolve().parents[1] / "scripts" / "import_discovered.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    seed = Path(__file__).resolve().parents[3] / "growth" / "seed" / "discovered_buying_channels.seed.json"
+    entries = mod.load_entries(seed)
+    assert entries
+    for e in entries:
+        path, body = mod.to_body(e)
+        assert path == "/v1/admin/discovered/services" and body["service_type"] == "marketplace"
+
+
+def test_agent_checkout_probe_recorded_and_searchable(client):
+    svc = {"display_name": "Example UCP Store", "service_type": "marketplace",
+           "endpoint_url": "https://shop.example.net/api/ucp/mcp", "documentation_url": "https://shop.example.net",
+           "source_url": "https://shop.example.net/.well-known/ucp", "capabilities": ["checkout"]}
+    rec = client.post("/v1/admin/discovered/services", headers=admin_headers(), json=svc).json()
+    obs = {"status": "buyer_step_required", "steps": ["tools_list", "search", "checkout", "cancel"],
+           "detail": "checkout status requires_escalation",
+           "requirements": {"protocol": "ucp-mcp", "protocol_version": "2026-08-25", "agent_profile_required": True,
+                            "agent_auth_required": False, "payment_handlers": ["shop_pay", "shopify.card"],
+                            "buyer_info_required": ["delivery_address_required"],
+                            "buyer_confirmation_required": True, "tested_country": "US", "currency": "USD"}}
+    path = f"/v1/admin/listings/{rec['id']}/agent-checkout"
+    assert client.post(path, json=obs).status_code in (401, 403)
+    r = client.post(path, headers=admin_headers(), json=obs)
+    assert r.status_code == 200, r.text
+    ac = r.json()["agent_checkout"]
+    assert ac["status"] == "buyer_step_required" and ac["checked_at"]
+    assert ac["requirements"]["payment_handlers"] == ["shop_pay", "shopify.card"]
+    page = client.get("/v1/services", params={"agent_checkout": "buyer_step_required"}).json()
+    assert [x["id"] for x in page["items"]] == [rec["id"]]
+    assert client.get("/v1/services", params={"agent_checkout": "checkout_ready"}).json()["total"] == 0
+    # A new probe replaces the old status facet.
+    client.post(path, headers=admin_headers(), json={"status": "auth_required"})
+    assert client.get("/v1/services", params={"agent_checkout": "buyer_step_required"}).json()["total"] == 0
+    # Only buying channels take probes, and payment-ish fields are not accepted.
+    other = client.post("/v1/admin/discovered/services", headers=admin_headers(), json=DISCOVERED_SVC).json()
+    assert client.post(f"/v1/admin/listings/{other['id']}/agent-checkout", headers=admin_headers(),
+                       json=obs).status_code == 409
+    assert client.post(path, headers=admin_headers(), json={**obs, "card_number": "4242"}).status_code == 422
+
+
+def test_ucp_agent_profile_served(client):
+    r = client.get("/agent/ucp-profile.json")
+    assert r.status_code == 200
+    ucp = r.json()["ucp"]
+    assert ucp["services"] == {} and ucp["payment_handlers"] == {} and ucp["version"]
+    assert "dev.ucp.shopping.checkout" in ucp["capabilities"]
+
+
+def test_agent_checkout_extended_requirements(client):
+    svc = {"display_name": "Example Shop Two", "service_type": "marketplace",
+           "endpoint_url": "https://two.example.net/api/ucp/mcp", "documentation_url": "https://two.example.net",
+           "source_url": "https://two.example.net/.well-known/ucp"}
+    rec = client.post("/v1/admin/discovered/services", headers=admin_headers(), json=svc).json()
+    path = f"/v1/admin/listings/{rec['id']}/agent-checkout"
+    obs = {"status": "auth_required", "requirements": {
+        "ships_to": ["us", "JP"], "no_shipping_to": ["DE"], "currencies_seen": ["usd"],
+        "manifest_payment_handlers": ["com.google.pay"], "accepted_agents_hint": "Google agents",
+        "autonomous_payment": "not_offered"}}
+    r = client.post(path, headers=admin_headers(), json=obs)
+    assert r.status_code == 200, r.text
+    req = r.json()["agent_checkout"]["requirements"]
+    assert req["ships_to"] == ["JP", "US"] and req["currencies_seen"] == ["USD"]
+    bad = {"status": "failed", "requirements": {"ships_to": ["USA"]}}
+    assert client.post(path, headers=admin_headers(), json=bad).status_code == 422

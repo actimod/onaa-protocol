@@ -31,6 +31,7 @@ from ..logic import (
     make_listing_id,
     normalise_url,
     refresh_card,
+    require_card_path,
     require_owner,
     require_same_host,
     set_facets,
@@ -54,6 +55,43 @@ def _record(session: Session, listing: Listing) -> schemas.RegistryRecord:
     return to_record(listing, op)
 
 
+# Facet kinds that free-text search also looks at, so "escrow" finds listings whose service_type, role,
+# capability, category, card skill or accepted settlement service says escrow, not only their name.
+TEXT_SEARCH_FACETS = ("role", "capability", "category", "skill", "accepts")
+MAX_QUERY_TERMS = 8
+# Filler words agents put in queries ("find an escrow service") that would otherwise demand a literal match.
+QUERY_STOPWORDS = frozenset({"a", "an", "the", "for", "of", "to", "in", "and", "or", "with", "find", "search", "me",
+                             "agent", "agents", "service", "services", "provider", "providers", "api"})
+
+
+def query_terms(q: str | None) -> list[str]:
+    """Split free text into lower-case terms; every term must match (AND), in any searchable field."""
+    if not q:
+        return []
+    seen: list[str] = []
+    for raw in q.lower().replace(",", " ").split():
+        term = raw.strip("\"'()")
+        if term and term not in seen:
+            seen.append(term)
+    meaningful = [t for t in seen if t not in QUERY_STOPWORDS]
+    return (meaningful or seen)[:MAX_QUERY_TERMS]
+
+
+def _like(term: str) -> str:
+    escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+def term_predicate(term: str):
+    like = _like(term)
+    facet_hit = select(ListingFacet.listing_id).where(ListingFacet.kind.in_(TEXT_SEARCH_FACETS),
+                                                      func.lower(ListingFacet.value).like(like, escape="\\"))
+    return or_(func.lower(Listing.display_name).like(like, escape="\\"),
+               func.lower(func.coalesce(Listing.description, "")).like(like, escape="\\"),
+               func.lower(func.coalesce(Listing.service_type, "")).like(like, escape="\\"),
+               Listing.id.in_(facet_hit))
+
+
 def search(session: Session, *, listing_types: tuple[str, ...], q: str | None, filters: dict[str, list[str]],
            service_type: list[str] | None, verified_only: bool, certified_only: bool, claimed_only: bool,
            reachable_only: bool = False,
@@ -62,9 +100,9 @@ def search(session: Session, *, listing_types: tuple[str, ...], q: str | None, f
     stmt = select(Listing).where(Listing.listing_type.in_(listing_types))
     allowed = [s for s in (status_in or PUBLIC_STATUSES) if s in PUBLIC_STATUSES]
     stmt = stmt.where(Listing.lifecycle_status.in_(allowed or ["__none__"]))
-    if q:
-        like = f"%{q.lower()}%"
-        stmt = stmt.where(or_(func.lower(Listing.display_name).like(like), func.lower(Listing.description).like(like)))
+    terms = query_terms(q)
+    for term in terms:
+        stmt = stmt.where(term_predicate(term))
     if service_type:
         stmt = stmt.where(Listing.service_type.in_(service_type))
     for kind, values in filters.items():
@@ -126,7 +164,9 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
     @router.get("", response_model=schemas.SearchPage, summary=f"Search {kind}")
     def list_listings(
         session: Session = Depends(get_session),
-        q: Annotated[str | None, Query(max_length=200)] = None,
+        q: Annotated[str | None, Query(max_length=200, description=(
+            "Free text. Every word must match the name, description, service type, role, capability, "
+            "category, card skill or accepted settlement service, e.g. q=escrow"))] = None,
         role: Annotated[list[str] | None, Query()] = None,
         capability: Annotated[list[str] | None, Query()] = None,
         region: Annotated[list[str] | None, Query()] = None,
@@ -149,6 +189,18 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
         payment_method: Annotated[list[str] | None, Query(
             description="accepts/processes this payment method, e.g. card, bank_transfer, stablecoin")] = None,
         payment_network: Annotated[list[str] | None, Query(description="e.g. visa, sepa, upi, pix")] = None,
+        human_approval: Annotated[list[str] | None, Query(
+            description="where a person must approve: none (no approval at any stated stage), at_setup, "
+                        "in_advance (each purchase approved before the agent pays), per_payment, at_release. "
+                        "Self-declared or ONAA-observed, never verified")] = None,
+        human_setup: Annotated[list[str] | None, Query(
+            description="none, identity_check, application_review, partner_agreement, account_funding")] = None,
+        human_per_payment: Annotated[list[str] | None, Query(
+            description="none, pre_authorized, per_transaction")] = None,
+        escrow_release: Annotated[list[str] | None, Query(description="automatic, evaluator, human")] = None,
+        agent_checkout: Annotated[list[str] | None, Query(
+            description="buying channels: ONAA's last checkout probe, e.g. checkout_ready, buyer_step_required "
+                        "(observation, not verification)")] = None,
         classification: Annotated[list[str] | None, Query(description="scheme:code, e.g. unspsc:43211503")] = None,
         incoterm: Annotated[list[str] | None, Query()] = None,
         auth_method: Annotated[list[str] | None, Query()] = None,
@@ -172,6 +224,9 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
             "pricing_model": _norm_list(pricing_model), "quote_mode": _norm_list(quote_mode),
             "payment_terms": _norm_list(payment_terms), "classification": _norm_list(classification),
             "payment_method": _norm_list(payment_method), "payment_network": _norm_list(payment_network),
+            "human_approval": _norm_list(human_approval), "human_setup": _norm_list(human_setup),
+            "human_per_payment": _norm_list(human_per_payment), "escrow_release": _norm_list(escrow_release),
+            "agent_checkout": _norm_list(agent_checkout),
             "incoterm": _norm_list(incoterm), "auth_method": _norm_list(auth_method), "skill": _norm_list(skill),
         }
         if country:
@@ -432,6 +487,7 @@ def build_agent_listing(session: Session, body: schemas.AgentCreate, operator_id
                         registration_method: str = "operator_account") -> Listing:
     """Validate and build (not add) an agent listing. Raises HTTPException on policy violations."""
     card_url = normalise_url(body.agent_card_url, "agent_card_url")
+    require_card_path(card_url)
     ensure_not_taken(session, host_of(card_url), operator_id)
     listing = Listing(
         id=make_listing_id("agent"), operator_id=operator_id, listing_type="agent",
@@ -473,6 +529,7 @@ def build_service_listing(session: Session, body: schemas.ServiceCreate, operato
         regulatory_claims=[c[:200] for c in body.regulatory_claims], lifecycle_status="registered",
         registration_method=registration_method,
     )
+    require_card_path(listing.agent_card_url)
     require_same_host(listing, listing.agent_card_url, "agent_card_url")
     for itf in interfaces:
         require_same_host(listing, itf.get("url"), "supported_interfaces.url")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 
 import pytest
@@ -10,6 +11,7 @@ from onaa_registry.main import create_app
 from onaa_registry.netsafety import FetchResult, validate_public_url
 
 ADMIN = "test-admin-token"
+STEWARD = "test-steward-token"
 
 
 class FakeFetcher:
@@ -41,6 +43,56 @@ def fetcher():
 TEST_DB = os.environ.get("ONAA_TEST_DATABASE_URL", "sqlite://")
 
 
+def staging_trust_material() -> dict:
+    """TEST-ONLY issuer keys (derived from public labels) and a root-signed manifest, as the dry-run ceremony
+    script produces. Never use these outside tests."""
+    import json
+    from datetime import timedelta
+
+    from onaa_protocol import jose, transparency, trust
+    from onaa_protocol.envelope import utcnow
+
+    now = utcnow()
+    root = jose.Signer(jose.derive_test_only_key("registry-root"), "test-root-1")
+    signers = {p: jose.Signer(jose.derive_test_only_key("registry-" + p), f"test-{p}-1")
+               for p in ("attestation", "status", "log")}
+    purposes = {"attestation": jose.TYP_ATTESTATION, "status": jose.TYP_ATTESTATION_STATUS,
+                "log": transparency.TYP_CHECKPOINT}
+    keys = [trust.manifest_key(s.public_jwk(), purposes[p], not_before=now - timedelta(days=1))
+            for p, s in signers.items()]
+    manifest = trust.sign_manifest(trust.build_manifest(
+        "onaa-registry-staging", keys, issued_at=now - timedelta(hours=1), next_update=now + timedelta(days=30)), root)
+    return {"root_jwk": root.public_jwk(), "manifest": manifest,
+            **{p: json.dumps(jose.private_jwk(s.private_key, s.kid)) for p, s in signers.items()}}
+
+
+TRUST = staging_trust_material()
+
+
+class FakeRunner:
+    """Stand-in for the live conformance suite. `verdicts` maps card URL -> verdict (default pass)."""
+
+    def __init__(self):
+        self.verdicts: dict[str, str] = {}
+        self.calls: list = []
+
+    def __call__(self, req):
+        self.calls.append(req)
+        v = self.verdicts.get(req.card_url, "pass")
+        if v == "raise":
+            raise RuntimeError("target misbehaved")
+        failed = 1 if v == "fail" else 0
+        results = [{"id": "ONAA-C-MUST-001", "outcome": "fail" if failed else "pass"}]
+        return {"suite_version": "0.5.0", "results": results,
+                "summary": {"verdict": v, "must": {"total": 10, "passed": 10 - failed, "failed": failed, "skipped": 0},
+                            "should": {"total": 5, "passed": 5, "failed": 0, "skipped": 0}}}
+
+
+@pytest.fixture
+def runner():
+    return FakeRunner()
+
+
 @pytest.fixture
 def settings():
     if TEST_DB != "sqlite://":
@@ -50,8 +102,10 @@ def settings():
         Base.metadata.drop_all(eng)
         eng.dispose()
     return Settings(database_url=TEST_DB, auto_create_schema=True, require_verification_entitlement=False,
-                    admin_token=ADMIN, write_rate_limit_per_minute=0,
-                    terms_version="draft-0.2", challenge_ttl_seconds=3600)
+                    admin_token=ADMIN, steward_token=STEWARD, write_rate_limit_per_minute=0,
+                    terms_version="draft-0.2", challenge_ttl_seconds=3600, precheck_min_interval_seconds=0,
+                    attestation_signing_jwk=TRUST["attestation"], status_signing_jwk=TRUST["status"],
+                    log_signing_jwk=TRUST["log"], issuer_manifest=json.dumps(TRUST["manifest"]))
 
 
 class FakeTxt:
@@ -71,8 +125,8 @@ def txt():
 
 
 @pytest.fixture
-def client(settings, fetcher, txt):
-    with TestClient(create_app(settings, fetcher, txt)) as c:
+def client(settings, fetcher, txt, runner):
+    with TestClient(create_app(settings, fetcher, txt, runner)) as c:
         yield c
 
 
@@ -132,3 +186,14 @@ def verify_listing(client, fetcher, kind, listing_id, headers):
                     json={"challenge_id": chl["challenge_id"]})
     assert r.status_code == 200, r.text
     return r.json()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_store_snapshot(monkeypatch):
+    """Store snapshots are module-level and rebuilt lazily; each test starts empty and rebuilds on every change."""
+    from onaa_registry import stores
+
+    monkeypatch.setattr(stores, "FEED_MIN_REFRESH_SECONDS", 0)
+    stores.reset_snapshot()
+    yield
+    stores.reset_snapshot()

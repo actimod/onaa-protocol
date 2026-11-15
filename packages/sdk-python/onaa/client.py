@@ -273,6 +273,17 @@ class OnaaClient:
     def search_services(self, **filters) -> Page:
         return self.search("services", **filters)
 
+    # ---- buying (answers from ONAA's checkout checker; never a purchase) ----
+    def buying_stores(self, **filters) -> dict:
+        """Stores an agent can buy from. Filters: country, agent, payment (list), pay_alone, q, include, limit,
+        offset."""
+        return self._request("GET", "/v1/buying/stores", params=_params(filters))
+
+    def buying_check(self, stores: list[str], **filters) -> dict:
+        """Can I buy at these stores (svc_ ids, domains or URLs), and how. Filters: country, agent, payment,
+        pay_alone."""
+        return self._request("GET", "/v1/buying/check", params=_params({**filters, "store": list(stores)}))
+
     def iter_search(self, kind: Kind, *, page_size: int = 50, max_items: int | None = None,
                     **filters) -> Iterator[dict]:
         offset, seen = 0, 0
@@ -308,6 +319,37 @@ class OnaaClient:
 
     def get_certification_application(self, application_id: str) -> dict:
         return self._request("GET", f"/v1/certifications/{application_id}", auth=True)
+
+    def precheck(self, listing_id: str, scheme: str = "protocol_certified") -> dict:
+        """Free automated conformance pre-check of your endpoint-verified listing (evidence, not certification)."""
+        return self._request("POST", "/v1/certifications/precheck", auth=True,
+                             json={"listing_id": listing_id, "scheme": scheme})
+
+    # ---- signed trust objects (verify them with onaa.verify / `onaa verify`, never trust them as-is) ----
+    def issuer_manifest(self) -> dict:
+        return self._request("GET", "/.well-known/onaa/issuer-jwks.json")
+
+    def attestations(self, subject_id: str) -> list[dict]:
+        return self._request("GET", "/v1/attestations", params={"subject_id": subject_id})["attestations"]
+
+    def attestation(self, attestation_id: str) -> dict:
+        return self._request("GET", f"/v1/attestations/{attestation_id}")
+
+    def attestation_status(self, attestation_id: str) -> dict:
+        return self._request("GET", f"/v1/attestations/{attestation_id}/status")
+
+    def transparency_checkpoint(self) -> dict:
+        return self._request("GET", "/v1/transparency/checkpoint")
+
+    def transparency_entries(self, *, attestation_id: str | None = None, start: int = 0) -> dict:
+        params: dict[str, Any] = {"attestation_id": attestation_id} if attestation_id else {"start": start}
+        return self._request("GET", "/v1/transparency/entries", params=params)
+
+    def inclusion_proof(self, index: int, tree_size: int) -> dict:
+        return self._request("GET", "/v1/transparency/proof/inclusion", params={"index": index, "tree_size": tree_size})
+
+    def consistency_proof(self, first: int, second: int) -> dict:
+        return self._request("GET", "/v1/transparency/proof/consistency", params={"first": first, "second": second})
 
     def report(self, subject_id: str, category: str, description: str, *,
                evidence_urls: list[str] | None = None) -> dict:

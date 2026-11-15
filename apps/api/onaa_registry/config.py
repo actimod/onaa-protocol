@@ -67,3 +67,47 @@ class Settings:
         default_factory=lambda: int(os.environ.get("ONAA_SELF_REGISTRATION_PENDING_PER_HOST", "3")))
     self_registration_agents_per_host: int = field(
         default_factory=lambda: int(os.environ.get("ONAA_SELF_REGISTRATION_AGENTS_PER_HOST", "3")))
+    # Registry Steward service token (docs/REGISTRY_STEWARD.md). Unset = the Policy Service API is disabled.
+    # The hosted app generates a per-process token when this is unset and the steward is enabled.
+    steward_token: str | None = field(default_factory=lambda: os.environ.get("ONAA_STEWARD_TOKEN") or None)
+    # ---- Verification operations (CERT-009..011). Staging only: attestations are always TEST-ONLY.
+    # Private Ed25519 JWKs (JSON) for the three online purposes; each kid must start with "test-" (real issuance
+    # keys need founder approval). Unset = the registry still certifies and logs, but signs nothing.
+    attestation_signing_jwk: str | None = field(
+        default_factory=lambda: os.environ.get("ONAA_ATTESTATION_SIGNING_JWK") or None)
+    status_signing_jwk: str | None = field(default_factory=lambda: os.environ.get("ONAA_STATUS_SIGNING_JWK") or None)
+    log_signing_jwk: str | None = field(default_factory=lambda: os.environ.get("ONAA_LOG_SIGNING_JWK") or None)
+    # Root-signed issuer manifest (JSON, produced offline by scripts/issuer_ceremony_dryrun.py). Public data.
+    issuer_manifest: str | None = field(default_factory=lambda: _file_or_env("ONAA_ISSUER_MANIFEST"))
+    issuer_id: str = field(default_factory=lambda: os.environ.get("ONAA_ISSUER_ID", "onaa-registry-staging"))
+    status_validity_days: int = field(default_factory=lambda: int(os.environ.get("ONAA_STATUS_VALIDITY_DAYS", "7")))
+    status_reissue_hours: int = field(default_factory=lambda: int(os.environ.get("ONAA_STATUS_REISSUE_HOURS", "24")))
+    # Unannounced re-checks: next run is uniformly random in [min, max] days after the previous one.
+    recheck_min_days: float = field(default_factory=lambda: float(os.environ.get("ONAA_RECHECK_MIN_DAYS", "7")))
+    recheck_max_days: float = field(default_factory=lambda: float(os.environ.get("ONAA_RECHECK_MAX_DAYS", "30")))
+    vantage_id: str = field(default_factory=lambda: os.environ.get("ONAA_VANTAGE_ID", "registry-primary"))
+    precheck_min_interval_seconds: int = field(
+        default_factory=lambda: int(os.environ.get("ONAA_PRECHECK_MIN_INTERVAL_SECONDS", "600")))
+    # A passing conformance run no older than this is required to approve a protocol/commerce/service certification.
+    conformance_max_age_days: int = field(
+        default_factory=lambda: int(os.environ.get("ONAA_CONFORMANCE_MAX_AGE_DAYS", "30")))
+    # Public base URL of a conformance harness tunnel (signed positive tests need it); unset = those tests skip.
+    conformance_harness_base_url: str | None = field(
+        default_factory=lambda: os.environ.get("ONAA_CONFORMANCE_HARNESS_BASE_URL") or None)
+    # Anonymous usage counters are buffered in memory and written every N seconds (0 = only on demand).
+    usage_flush_seconds: float = field(
+        default_factory=lambda: float(os.environ.get("ONAA_USAGE_FLUSH_SECONDS", "30")))
+    # "Can I buy here?" for a store ONAA has not listed: fetch its public /.well-known/ucp (robots.txt honoured)
+    # and add a usable shopping manifest as a discovered, links-only listing. Per caller IP per hour; 0 disables.
+    store_probe_per_ip_per_hour: int = field(
+        default_factory=lambda: int(os.environ.get("ONAA_STORE_PROBE_PER_IP_PER_HOUR", "60")))
+    store_autodiscovery_enabled: bool = field(
+        default_factory=lambda: os.environ.get("ONAA_STORE_AUTODISCOVERY", "1") == "1")
+
+
+def _file_or_env(name: str) -> str | None:
+    path = os.environ.get(name + "_FILE")
+    if path:
+        with open(path, encoding="utf-8") as fh:
+            return fh.read()
+    return os.environ.get(name) or None

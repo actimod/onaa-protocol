@@ -15,6 +15,7 @@ from . import jose, schemas
 from .envelope import format_ts, parse_ts, utcnow
 from .errors import AttestationError, ProtocolError, SignatureError
 from .jose import public_key_from_jwk, validate_jwks
+from .trust import TrustedIssuer
 
 ATTESTATION_VERSION = "0.1.0"
 LEVELS = ("endpoint_verified", "operator_verified", "protocol_certified", "commerce_certified",
@@ -122,19 +123,31 @@ def _lookup(issuer_jwks: dict[str, Any]):
     return lookup
 
 
-def verify_status_record(rec: Any, issuer_jwks: dict[str, Any]) -> dict[str, Any]:
+def verify_status_record(rec: Any, issuer_jwks: dict[str, Any] | None = None, *,
+                         issuer_manifest: TrustedIssuer | None = None) -> dict[str, Any]:
     errs = schemas.errors("attestation", rec, "#/$defs/statusRecord")
     if errs:
         raise AttestationError("attestation_invalid", "status record schema: " + errs[0].split(":")[0])
-    jose.verify_detached(_payload(rec), rec["signature"], _lookup(issuer_jwks), jose.TYP_ATTESTATION_STATUS)
+    if issuer_manifest is not None:
+        try:
+            signed_at = parse_ts(rec["status_at"], "status_at")
+        except ProtocolError as exc:
+            raise AttestationError("attestation_invalid", exc.message) from exc
+        lookup = issuer_manifest.lookup(jose.TYP_ATTESTATION_STATUS, signed_at)
+    elif issuer_jwks is not None:
+        lookup = _lookup(issuer_jwks)
+    else:
+        raise ValueError("pass issuer_jwks or issuer_manifest")
+    jose.verify_detached(_payload(rec), rec["signature"], lookup, jose.TYP_ATTESTATION_STATUS)
     return rec
 
 
 def verify_attestation(
     att: Any,
-    issuer_jwks: dict[str, Any],
+    issuer_jwks: dict[str, Any] | None = None,
     *,
-    trusted_issuers: set[str] | frozenset[str],
+    trusted_issuers: set[str] | frozenset[str] | None = None,
+    issuer_manifest: TrustedIssuer | None = None,
     now: datetime | None = None,
     status_record: dict[str, Any] | None = None,
     max_status_age: timedelta | None = DEFAULT_MAX_STATUS_AGE,
@@ -143,13 +156,31 @@ def verify_attestation(
     """Offline verification (spec section 10.4). Raises AttestationError/SignatureError with stable codes.
 
     ``issuer_jwks`` must come from a trusted channel (pinned configuration), never from the attestation.
+    Alternatively pass ``issuer_manifest`` (a :class:`onaa_protocol.trust.TrustedIssuer` verified against a
+    pinned root key): keys are then bound to their purpose and validity window, and the attestation issuer
+    must be the manifest's issuer (``trusted_issuers`` defaults to that one id).
     """
     errs = schemas.errors("attestation", att)
     if errs:
         raise AttestationError("attestation_invalid", "schema violation at " + errs[0].split(":")[0])
-    if att["issuer"]["id"] not in trusted_issuers:
+    if trusted_issuers is None:
+        if issuer_manifest is None:
+            raise ValueError("trusted_issuers is required without an issuer_manifest")
+        trusted_issuers = frozenset({issuer_manifest.issuer_id})
+    if att["issuer"]["id"] not in trusted_issuers or (
+            issuer_manifest is not None and att["issuer"]["id"] != issuer_manifest.issuer_id):
         raise AttestationError("issuer_untrusted", "issuer is not in the relying party's trust list")
-    jose.verify_detached(_payload(att), att["signature"], _lookup(issuer_jwks), jose.TYP_ATTESTATION)
+    if issuer_manifest is not None:
+        try:
+            signed_at = parse_ts(att["issued_at"], "issued_at")
+        except ProtocolError as exc:
+            raise AttestationError("attestation_invalid", exc.message) from exc
+        lookup = issuer_manifest.lookup(jose.TYP_ATTESTATION, signed_at)
+    elif issuer_jwks is not None:
+        lookup = _lookup(issuer_jwks)
+    else:
+        raise ValueError("pass issuer_jwks or issuer_manifest")
+    jose.verify_detached(_payload(att), att["signature"], lookup, jose.TYP_ATTESTATION)
     if att["test_only"] and not allow_test_only:
         raise AttestationError("attestation_test_only", "TEST-ONLY attestation; not valid outside tests")
     now = now or utcnow()
@@ -164,7 +195,7 @@ def verify_attestation(
         raise AttestationError("attestation_not_yet_valid", "attestation is not yet valid")
     warnings: list[str] = []
     if status_record is not None:
-        verify_status_record(status_record, issuer_jwks)
+        verify_status_record(status_record, issuer_jwks, issuer_manifest=issuer_manifest)
         if status_record["attestation_id"] != att["id"] or status_record["issuer_id"] != att["issuer"]["id"]:
             raise AttestationError("attestation_invalid", "status record is for a different attestation")
         try:

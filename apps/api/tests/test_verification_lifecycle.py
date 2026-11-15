@@ -63,7 +63,7 @@ def test_lapsed_verification_hides_certification_until_reverified(client, op, fe
     app_id = client.post("/v1/certifications/applications", headers=h,
                          json={"listing_id": aid, "scheme": "protocol_certified"}).json()["id"]
     client.post(f"/v1/admin/certifications/{app_id}/decision", headers=admin_headers(),
-                json={"decision": "approve", "reason": "ok"})
+                json={"decision": "approve", "reviewer": "founder", "reason": "ok"})
     assert client.get("/v1/agents", params={"certified_only": True}).json()["total"] == 1
     _age_verification(client, aid)
     assert client.get("/v1/agents", params={"certified_only": True}).json()["total"] == 0

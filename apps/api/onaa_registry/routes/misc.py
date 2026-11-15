@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import html
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import REGISTRY_RECORD_VERSION, __version__, schemas
 from ..db import get_session
+from ..landing import BRAND, render_home
 from ..logic import (
     audit,
     aware,
@@ -17,6 +20,7 @@ from ..logic import (
     host_of,
     make_listing_id,
     normalise_url,
+    set_derived_facets,
     set_facets,
     to_record,
 )
@@ -25,6 +29,7 @@ from ..security import optional_operator, require_admin, write_limit
 from ..terms import load_terms
 
 router = APIRouter()
+NAME = "ONAA (Open Network for AI Agents)"
 
 
 @router.get("/v1/health", tags=["meta"])
@@ -125,6 +130,7 @@ def onboarding(settings) -> dict:
         "operator_linkage": f"Recommended: name your operator and a private contact: PATCH {base}/v1/operators/me",
         "withdraw": "DELETE the listing, or DELETE /v1/operators/me to remove the identity and all its listings",
         "unauthorized_registration": f"POST {base}/v1/reports with category unauthorized_registration",
+        "discovered_opt_out": f"POST {base}/v1/discovered/opt-out (page: {base}/opt-out)",
         "profile": {
             "update": f"PATCH {base}/v1/agents/<id> or /v1/services/<id>; a sent block replaces, null removes",
             "blocks": ["commerce", "jurisdiction", "integration", "data_handling", "contacts", "self_reported",
@@ -147,22 +153,89 @@ def onboarding(settings) -> dict:
     }
 
 
+SUMMARY = ("Find stores and marketplaces AI buying agents can actually buy from, with each store's tested checkout "
+           "requirements (UCP, Shop MCP). Links only. Also lists payment, escrow and shipping providers and seller "
+           "and buyer agents; any agent can list itself for its operator without a human signup form. Purchases "
+           "happen at the store itself; ONAA never relays them or holds funds.")
+
+
+def discovery_links(base: str) -> dict:
+    return {
+        "llms_txt": f"{base}/llms.txt",
+        "llms_full_txt": f"{base}/llms-full.txt",
+        "stores_feed": f"{base}/stores.json",
+        "find_stores": f"{base}/v1/stores?ships_to=US&pays_alone=true",
+        "registry_metadata": f"{base}/.well-known/onaa-registry.json",
+        "a2a_agent_card": f"{base}/.well-known/agent-card.json",
+        "mcp": f"{base}/mcp",
+        "openapi": f"{base}/openapi.json",
+        "api": f"{base}/v1",
+        "search_agents": f"{base}/v1/agents?q=",
+        "search_services": f"{base}/v1/services?service_type=escrow",
+        "terms": f"{base}/v1/terms",
+        "source": "https://github.com/actimod/onaa-protocol",
+    }
+
+
+@router.get("/", tags=["meta"], include_in_schema=False)
+def root(request: Request, q: str | None = None, section: str | None = None,
+         session: Session = Depends(get_session)):
+    """Entry point for agents and crawlers that only know the host: JSON by default, HTML for browsers."""
+    base = request.app.state.settings.public_base_url.rstrip("/")
+    links = discovery_links(base)
+    headers = {"Link": f'<{links["llms_txt"]}>; rel="describedby"; type="text/plain", '
+                       f'<{links["openapi"]}>; rel="service-desc"; type="application/json", '
+                       f'<{links["a2a_agent_card"]}>; rel="related"; type="application/json"'}
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept and "application/json" not in accept.split("text/html")[0]:
+        page = render_home(session, base, links, q=q, section=section)
+        return HTMLResponse(page, headers=headers)
+    return JSONResponse({"name": NAME, "description": SUMMARY,
+                         "start_here": links["llms_txt"], "links": links}, headers=headers)
+
+
+@router.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
+def robots(request: Request):
+    base = request.app.state.settings.public_base_url.rstrip("/")
+    return PlainTextResponse(f"User-agent: *\nAllow: /\nDisallow: /v1/admin/\n\nSitemap: {base}/sitemap.xml\n")
+
+
+@router.get("/sitemap.xml", include_in_schema=False)
+def sitemap(request: Request, session: Session = Depends(get_session)):
+    from ..stores import PAGE_SIZE, snapshot
+
+    base = request.app.state.settings.public_base_url.rstrip("/")
+    paths = ["/", "/stores", "/stores.json", "/stores.csv", "/llms.txt", "/llms-full.txt",
+             "/.well-known/onaa-registry.json", "/.well-known/agent-card.json", "/.well-known/mcp.json",
+             "/openapi.json", "/v1/stores", "/v1/terms", "/v1/agents", "/v1/services", "/opt-out"]
+    snap = snapshot(session, base)
+    paths += [f"/stores?page={n}" for n in range(2, -(-snap.count // PAGE_SIZE) + 1)]
+    paths += [f"/stores/{row.key}" for row in snap.rows][:45000]
+    urls = "".join(f"<url><loc>{html.escape(base + p)}</loc></url>" for p in paths)
+    body = ('<?xml version="1.0" encoding="UTF-8"?>'
+            f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>')
+    return Response(body, media_type="application/xml")
+
+
 @router.get("/.well-known/onaa-registry.json", tags=["meta"],
             summary="ONAA's own discovery metadata (project convention, NOT an A2A standard document)")
 def well_known(request: Request):
     settings = request.app.state.settings
     base = settings.public_base_url.rstrip("/")
     return {
-        "name": "ONAA Registry (Open Network for AI Agents)",
+        "name": NAME,
         "registry_record_version": REGISTRY_RECORD_VERSION,
         "api_base": f"{base}/v1",
         "openapi": f"{base}/openapi.json",
-        "search": {"agents": f"{base}/v1/agents", "services": f"{base}/v1/services"},
+        "search": {"agents": f"{base}/v1/agents", "services": f"{base}/v1/services", "stores": f"{base}/v1/stores"},
+        "stores": {"feed_json": f"{base}/stores.json", "feed_csv": f"{base}/stores.csv",
+                   "filter": f"{base}/v1/stores?ships_to=KR&pays_alone=true",
+                   "one": f"{base}/v1/stores/<domain or svc_ id>",
+                   "llms_full_txt": f"{base}/llms-full.txt"},
         "mcp": {"url": f"{base}/mcp", "transport": "streamable-http", "auth": "none"},
         "trust_levels": ["discovered", "registered", "endpoint_verified", "operator_verified", "certified"],
         "transactions": "Not relayed. Buyers, sellers and providers transact directly over their own endpoints.",
         "onboarding": onboarding(settings),
-        "status": "development - not a production service",
     }
 
 
@@ -179,17 +252,42 @@ def llms_txt(request: Request):
     per_op = settings.max_listings_per_operator
     enabled = "" if settings.self_registration_enabled else (
         "\nNOTE: self-registration is currently disabled on this registry.\n")
-    return PlainTextResponse(f"""# ONAA Registry (Open Network for AI Agents)
+    return PlainTextResponse(f"""# ONAA (Open Network for AI Agents)
 
-> Open registry where AI buyer, seller, hosting and service-provider agents find each other. The registry
-> handles discovery and trust metadata only. Transactions run directly between agents over their own
-> endpoints; ONAA never relays them or holds funds. Development build, not a production service.
+> Find stores and marketplaces AI buying agents can actually buy from, with each store's tested checkout
+> requirements (UCP, Shop MCP). Links only. ONAA stores links and its own test results, no product data; you
+> buy at the store itself under the store's terms. ONAA never relays purchases or holds funds.
 {enabled}
+## Buying agents: start here
+
+Can my agent buy at this store, and how?   (any product URL, store domain or svc_ id; up to 25)
+  GET  {base}/v1/stores/check?url=https://<store>/products/<item>&country=KR
+  POST {base}/v1/stores/check  {{"stores": ["<url or domain>", ...], "country": "KR", "pay_alone": true}}
+  Answer per store: verdict (yes, yes_buyer_finishes, maybe, no, unknown), reasons, cautions, how_to_buy steps.
+  Found a product with Shop MCP or a store's own search? Pass those shop URLs here to see which ones your agent
+  can actually check out at. A store ONAA has not listed is looked up live at its /.well-known/ucp.
+Which stores can my agent buy from?
+  GET {base}/v1/stores?ships_to=KR&pays_alone=true    (also checkout=, protocol=ucp|shop-mcp, payment_handler=,
+      currency=, q=)
+  GET {base}/v1/buying/stores?country=KR&payment=shop_pay&agent=gemini   (ranked by verdict)
+One store: GET {base}/v1/stores/<domain or svc_ id>    Page for people: {base}/stores/<domain>
+Everything in one request: {base}/stores.json (ETag; also {base}/stores.csv and {base}/llms-full.txt)
+MCP (no auth): {base}/mcp, tools find_stores, can_i_buy_here, how_to_buy, search_services.
+
+Every store was tested by ONAA as an anonymous outside agent: list tools, search, create a one-item checkout,
+cancel it. Never paid, no order placed. Results show protocol, payment handlers, whether an agent can pay alone
+(Shop Pay one-time link), buyer info required, and delivery to US, GB, DE, JP and KR. ONAA holds no product
+data: search products with the store's own catalog tool. Not affiliated with the stores; their terms apply.
+
+Use ONAA also to: find a payment, escrow, logistics, insurance or hosting provider an agent can call; find seller
+or buyer agents that trade directly over A2A; or list your own store or agent.
+
 Base URL: {base}
 API: {base}/v1
 OpenAPI: {base}/openapi.json
 Registry metadata (JSON, includes these steps): {base}/.well-known/onaa-registry.json
 Remote MCP server (no auth, Streamable HTTP): {base}/mcp
+A2A Agent Card (the registry's steward agent; ask it questions in plain language): {base}/.well-known/agent-card.json
 Terms: {base}/v1/terms (version {tv}, draft, sha256 {sha})
 
 ## Register for your operator (no human signup form)
@@ -238,6 +336,9 @@ certifications are separate tiers. Listing and search are free.
 Recommended: name your operator (person or organisation) with PATCH {base}/v1/operators/me.
 Registered without authorisation? Report it: POST {base}/v1/reports with category "unauthorized_registration".
 
+Listed here as "discovered" without having registered? Remove it: POST {base}/v1/discovered/opt-out
+(details at {base}/opt-out).
+
 ## Find other agents and services
 
 GET {base}/v1/agents?q=...&role=seller_agent&capability=...&country=KR&accepts=escrow&skill=...
@@ -246,7 +347,8 @@ GET {base}/v1/agents/<id>/trust
 GET {base}/v1/agents?updated_since=<ISO time>&sort=updated_asc   (incremental sync; GET one returns an ETag)
 GET {base}/v1/services?service_type=payment&payment_method=card&country=KR   (card, bank_transfer, stablecoin...)
 More filters: operating_country, compliance, pricing_model, quote_mode, payment_terms, payment_method,
-payment_network (visa, sepa, usdc, x402...), classification
+payment_network (visa, sepa, usdc, x402...), human_approval (none, at_setup, in_advance, per_payment, at_release),
+human_setup, human_per_payment, escrow_release, classification
 (unspsc:/hs:/gs1_gpc:/isic:/naics:code), incoterm, auth_method, language, currency, protocol.
 
 ## Describe yourself so other agents can decide (all optional, change any time)
@@ -255,6 +357,9 @@ PATCH {base}/v1/agents/<id> (or /v1/services/<id>) with any of these blocks; a s
 null removes it, every change bumps `revision` and shows in GET .../history:
 - commerce: pricing (decimal strings), quoting, service_level, capacity, accepts_services (escrow, payment,
   logistics... you work with), payment_terms (terms, methods such as card/bank_transfer/stablecoin, networks),
+  human_approval (payment/escrow providers: where a person must act. setup: none / identity_check /
+  application_review / partner_agreement / account_funding; per_payment: none / pre_authorized /
+  per_transaction; escrow_release: automatic / evaluator / human),
   policies (refund/dispute URLs, warranty, liability cap),
   classifications, incoterms
 - jurisdiction: operating_country, excluded_regions, data_residency, compliance_claims, restricted_activities
@@ -274,19 +379,79 @@ ONAA Protocol envelopes (RFQ, QUOTE, ORDER_PROPOSE/CONFIRM/CANCEL, DISPUTE_OPEN,
 other's A2A endpoints. Spec: specs/onaa-protocol-v0.1.md in the public repository below (v0.1.1: signed
 envelopes must name the recipient). Runnable reference: examples/direct-trade-demo (mock escrow, no real funds).
 
+Live demo counterparties run by ONAA (SAMPLE catalog, MOCK escrow, no real goods or funds; may take a few
+seconds to wake): seller https://onaa-demo-seller.fly.dev/.well-known/agent-card.json (capability
+onaa-demo.widgets.sell, SKU widget-std), escrow https://onaa-demo-escrow.fly.dev/.well-known/agent-card.json
+(service_type escrow, mode mock), buyer https://onaa-demo-buyer.fly.dev/.well-known/agent-card.json.
+
 ## Clients
 
 - Public source, specs, SDK and demo (Apache-2.0): https://github.com/actimod/onaa-protocol
 
-- Remote MCP (no install): add {base}/mcp as a Streamable HTTP MCP server, no auth. Tools: search_agents,
-  search_services, get_listing, get_terms, and self_register_start / self_register_complete (the same steps
-  as above; same rules: operator authority, terms, limits per IP and host; the API key comes back to you once).
+- Remote MCP (no install): add {base}/mcp as a Streamable HTTP MCP server, no auth. 12 tools. Read-only:
+  search_agents, search_services, find_stores, can_i_buy_here, how_to_buy, get_listing, get_vocabulary,
+  verify_attestations, get_terms. Not read-only: self_register_start / self_register_complete (the same steps
+  as above; same rules: operator authority, terms, limits per IP and host; the API key comes back to you once)
+  and ask_steward (diagnostics; may probe the agents involved, cannot change any listing).
+  Search results include discovered listings (never registered); pass claimed_only=true to leave them out.
   Claude Code: claude mcp add --transport http onaa {base}/mcp
 - Python SDK: pip install "git+https://github.com/actimod/onaa-protocol#subdirectory=packages/sdk-python",
   then OnaaClient.self_register(...)
 - MCP server: apps/mcp-registry (read-only search by default; add --enable-self-registration --key-file PATH
   for self_register_start / self_register_complete, which save the key to that file, not to your context)
 """)
+
+
+MCP_CARD_PATHS = ("/.well-known/mcp.json", "/.well-known/mcp/server-card.json")
+
+
+def mcp_card(request: Request) -> JSONResponse:
+    """A small MCP server description for clients that look for one at a well-known path (no standard yet)."""
+    base = request.app.state.settings.public_base_url.rstrip("/")
+    return JSONResponse({
+        "name": "onaa-registry",
+        "title": "ONAA: stores AI buying agents can buy from",
+        "description": SUMMARY,
+        "version": __version__,
+        "remotes": [{"type": "streamable-http", "url": f"{base}/mcp", "auth": "none"}],
+        "documentation": f"{base}/llms.txt",
+        "data": {"stores_feed": f"{base}/stores.json", "openapi": f"{base}/openapi.json"},
+        "repository": "https://github.com/actimod/onaa-protocol",
+        "note": "Read-only search tools plus optional self-registration; ONAA never places orders or holds funds.",
+    }, headers={"Cache-Control": "public, max-age=3600"})
+
+
+for _p in MCP_CARD_PATHS:
+    router.add_api_route(_p, mcp_card, methods=["GET"], include_in_schema=False)
+
+
+@router.get("/llms-full.txt", response_class=PlainTextResponse, tags=["meta"],
+            summary="llms.txt plus every listed store and its tested checkout, in one plain-text file")
+def llms_full_txt(request: Request, session: Session = Depends(get_session)):
+    from ..stores import FEED_NOTE, derived, snapshot
+    from .stores import gzip_response
+
+    base = request.app.state.settings.public_base_url.rstrip("/")
+    snap = snapshot(session, base)
+    head = llms_txt(request).body.decode()
+
+    def lines(snap):
+        yield head + "\n\n"
+        yield (f"# ONAA store list ({snap.count} stores, generated {snap.generated_at})\n\n> {FEED_NOTE}\n\n"
+               "One line per store: name | store URL | last checkout probe | agent can pay alone | payment options |"
+               " ships to (tested) | no delivery to (tested) | MCP endpoint | JSON\n\n")
+        for it in snap.records():
+            cp, sh = it["checkout_probe"], it["shipping"]
+            alone = {True: "yes (after one-time buyer link)", False: "no",
+                     None: "unknown"}[cp["agent_can_pay_alone"]]
+            name = " ".join(str(it["name"]).split())[:120]
+            yield " | ".join([
+                f"- {name}", it["store_url"] or "-", f"{cp['status']} {(cp['checked_at'] or '')[:10]}".strip(),
+                alone, ", ".join(cp["payment_handlers"]) or "-", ", ".join(sh["ships_to"]) or "-",
+                ", ".join(sh["no_shipping_to"]) or "-", it["endpoints"]["mcp"] or "-", it["links"]["json"]]) + "\n"
+
+    return gzip_response(request, derived(snap, "llms_full", lines), "text/plain; charset=utf-8",
+                         {"Cache-Control": "public, max-age=900"})
 
 
 @router.post("/v1/reports", status_code=201, response_model=schemas.ReportOut, tags=["trust"],
@@ -305,12 +470,20 @@ def report(body: schemas.ReportCreate, op: Operator | None = Depends(optional_op
                              created_at=aware(r.created_at))
 
 
+def _refuse_suppressed(session: Session, url: str, host: str | None = None) -> None:
+    from .optout import is_suppressed
+
+    if is_suppressed(session, url=url, host=host or host_of(url)):
+        raise HTTPException(status.HTTP_410_GONE, "the provider opted out of discovery for this URL or host")
+
+
 @router.post("/v1/admin/discovered", status_code=201, response_model=schemas.RegistryRecord, tags=["admin"],
              summary="Import a publicly observed, unclaimed agent (discovery pipeline)")
 def import_discovered(body: schemas.DiscoveredCreate, admin: str = Depends(require_admin),
                       session: Session = Depends(get_session)):
     card_url = normalise_url(body.agent_card_url, "agent_card_url")
     ensure_not_taken(session, host_of(card_url), None)
+    _refuse_suppressed(session, card_url)
     dup = session.scalar(select(Listing.id).where(Listing.agent_card_url == card_url,
                                                   Listing.lifecycle_status != "deleted"))
     if dup:
@@ -328,19 +501,49 @@ def import_discovered(body: schemas.DiscoveredCreate, admin: str = Depends(requi
     return to_record(listing)
 
 
+def _observed(body: schemas.DiscoveredServiceCreate) -> bool:
+    return bool(body.payment_methods or body.payment_networks or body.human_approval)
+
+
+def _set_observed_payment_terms(listing: Listing, body: schemas.DiscoveredServiceCreate) -> None:
+    profile = dict(listing.profile or {})
+    commerce = dict(profile.get("commerce") or {})
+    if body.payment_methods or body.payment_networks:
+        terms = dict(commerce.get("payment_terms") or {})
+        terms["methods"], terms["networks"] = body.payment_methods, body.payment_networks
+        commerce["payment_terms"] = terms
+    if body.human_approval is not None:
+        commerce["human_approval"] = body.human_approval.model_dump(exclude_none=True)
+    profile["commerce"] = commerce
+    listing.profile = profile
+    set_derived_facets(listing)
+
+
 @router.post("/v1/admin/discovered/services", status_code=201, response_model=schemas.RegistryRecord,
              tags=["admin"], summary="Import a publicly documented, unregistered service provider (no endpoint needed)")
-def import_discovered_service(body: schemas.DiscoveredServiceCreate, admin: str = Depends(require_admin),
-                              session: Session = Depends(get_session)):
+def import_discovered_service(body: schemas.DiscoveredServiceCreate, response: Response,
+                              admin: str = Depends(require_admin), session: Session = Depends(get_session)):
     docs = normalise_url(body.documentation_url, "documentation_url")
     endpoint = normalise_url(body.endpoint_url, "endpoint_url")
     host = host_of(endpoint or docs)
     ensure_not_taken(session, host, None)
-    dup = session.scalar(select(Listing.id).where(
+    _refuse_suppressed(session, docs, host)
+    if endpoint:
+        _refuse_suppressed(session, endpoint)
+    dup = session.scalar(select(Listing).where(
         Listing.documentation_url == docs, Listing.service_type == body.service_type,
         Listing.lifecycle_status != "deleted"))
-    if dup:
-        raise HTTPException(status.HTTP_409_CONFLICT, f"already listed as {dup}")
+    if dup is not None:
+        if dup.lifecycle_status == "discovered" and dup.operator_id is None and _observed(body):
+            # Re-import of a still unclaimed listing may refresh only the observed payment methods and
+            # human-approval facts.
+            # Once a provider claims or registers its listing, only the provider changes it.
+            _set_observed_payment_terms(dup, body)
+            dup.updated_at = utcnow()
+            audit(session, "admin", None, "discovered.update_payment_terms", dup.id)
+            response.status_code = status.HTTP_200_OK
+            return to_record(dup)
+        raise HTTPException(status.HTTP_409_CONFLICT, f"already listed as {dup.id}")
     ltype = "hosting" if body.service_type == "hosting" else "service"
     listing = Listing(id=make_listing_id(ltype), operator_id=None, listing_type=ltype,
                       service_type=body.service_type, display_name=body.display_name, description=body.description,
@@ -351,6 +554,8 @@ def import_discovered_service(body: schemas.DiscoveredServiceCreate, admin: str 
     data = body.model_dump()
     data["roles"] = ["hosting_provider" if ltype == "hosting" else "service_provider"]
     set_facets(listing, data)
+    if _observed(body):
+        _set_observed_payment_terms(listing, body)
     session.add(listing)
     session.flush()
     audit(session, "admin", None, "discovered.import_service", listing.id, service_type=body.service_type)
@@ -365,6 +570,36 @@ def suspend(listing_id: str, reason: str = "policy", admin: str = Depends(requir
     listing.status_reason = reason[:200]
     listing.updated_at = utcnow()
     audit(session, "admin", None, "listing.suspend", listing.id, reason=reason[:200])
+    return to_record(listing)
+
+
+UCP_PROFILE_VERSION = "2026-08-25"
+
+
+@router.get("/agent/ucp-profile.json", tags=["meta"],
+            summary="ONAA's UCP platform (agent) profile, sent as UCP-Agent when the checkout checker probes stores")
+def ucp_agent_profile() -> JSONResponse:
+    caps = {name: [{"version": UCP_PROFILE_VERSION, "spec": f"https://ucp.dev/{UCP_PROFILE_VERSION}/specification/"
+                                                           f"overview/"}]
+            for name in ("dev.ucp.shopping.catalog.search", "dev.ucp.shopping.cart", "dev.ucp.shopping.checkout")}
+    return JSONResponse({"ucp": {"version": UCP_PROFILE_VERSION, "services": {}, "payment_handlers": {},
+                                 "capabilities": caps},
+                         "name": f"{BRAND} checkout checker",
+                         "description": "Checks that listed stores let an outside agent search and reach checkout. "
+                                        "It never pays or places orders. Opt out: /opt-out"},
+                        headers={"Cache-Control": "public, max-age=3600"})
+
+
+@router.post("/v1/admin/listings/{listing_id}/agent-checkout", response_model=schemas.RegistryRecord,
+             tags=["admin"], summary="Record ONAA's checkout probe for a buying channel (never a purchase)")
+def record_agent_checkout(listing_id: str, body: schemas.AgentCheckoutObservation,
+                          admin: str = Depends(require_admin), session: Session = Depends(get_session)):
+    listing = get_listing(session, listing_id)
+    if listing.service_type != "marketplace":
+        raise HTTPException(status.HTTP_409_CONFLICT, "agent checkout probes apply to marketplace listings only")
+    from ..checker_loop import apply_observation
+
+    apply_observation(session, listing, body.model_dump(mode="json", exclude_none=True))
     return to_record(listing)
 
 

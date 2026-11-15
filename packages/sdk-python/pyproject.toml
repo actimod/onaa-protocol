@@ -12,6 +12,11 @@ dependencies = ["httpx>=0.27,<0.29"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<9"]
+# `onaa verify` / onaa.verify: signature, status and transparency-log checks (packages/onaa-protocol).
+verify = ["onaa-protocol>=0.1.2"]
+
+[project.scripts]
+onaa = "onaa.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["onaa*"]

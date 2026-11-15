@@ -36,6 +36,15 @@ def probe_listing(listing: Listing, fetcher: Fetcher) -> str:
             result = "blocked_unsafe_url"
         except FetchError as exc:
             result = exc.category
+    apply_probe_result(listing, result)
+    return result
+
+
+def apply_probe_result(listing: Listing, result: str, latency_ms: int | None = None) -> None:
+    """Record one probe outcome (from the registry's own probe or a Registry Steward observation)."""
+    listing.last_checked_at = utcnow()
+    if latency_ms is not None:
+        listing.last_check_latency_ms = latency_ms
     listing.last_check_result = result
     if result == "ok":
         listing.consecutive_check_failures = 0
@@ -44,7 +53,6 @@ def probe_listing(listing: Listing, fetcher: Fetcher) -> str:
         listing.consecutive_check_failures = (listing.consecutive_check_failures or 0) + 1
         if listing.consecutive_check_failures >= UNREACHABLE_AFTER:
             listing.reachability = "unreachable"
-    return result
 
 
 def run_health_checks(session: Session, fetcher: Fetcher, limit: int) -> dict[str, str]:
