@@ -22,13 +22,14 @@ from urllib.parse import urlsplit
 from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
+from .checkout_checker import SHIP_TEST
 from .logic import PUBLIC_STATUSES, aware
 from .models import Listing, ListingFacet, utcnow
 
 Verdict = Literal["yes", "yes_buyer_finishes", "maybe", "no", "unknown"]
 VERDICT_RANK = {"yes": 0, "yes_buyer_finishes": 1, "maybe": 2, "unknown": 3, "no": 4}
 STALE_AFTER = dt.timedelta(days=14)
-TESTED_COUNTRIES = ("US", "GB", "DE", "JP", "KR")
+TESTED_COUNTRIES = tuple(SHIP_TEST)
 MAX_STORES_PER_CHECK = 25
 NOTE = ("Derived from ONAA's last checkout probe, which stops before payment and places no order. An observation, "
         "not a verification, endorsement or guarantee; the store's own terms, prices and policies apply. "
@@ -151,6 +152,33 @@ def how_to_buy(ac: dict | None, *, country: str | None = None) -> dict[str, Any]
             "agent_auth_required": req.get("agent_auth_required")}
 
 
+def shipping_view(req: dict) -> dict[str, Any]:
+    """Tested and store-published shipping, kept apart. Tested = ONAA's own test checkout (verified).
+
+    Probes before 2026-11-16 sent no address, so the store answered "no delivery available" everywhere; those
+    "no delivery" results are not evidence and are shown as unconfirmed instead."""
+    ships = list(req.get("ships_to") or [])
+    no_ship = list(req.get("no_shipping_to") or [])
+    unconfirmed: list[str] = []
+    if req.get("delivery_test") != "address" and "delivery_address_required" in (req.get("buyer_info_required")
+                                                                                  or []):
+        unconfirmed, no_ship = no_ship, []
+    worldwide = req.get("published_ships_worldwide")
+    published = list(req.get("published_ships_to") or [])
+    return {"ships_to": ships, "no_shipping_to": no_ship, "unconfirmed": unconfirmed,
+            "published_worldwide": worldwide, "published_ships_to": published,
+            "published_known": worldwide is True or bool(published),
+            "published_source": req.get("published_ships_source"),
+            "quotes": req.get("shipping_quotes") or {}}
+
+
+def published_ships(view: dict, cc: str) -> bool | None:
+    """Does the store's own published list include `cc`? None when the store published none."""
+    if not view["published_known"]:
+        return None
+    return view["published_worldwide"] is True or cc in view["published_ships_to"]
+
+
 def assess(listing: Listing, *, country: str | None = None, agent: str | None = None,
            payment: list[str] | None = None, pay_alone: bool = False,
            now: dt.datetime | None = None) -> dict[str, Any]:
@@ -189,22 +217,33 @@ def assess(listing: Listing, *, country: str | None = None, agent: str | None = 
         if status == "buyer_step_required":
             cautions.append("the buyer finishes the purchase (confirms and/or pays) at the store's continue_url")
 
+    view = shipping_view(req)
     ships: bool | None = None
+    published: bool | None = None
     if cc:
-        if cc in (req.get("no_shipping_to") or []):
+        published = published_ships(view, cc)
+        if cc in view["no_shipping_to"]:
             ships = False
-        elif cc in (req.get("ships_to") or []):
+        elif cc in view["ships_to"]:
             ships = True
         if ships is False and verdict != "no":
             verdict = "no"
             reasons.append(f"a test checkout to {cc} reported no delivery")
+        elif ships is None and published is False and verdict != "no":
+            verdict = "no"
+            reasons.append(f"{cc} is not in the shipping countries the store publishes (store-published list, "
+                           "not tested by ONAA)")
         elif ships is None and verdict in ("yes", "yes_buyer_finishes"):
             verdict = "maybe"
-            reasons.append(f"delivery to {cc} was not tested (tested: "
-                           f"{', '.join(TESTED_COUNTRIES)}; check delivery options in the checkout)"
-                           if cc not in TESTED_COUNTRIES else
-                           f"delivery to {cc} was not confirmed by the last probe; check delivery options in the "
-                           "checkout")
+            if published:
+                reasons.append(f"the store publishes {cc} as a shipping destination, but ONAA has not confirmed "
+                               "delivery there with a test checkout; check delivery options in the checkout")
+            else:
+                reasons.append(f"delivery to {cc} was not tested (tested: "
+                               f"{', '.join(TESTED_COUNTRIES)}; check delivery options in the checkout)"
+                               if cc not in TESTED_COUNTRIES else
+                               f"delivery to {cc} was not confirmed by the last probe; check delivery options in "
+                               "the checkout")
 
     pay_ok: bool | None = None
     if pay and handlers:
@@ -246,11 +285,13 @@ def assess(listing: Listing, *, country: str | None = None, agent: str | None = 
         "cautions": cautions,
         "checkout_status": status,
         "ships_to_country": ships,
+        "store_publishes_country": published,
         "country": cc,
         "payment_match": pay_ok,
         "pay_alone": alone,
-        "ships_to": req.get("ships_to") or [],
-        "no_shipping_to": req.get("no_shipping_to") or [],
+        "ships_to": view["ships_to"],
+        "no_shipping_to": view["no_shipping_to"],
+        "shipping_quote": view["quotes"].get(cc) if cc else None,
         "currencies_seen": req.get("currencies_seen") or ([req["currency"]] if req.get("currency") else []),
         "accepted_agents": req.get("accepted_agents_hint") or ("any agent that sends a UCP agent profile"
                                                               if status in ("checkout_ready", "buyer_step_required")

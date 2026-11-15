@@ -47,8 +47,8 @@ def test_filters_ships_to_and_pays_alone(client):
     assert client.get("/v1/stores", params={"payment_handler": "shop_pay"}).json()["total"] == 1
     assert client.get("/v1/stores", params={"protocol": "ucp"}).json()["total"] == 2
     assert client.get("/v1/stores", params={"q": "beta"}).json()["items"][0]["domain"] == "beta.example"
-    fr = client.get("/v1/stores", params={"ships_to": "FR"}).json()
-    assert fr["total"] == 0 and fr["untested_countries"] == ["FR"]
+    fr = client.get("/v1/stores", params={"ships_to": "BR"}).json()
+    assert fr["total"] == 0 and fr["untested_countries"] == ["BR"]
 
 
 def test_one_store_by_domain_or_id(client):
@@ -186,3 +186,40 @@ def test_snapshot_chunks_pages_gzip_and_stale_serving(client, monkeypatch):
             break
         time.sleep(0.05)
     assert client.get("/stores.json").json()["count"] == 5
+
+
+def test_old_no_address_results_unconfirmed_and_store_published_countries(client):
+    # Probe from before the address fix: "no delivery" everywhere while the store asked for an address.
+    old = _store(client, "old.example", "buyer_step_required", ships_to=[], no_shipping_to=["DE", "KR", "US"],
+                 buyer_info_required=["delivery_address_required", "delivery_no_delivery_available"])
+    new = _store(client, "new.example", "checkout_ready", ships_to=["KR"], no_shipping_to=["IN"],
+                 delivery_test="address", published_ships_to=["CA", "KR"], published_ships_worldwide=False,
+                 published_ships_source="https://new.example/meta.json",
+                 shipping_quotes={"KR": {"options": 2, "cheapest_amount": 18000, "currency": "KRW"}})
+    world = _store(client, "world.example", "checkout_ready", delivery_test="address",
+                   published_ships_worldwide=True, published_ships_source="https://world.example/meta.json")
+    rec = client.get("/v1/stores/old.example").json()
+    assert rec["shipping"]["no_shipping_to"] == [] and rec["shipping"]["unconfirmed_countries"] == ["DE", "KR", "US"]
+    assert rec["shipping"]["store_published"] == "unknown"
+    kr = client.get("/v1/stores/old.example", params={"country": "KR"}).json()["agent_purchase"]
+    assert kr["verdict"] != "no"
+    rec = client.get("/v1/stores/new.example", params={"country": "KR"}).json()
+    pub = rec["shipping"]["store_published"]
+    assert pub["countries"] == ["CA", "KR"] and pub["ships_worldwide"] is False and pub["checked_at"]
+    assert rec["shipping"]["quotes"]["KR"]["cheapest_amount"] == 18000
+    assert rec["shipping"]["no_shipping_to"] == ["IN"]
+    # Brazil: not tested; the store's own list leaves it out -> no; worldwide store -> maybe.
+    br = client.get("/v1/stores/new.example", params={"country": "BR"}).json()["agent_purchase"]
+    assert br["verdict"] == "no" and any("publishes" in r for r in br["reasons"])
+    br = client.get("/v1/stores/world.example", params={"country": "BR"}).json()["agent_purchase"]
+    assert br["verdict"] == "maybe" and any("publishes BR" in r for r in br["reasons"])
+    got = client.get("/v1/stores", params={"store_ships_to": "CA"}).json()
+    assert {x["domain"] for x in got["items"]} == {"new.example", "world.example"}
+    assert {old["id"], new["id"], world["id"]}
+    page = client.get("/stores/new.example")
+    assert page.status_code == 200 and "store-published" in page.text
+
+
+def test_profile_declares_fulfillment(client):
+    caps = client.get("/agent/ucp-profile.json").json()["ucp"]["capabilities"]
+    assert "dev.ucp.shopping.fulfillment" in caps and "dev.ucp.shopping.checkout" in caps

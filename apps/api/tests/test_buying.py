@@ -30,7 +30,8 @@ SHOP_PAY = {"protocol": "ucp-mcp", "protocol_version": "2026-08-25", "agent_prof
             "agent_auth_required": False, "payment_handlers": ["shop_pay", "shopify.card"],
             "buyer_info_required": ["buyer_identity_contact_method_required", "delivery_address_required"],
             "buyer_confirmation_required": True, "tested_country": "US", "currency": "USD",
-            "ships_to": ["KR", "US"], "no_shipping_to": ["DE"], "autonomous_payment": "after_one_time_link"}
+            "ships_to": ["KR", "US"], "no_shipping_to": ["DE"], "delivery_test": "address",
+            "autonomous_payment": "after_one_time_link"}
 CARD_ONLY = {**SHOP_PAY, "payment_handlers": ["shopify.card"], "autonomous_payment": "none_observed",
              "ships_to": ["KR", "US", "DE"], "no_shipping_to": []}
 GOOGLE_ONLY = {"protocol": "ucp-mcp", "agent_profile_required": True, "agent_auth_required": True,

@@ -276,8 +276,10 @@ MCP (no auth): {base}/mcp, tools find_stores, can_i_buy_here, how_to_buy, search
 
 Every store was tested by ONAA as an anonymous outside agent: list tools, search, create a one-item checkout,
 cancel it. Never paid, no order placed. Results show protocol, payment handlers, whether an agent can pay alone
-(Shop Pay one-time link), buyer info required, and delivery to US, GB, DE, JP and KR. ONAA holds no product
-data: search products with the store's own catalog tool. Not affiliated with the stores; their terms apply.
+(Shop Pay one-time link), buyer info required, and delivery (with a cheapest shipping example) to US, GB, DE,
+JP, KR, CA, AU, FR, SG and IN using a public test address. Each store's own published shipping countries are shown
+apart, as store-published (filter: /v1/stores?store_ships_to=BR). ONAA holds no product data: search products with
+the store's own catalog tool. Not affiliated with the stores; their terms apply.
 
 Use ONAA also to: find a payment, escrow, logistics, insurance or hosting provider an agent can call; find seller
 or buyer agents that trade directly over A2A; or list your own store or agent.
@@ -582,6 +584,11 @@ def ucp_agent_profile() -> JSONResponse:
     caps = {name: [{"version": UCP_PROFILE_VERSION, "spec": f"https://ucp.dev/{UCP_PROFILE_VERSION}/specification/"
                                                            f"overview/"}]
             for name in ("dev.ucp.shopping.catalog.search", "dev.ucp.shopping.cart", "dev.ucp.shopping.checkout")}
+    # Without the fulfillment extension a store ignores the test address and answers "no delivery available".
+    caps["dev.ucp.shopping.fulfillment"] = [{
+        "version": UCP_PROFILE_VERSION,
+        "spec": f"https://ucp.dev/{UCP_PROFILE_VERSION}/specification/shopping/extensions/fulfillment/",
+        "extends": ["dev.ucp.shopping.checkout", "dev.ucp.shopping.cart"]}]
     return JSONResponse({"ucp": {"version": UCP_PROFILE_VERSION, "services": {}, "payment_handlers": {},
                                  "capabilities": caps},
                          "name": f"{BRAND} checkout checker",

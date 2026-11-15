@@ -205,6 +205,19 @@
             ],
             "title": "Currency"
           },
+          "delivery_test": {
+            "anyOf": [
+              {
+                "const": "address",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "address: delivery was tested with a public test address per country (results without it could not tell 'no delivery' from 'no address given')",
+            "title": "Delivery Test"
+          },
           "manifest_payment_handlers": {
             "description": "payment handler namespaces in the store's UCP manifest, e.g. com.google.pay, dev.shopify.shop_pay",
             "items": {
@@ -256,6 +269,48 @@
               }
             ],
             "title": "Protocol Version"
+          },
+          "published_ships_source": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Ships Source"
+          },
+          "published_ships_to": {
+            "description": "countries the store itself publishes as shipping destinations (Shopify /meta.json). Store-published, not tested by ONAA",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 260,
+            "title": "Published Ships To",
+            "type": "array"
+          },
+          "published_ships_worldwide": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the store's own published shipping list includes rest of world. Store-published, not tested by ONAA",
+            "title": "Published Ships Worldwide"
+          },
+          "shipping_quotes": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ShippingQuote"
+            },
+            "description": "cheapest shipping option per tested country for the one test item: an example, not a price for your order",
+            "maxProperties": 16,
+            "title": "Shipping Quotes",
+            "type": "object"
           },
           "ships_to": {
             "description": "tested countries (ISO 3166-1) where a checkout reported delivery",
@@ -4087,6 +4142,76 @@
           }
         },
         "title": "ServiceUpdate",
+        "type": "object"
+      },
+      "ShippingQuote": {
+        "additionalProperties": false,
+        "description": "Cheapest shipping option a test checkout returned for one country (one test item, never paid).",
+        "properties": {
+          "cheapest_amount": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "minor units of `currency` (UCP totals)",
+            "title": "Cheapest Amount"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "earliest": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "earliest delivery time the store gave",
+            "title": "Earliest"
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "latest delivery time the store gave",
+            "title": "Latest"
+          },
+          "options": {
+            "description": "shipping options offered",
+            "maximum": 50.0,
+            "minimum": 0.0,
+            "title": "Options",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "options"
+        ],
+        "title": "ShippingQuote",
         "type": "object"
       },
       "SkillIO": {
@@ -9186,7 +9311,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Anonymous daily usage counts by agent class, path, MCP tool and store check",
+        "summary": "Anonymous daily usage counts split into external, ours and probes, by agent class, path, MCP tool and store check",
         "tags": [
           "meta"
         ]
@@ -9198,7 +9323,7 @@
         "operationId": "list_stores_v1_stores_get",
         "parameters": [
           {
-            "description": "ISO country the checkout reported delivery to (tested: US, GB, DE, JP, KR)",
+            "description": "ISO country ONAA's test checkout confirmed delivery to (verified; tested: US, GB, DE, JP, KR, CA, AU, FR, SG, IN)",
             "in": "query",
             "name": "ships_to",
             "required": false,
@@ -9214,8 +9339,29 @@
                   "type": "null"
                 }
               ],
-              "description": "ISO country the checkout reported delivery to (tested: US, GB, DE, JP, KR)",
+              "description": "ISO country ONAA's test checkout confirmed delivery to (verified; tested: US, GB, DE, JP, KR, CA, AU, FR, SG, IN)",
               "title": "Ships To"
+            }
+          },
+          {
+            "description": "ISO country the store's own published shipping list includes (worldwide counts; store-published, not tested by ONAA). Works for any country",
+            "in": "query",
+            "name": "store_ships_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO country the store's own published shipping list includes (worldwide counts; store-published, not tested by ONAA). Works for any country",
+              "title": "Store Ships To"
             }
           },
           {

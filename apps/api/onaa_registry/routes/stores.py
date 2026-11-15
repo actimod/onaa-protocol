@@ -90,8 +90,12 @@ def stores_csv(request: Request, session: Session = Depends(get_session)):
 @router.get("/v1/stores", summary="Find stores an AI agent can buy from (filter by shipping country, pay-alone, ...)")
 def list_stores(
     request: Request,
-    ships_to: Annotated[list[str] | None, Query(description="ISO country the checkout reported delivery to "
-                                                            "(tested: US, GB, DE, JP, KR)")] = None,
+    ships_to: Annotated[list[str] | None, Query(description="ISO country ONAA's test checkout confirmed delivery "
+                                                            "to (verified; tested: " + ", ".join(TESTED_COUNTRIES)
+                                                            + ")")] = None,
+    store_ships_to: Annotated[list[str] | None, Query(
+        description="ISO country the store's own published shipping list includes (worldwide counts; "
+                    "store-published, not tested by ONAA). Works for any country")] = None,
     pays_alone: Annotated[bool | None, Query(description="true: an agent can pay alone after the buyer approves "
                                                          "a one-time link (Shop Pay identity linking)")] = None,
     checkout: Annotated[list[str] | None, Query(description="last probe status: checkout_ready, "
@@ -109,6 +113,7 @@ def list_stores(
     use the store's own catalog search (its MCP endpoint) or Shop MCP, then check the store here or with
     /v1/stores/check. For the whole list in one request use /stores.json."""
     ships = _csv_param(ships_to, upper=True)
+    store_ships = set(_csv_param(store_ships_to, upper=True))
     statuses = _csv_param(checkout)
     protos = _csv_param(protocol)
     handlers = _csv_param(payment_handler)
@@ -119,6 +124,8 @@ def list_stores(
     matched = []
     for row in snap.rows:
         if want_ships and not want_ships & row.ships_to:
+            continue
+        if store_ships and not (row.published_worldwide or store_ships <= row.published_to):
             continue
         if pays_alone is not None and bool(row.pays_alone) != pays_alone:
             continue
@@ -144,8 +151,8 @@ def list_stores(
     if untested:
         out["untested_countries"] = untested
         out["untested_note"] = (f"ONAA's checker tests delivery to {', '.join(TESTED_COUNTRIES)} only, so no store "
-                                f"is shown as shipping to {', '.join(untested)}. Drop ships_to and check delivery "
-                                "at the store's checkout.")
+                                f"is shown as shipping to {', '.join(untested)}. Use store_ships_to= for the "
+                                "store's own published shipping list, and check delivery at the store's checkout.")
     return JSONResponse(out, headers={"Cache-Control": "public, max-age=300"})
 
 
@@ -301,6 +308,15 @@ def stores_index(request: Request, page: Annotated[int, Query(ge=1, le=10_000)] 
                               f"{base}/stores.json"), headers={"Cache-Control": CACHE})
 
 
+def _published_text(pub) -> str:
+    if not isinstance(pub, dict):
+        return "unknown"
+    if pub["ships_worldwide"]:
+        return "worldwide (store's own shipping list)"
+    return f'{len(pub["countries"])} countries: ' + ", ".join(pub["countries"][:40]) + (
+        " ..." if len(pub["countries"]) > 40 else "")
+
+
 @router.get("/stores/{store}", response_class=HTMLResponse, include_in_schema=False)
 def store_page(store: str, request: Request, session: Session = Depends(get_session)):
     base = _base(request)
@@ -319,8 +335,9 @@ def store_page(store: str, request: Request, session: Session = Depends(get_sess
                                  None: "unknown"}[cp["agent_can_pay_alone"]]),
         ("Payment options at checkout", ", ".join(cp["payment_handlers"]) or "none seen"),
         ("Buyer must provide", ", ".join(cp["buyer_info_required"]) or "nothing reported"),
-        ("Ships to (tested)", ", ".join(sh["ships_to"]) or "none of the tested countries"),
-        ("No delivery to (tested)", ", ".join(sh["no_shipping_to"]) or "-"),
+        ("Ships to (tested by ONAA)", ", ".join(sh["ships_to"]) or "none of the tested countries confirmed"),
+        ("No delivery to (tested by ONAA)", ", ".join(sh["no_shipping_to"]) or "-"),
+        ("Ships to (store-published, not tested)", _published_text(sh["store_published"])),
         ("Agent shopping endpoint", it["endpoints"]["mcp"] or "not public"),
     ]
     table = "".join(f'<li><strong>{_e(k)}:</strong> {_e(v)}</li>' for k, v in facts)

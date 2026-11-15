@@ -43,7 +43,8 @@ def test_due_order_and_recording(client):
     loop = CheckerLoop(sm, "https://api.example", check_one=_fake_probe(seen),
                        client_factory=contextlib.nullcontext)
     assert loop.check(None, a) == "buyer_step_required"
-    assert seen[0] == (a, "https://api.example/agent/ucp-profile.json", "US,GB,DE,JP,KR")
+    assert seen[0] == (a, "https://api.example/agent/ucp-profile.json",
+                       "US,GB,DE,JP,KR,CA,AU,FR,SG,IN")
     rec = client.get(f"/v1/stores/{a}").json()
     assert rec["checkout_probe"]["status"] == "buyer_step_required" and rec["shipping"]["ships_to"] == ["KR", "US"]
     with sm() as s:

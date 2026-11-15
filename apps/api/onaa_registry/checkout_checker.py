@@ -37,8 +37,26 @@ FORBIDDEN_TOOLS = frozenset({"complete_checkout", "create_spend_request", "compl
                              "update_spend_request"})
 NEW_PROTOCOL = "2026-07-28"
 SEARCH_QUERIES = ("gift", "t-shirt", "socks", "book", "mug")
-SHIP_TEST = {"US": "USD", "GB": "GBP", "DE": "EUR", "JP": "JPY", "KR": "KRW"}
+SHIP_TEST = {"US": "USD", "GB": "GBP", "DE": "EUR", "JP": "JPY", "KR": "KRW",
+             "CA": "CAD", "AU": "AUD", "FR": "EUR", "SG": "SGD", "IN": "INR"}
+# A delivery test needs an address: without one a store answers "no delivery available" for every country (the
+# 2026-11 false "ships nowhere" results). These are public landmarks, never a person's address; the recipient
+# name is the checker itself. The checkout is cancelled and never paid, so nothing is ever sent there.
+TEST_DESTINATIONS = {
+    "US": ("350 Fifth Avenue", "New York", "NY", "10118"),               # Empire State Building
+    "GB": ("30 St Mary Axe", "London", "", "EC3A 8BF"),                   # 30 St Mary Axe
+    "DE": ("Alexanderplatz 1", "Berlin", "", "10178"),
+    "JP": ("2-8-1 Nishi-Shinjuku", "Shinjuku-ku", "Tokyo", "163-8001"),  # Tokyo Metropolitan Government
+    "KR": ("110 Sejong-daero", "Jung-gu", "Seoul", "04524"),              # Seoul City Hall
+    "CA": ("290 Bremner Blvd", "Toronto", "ON", "M5V 3L9"),               # CN Tower
+    "AU": ("Bennelong Point", "Sydney", "NSW", "2000"),                   # Sydney Opera House
+    "FR": ("5 Avenue Anatole France", "Paris", "", "75007"),              # Eiffel Tower
+    "SG": ("10 Bayfront Avenue", "Singapore", "", "018956"),              # Marina Bay Sands
+    "IN": ("Apollo Bandar, Colaba", "Mumbai", "MH", "400001"),            # Gateway of India
+}
 NO_DELIVERY = "delivery_no_delivery_available"
+ADDRESS_REQUIRED = "delivery_address_required"
+MAX_PUBLISHED_COUNTRIES = 260
 MAX_BODY = 2 * 1024 * 1024
 CLIENT_INFO = {"name": "onaa-checkout-checker", "version": "0.1"}
 
@@ -162,8 +180,93 @@ def _message_codes(checkout: dict) -> list[str]:
     return sorted(codes)[:16]
 
 
-def _ships(checkout: dict) -> bool:
-    return not any(c.startswith(NO_DELIVERY) for c in _message_codes(checkout))
+def destination(country: str) -> dict[str, Any] | None:
+    """UCP fulfillment input with the public test address for `country`, or None when there is none."""
+    addr = TEST_DESTINATIONS.get(country)
+    if not addr:
+        return None
+    street, locality, region, postal = addr
+    dest = {"id": f"onaa-test-{country.lower()}", "first_name": "ONAA", "last_name": "Checker",
+            "street_address": street, "address_locality": locality, "postal_code": postal,
+            "address_country": country}
+    if region:
+        dest["address_region"] = region
+    return {"methods": [{"type": "shipping", "destinations": [dest]}]}
+
+
+def _amount(totals: Any) -> int | None:
+    if not isinstance(totals, list):
+        return None
+    by_type = {t.get("type"): t.get("amount") for t in totals if isinstance(t, dict)}
+    for key in ("total", "fulfillment", "subtotal"):
+        if isinstance(by_type.get(key), int) and not isinstance(by_type.get(key), bool):
+            return by_type[key]
+    return None
+
+
+def _options(checkout: dict) -> list[dict]:
+    ful = checkout.get("fulfillment")
+    out = []
+    for m in (ful.get("methods") or []) if isinstance(ful, dict) else []:
+        if not isinstance(m, dict) or m.get("type", "shipping") != "shipping":
+            continue
+        for g in m.get("groups") or []:
+            for o in (g.get("options") or []) if isinstance(g, dict) else []:
+                if isinstance(o, dict):
+                    out.append(o)
+    return out
+
+
+def delivery(checkout: dict) -> tuple[bool | None, dict | None]:
+    """(ships, cheapest shipping quote) from one test checkout. None = the checkout did not say.
+
+    Shipping options returned for the test address -> ships, with the cheapest option's cost (minor units of the
+    checkout currency) and delivery window. "No delivery available" -> does not ship, unless the store also asked
+    for an address: then it never looked at one, and the answer says nothing about the country."""
+    codes = _message_codes(checkout)
+    opts = _options(checkout)
+    if opts:
+        priced = [(a, o) for o in opts if (a := _amount(o.get("totals"))) is not None]
+        quote: dict[str, Any] = {"options": min(len(opts), 50)}
+        if priced:
+            amount, best = min(priced, key=lambda x: x[0])
+            quote["cheapest_amount"] = amount
+            cur = checkout.get("currency")
+            if isinstance(cur, str) and len(cur) == 3 and cur.isalpha():
+                quote["currency"] = cur.upper()
+            for key, out in (("earliest_fulfillment_time", "earliest"), ("latest_fulfillment_time", "latest")):
+                if isinstance(best.get(key), str):
+                    quote[out] = best[key][:32]
+        return True, quote
+    if any(c.startswith(NO_DELIVERY) for c in codes):
+        return (None, None) if ADDRESS_REQUIRED in codes else (False, None)
+    if ADDRESS_REQUIRED in codes:
+        return None, None
+    return True, None
+
+
+def published_shipping(http: httpx.Client, manifest_url: str | None) -> dict[str, Any]:
+    """The countries the store itself publishes as shipping destinations (Shopify /meta.json), best effort.
+
+    Store-published, not tested by ONAA: kept apart from ships_to. "*" is Shopify's rest-of-world zone, i.e. the
+    store ships everywhere, so the country list is then dropped."""
+    if not manifest_url or not manifest_url.endswith("/.well-known/ucp"):
+        return {}
+    url = manifest_url[: -len("/.well-known/ucp")] + "/meta.json"
+    try:
+        validate_public_url(url)
+        r = http.get(url)
+        doc = json.loads(r.content[:MAX_BODY]) if r.status_code == 200 else None
+    except (httpx.HTTPError, UnsafeURLError, ValueError):
+        return {}
+    raw = doc.get("ships_to_countries") if isinstance(doc, dict) else None
+    if not isinstance(raw, list):
+        return {}
+    worldwide = "*" in raw
+    codes = sorted({c.upper() for c in raw if isinstance(c, str) and len(c) == 2 and c.isalpha()})
+    return {"published_ships_worldwide": worldwide,
+            "published_ships_to": [] if worldwide else codes[:MAX_PUBLISHED_COUNTRIES],
+            "published_ships_source": url[:300]}
 
 
 def _autonomy(handlers: list[str]) -> str:
@@ -231,8 +334,14 @@ def probe_channel(client: McpClient, *, shop_mcp: bool, country: str, currency: 
                     "requirements": req}
         variant, seller, version = offer
         req["protocol_version"] = (version or "")[:20] or None
-        args: dict[str, Any] = {**meta, "checkout": {"line_items": [{"item": {"id": variant}, "quantity": 1}],
-                                                     "context": {"address_country": country, "currency": currency}}}
+        def checkout_input(cc: str, cur: str) -> dict[str, Any]:
+            body: dict[str, Any] = {"line_items": [{"item": {"id": variant}, "quantity": 1}],
+                                    "context": {"address_country": cc, "currency": cur}}
+            if (ful := destination(cc)) is not None:
+                body["fulfillment"] = ful
+            return body
+
+        args: dict[str, Any] = {**meta, "checkout": checkout_input(country, currency)}
         if shop_mcp:
             if not seller:
                 return {"status": "no_checkout", "steps": steps, "detail": "offer had no seller domain",
@@ -264,23 +373,35 @@ def probe_channel(client: McpClient, *, shop_mcp: bool, country: str, currency: 
         if cancel(checkout):
             steps.append("cancel")
         ships, no_ship, currencies = set(), set(), {str(checkout.get("currency", ""))[:3].upper()} - {""}
-        (ships if _ships(checkout) else no_ship).add(country)
+        quotes: dict[str, dict] = {}
+
+        def record(cc: str, chk: dict) -> None:
+            ok, quote = delivery(chk)
+            if ok is True:
+                ships.add(cc)
+            elif ok is False:
+                no_ship.add(cc)
+            if quote and "cheapest_amount" in quote:
+                quotes[cc] = quote
+
+        record(country, checkout)
         for cc, cur in (ship_test or {}).items():
             if cc == country:
                 continue
             pause(1.0)
             try:
-                other = client.call_tool("create_checkout", {**args, "checkout": {
-                    **args["checkout"], "context": {"address_country": cc, "currency": cur}}})
+                other = client.call_tool("create_checkout", {**args, "checkout": checkout_input(cc, cur)})
             except ProbeError:
                 continue
             if not other.get("id"):
                 continue
-            (ships if _ships(other) else no_ship).add(cc)
+            record(cc, other)
             if isinstance(other.get("currency"), str):
                 currencies.add(other["currency"][:3].upper())
             cancel(other)
         req["ships_to"], req["no_shipping_to"] = sorted(ships), sorted(no_ship)
+        req["delivery_test"] = "address"
+        req["shipping_quotes"] = dict(sorted(quotes.items()))
         req["currencies_seen"] = sorted(c for c in currencies if len(c) == 3 and c.isalpha())
         status = "buyer_step_required" if state == "requires_escalation" else "checkout_ready"
         return {"status": status, "steps": steps, "detail": f"checkout status {state[:40] or 'unknown'}",
@@ -295,7 +416,7 @@ def probe_channel(client: McpClient, *, shop_mcp: bool, country: str, currency: 
 
 
 def clean(obs: dict) -> dict:
-    req = {k: v for k, v in obs.get("requirements", {}).items() if v not in (None, [], "")}
+    req = {k: v for k, v in obs.get("requirements", {}).items() if v not in (None, [], "", {})}
     out = {k: v for k, v in obs.items() if k != "requirements" and v not in (None, [], "")}
     if req:
         out["requirements"] = req
@@ -325,8 +446,10 @@ def check_one(http: httpx.Client, listing: dict, profile: str, args) -> dict:
         client = McpClient(listing["endpoint_url"], http, None if shop_mcp else profile)
         countries = [c.strip().upper() for c in args.ship_countries.split(",") if c.strip()]
         ship_test = {c: SHIP_TEST.get(c, args.currency) for c in countries}
+        hints = {**manifest_hints(http, listing.get("documentation_url")),
+                 **published_shipping(http, listing.get("documentation_url"))}
         obs = probe_channel(client, shop_mcp=shop_mcp, country=args.country, currency=args.currency,
-                            ship_test=ship_test, hints=manifest_hints(http, listing.get("documentation_url")))
+                            ship_test=ship_test, hints=hints)
     except UnsafeURLError as exc:
         obs = {"status": "failed", "steps": [], "detail": f"unsafe endpoint: {exc}"[:500]}
     except Exception as exc:  # noqa: BLE001 - one broken store must not stop the run

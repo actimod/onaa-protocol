@@ -124,3 +124,79 @@ def test_check_order_never_checked_then_oldest():
             {"id": "svc_c"},
             {"id": "svc_a", "agent_checkout": {"checked_at": "2026-11-01T10:00:00+00:00"}}]
     assert [r["id"] for r in sorted(rows, key=mod.check_order)] == ["svc_c", "svc_a", "svc_b"]
+
+
+FULFILLMENT_KR = {"methods": [{"type": "shipping", "groups": [{"id": "g1", "options": [
+    {"id": "exp", "title": "Express", "totals": [{"type": "total", "amount": 45000}],
+     "earliest_fulfillment_time": "2026-11-20T00:00:00Z", "latest_fulfillment_time": "2026-11-22T00:00:00Z"},
+    {"id": "std", "title": "Standard", "totals": [{"type": "total", "amount": 18000}],
+     "earliest_fulfillment_time": "2026-11-25T00:00:00Z", "latest_fulfillment_time": "2026-12-02T00:00:00Z"}]}]}]}
+
+
+def test_delivery_without_address_is_not_a_no():
+    # The store never looked at an address: "no delivery available" says nothing about the country.
+    no_addr = {"messages": [{"type": "error", "code": "delivery_address_required"},
+                            {"type": "error", "code": "delivery_no_delivery_available"}]}
+    assert mod.delivery(no_addr) == (None, None)
+    assert mod.delivery({"messages": [{"type": "error", "code": "delivery_no_delivery_available"}]}) == (False, None)
+    ok, quote = mod.delivery({"currency": "KRW", "fulfillment": FULFILLMENT_KR, "messages": []})
+    assert ok is True
+    assert quote == {"options": 2, "cheapest_amount": 18000, "currency": "KRW",
+                     "earliest": "2026-11-25T00:00:00Z", "latest": "2026-12-02T00:00:00Z"}
+
+
+def test_probe_sends_public_test_address_and_records_quotes():
+    sent = {}
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        if body["method"] == "tools/list":
+            return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "result": {"tools": TOOLS}})
+        name = body["params"]["name"]
+        out: dict = PRODUCTS if name == "search_catalog" else {}
+        if name == "create_checkout":
+            chk_in = body["params"]["arguments"]["checkout"]
+            cc = chk_in["context"]["address_country"]
+            sent[cc] = chk_in.get("fulfillment")
+            if cc == "KR":
+                out = {**CHECKOUT, "currency": "KRW", "fulfillment": FULFILLMENT_KR, "messages": []}
+            elif cc == "IN":  # address given, store still has no option: a real "no delivery"
+                out = {**CHECKOUT, "messages": [{"type": "error", "code": "delivery_no_delivery_available"}]}
+            else:  # store ignored the address (no fulfillment negotiated): unknown, never "no"
+                out = {**CHECKOUT, "messages": [{"type": "error", "code": "delivery_address_required"},
+                                                {"type": "error", "code": "delivery_no_delivery_available"}]}
+        return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "result": {"structuredContent": out}})
+
+    c = mod.McpClient("https://shop.example/mcp", httpx.Client(transport=httpx.MockTransport(handle)),
+                      "https://reg.example/p.json", resolver=None)
+    obs = mod.clean(mod.probe_channel(c, shop_mcp=False, country="US", currency="USD", pause=lambda s: None,
+                                      ship_test=mod.SHIP_TEST))
+    req = obs["requirements"]
+    assert len(mod.SHIP_TEST) == 10 and set(sent) == set(mod.SHIP_TEST)
+    dest = sent["KR"]["methods"][0]["destinations"][0]
+    assert dest["address_country"] == "KR" and dest["postal_code"] == "04524" and dest["first_name"] == "ONAA"
+    assert req["ships_to"] == ["KR"] and req["no_shipping_to"] == ["IN"]
+    assert req["delivery_test"] == "address"
+    assert req["shipping_quotes"]["KR"]["cheapest_amount"] == 18000
+    from onaa_registry.schemas import AgentCheckoutObservation
+    AgentCheckoutObservation(**obs)  # the admin/loop schema accepts it
+
+
+def test_published_shipping_from_meta_json():
+    def handle(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/meta.json"
+        host = request.url.host
+        if host == "world.example":
+            return httpx.Response(200, json={"ships_to_countries": ["*", "KR", "US"]})
+        if host == "few.example":
+            return httpx.Response(200, json={"ships_to_countries": ["us", "CA", "bad1", 3]})
+        return httpx.Response(404)
+
+    http = httpx.Client(transport=httpx.MockTransport(handle))
+    w = mod.published_shipping(http, "https://world.example/.well-known/ucp")
+    assert w == {"published_ships_worldwide": True, "published_ships_to": [],
+                 "published_ships_source": "https://world.example/meta.json"}
+    f = mod.published_shipping(http, "https://few.example/.well-known/ucp")
+    assert f["published_ships_worldwide"] is False and f["published_ships_to"] == ["CA", "US"]
+    assert mod.published_shipping(http, "https://none.example/.well-known/ucp") == {}
+    assert mod.published_shipping(http, "https://mcp.shop.com/docs") == {}

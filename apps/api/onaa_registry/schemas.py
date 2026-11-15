@@ -680,6 +680,16 @@ AgentCheckoutStatus = Literal[
 ]
 
 
+class ShippingQuote(StrictModel):
+    """Cheapest shipping option a test checkout returned for one country (one test item, never paid)."""
+
+    options: int = Field(ge=0, le=50, description="shipping options offered")
+    cheapest_amount: int | None = Field(default=None, ge=0, description="minor units of `currency` (UCP totals)")
+    currency: str | None = Field(default=None, min_length=3, max_length=3)
+    earliest: str | None = Field(default=None, max_length=32, description="earliest delivery time the store gave")
+    latest: str | None = Field(default=None, max_length=32, description="latest delivery time the store gave")
+
+
 class AgentCheckoutRequirements(StrictModel):
     """What the probe observed an agent needs to reach checkout and pay at this store ("how to buy here")."""
 
@@ -703,6 +713,19 @@ class AgentCheckoutRequirements(StrictModel):
     no_shipping_to: list[str] = Field(default_factory=list, max_length=32,
                                       description="tested countries where the checkout reported no delivery")
     currencies_seen: list[str] = Field(default_factory=list, max_length=16)
+    delivery_test: Literal["address"] | None = Field(
+        default=None, description="address: delivery was tested with a public test address per country (results "
+                                  "without it could not tell 'no delivery' from 'no address given')")
+    shipping_quotes: dict[str, ShippingQuote] = Field(
+        default_factory=dict, max_length=16, description="cheapest shipping option per tested country for the one "
+                                                         "test item: an example, not a price for your order")
+    published_ships_worldwide: bool | None = Field(
+        default=None, description="the store's own published shipping list includes rest of world. Store-published, "
+                                  "not tested by ONAA")
+    published_ships_to: list[str] = Field(default_factory=list, max_length=260,
+                                          description="countries the store itself publishes as shipping destinations "
+                                                      "(Shopify /meta.json). Store-published, not tested by ONAA")
+    published_ships_source: str | None = Field(default=None, max_length=300)
     manifest_payment_handlers: list[str] = Field(
         default_factory=list, max_length=16, description="payment handler namespaces in the store's UCP manifest, "
                                                          "e.g. com.google.pay, dev.shopify.shop_pay")
@@ -715,7 +738,14 @@ class AgentCheckoutRequirements(StrictModel):
                                   "the buyer per purchase or undocumented approval; not_offered: no agent payment "
                                   "handler at checkout")
 
-    @field_validator("ships_to", "no_shipping_to")
+    @field_validator("shipping_quotes")
+    @classmethod
+    def _v_quote_cc(cls, v: dict) -> dict:
+        if any(len(k) != 2 or not k.isalpha() or not k.isupper() for k in v):
+            raise ValueError("shipping_quotes keys must be ISO 3166-1 alpha-2")
+        return v
+
+    @field_validator("ships_to", "no_shipping_to", "published_ships_to")
     @classmethod
     def _v_cc(cls, v: list[str]) -> list[str]:
         out = sorted({x.strip().upper() for x in v})

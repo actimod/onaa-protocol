@@ -26,13 +26,13 @@ from urllib.parse import urlsplit
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .buying import TESTED_COUNTRIES, shipping_view
 from .logic import PUBLIC_STATUSES, aware, ensure_not_taken, host_of, make_listing_id, set_facets
 from .models import Listing, utcnow
 
 log = logging.getLogger("onaa.stores")
 
 FEED_SCHEMA = "onaa-store-feed/0.1"
-TESTED_COUNTRIES = ("US", "GB", "DE", "JP", "KR")
 UNKNOWN = "unknown"
 FEED_NOTE = ("Stores whose public agent shopping endpoint (UCP manifest, Shop MCP) ONAA found, with ONAA's own "
              "checkout probe: an anonymous agent searched, created a one-item checkout and cancelled it, never "
@@ -88,7 +88,8 @@ def store_record(listing: Listing, base: str, *, country: str | None = None) -> 
     ac = listing.agent_checkout or {}
     req = ac.get("requirements") or {}
     domain = store_domain(listing)
-    ships, no_ship = req.get("ships_to") or [], req.get("no_shipping_to") or []
+    view = shipping_view(req)
+    ships, no_ship = view["ships_to"], view["no_shipping_to"]
     tested = sorted(set(ships) | set(no_ship))
     key = domain or listing.id
     rec = {
@@ -126,8 +127,22 @@ def store_record(listing: Listing, base: str, *, country: str | None = None) -> 
             "ships_to": ships,
             "no_shipping_to": no_ship,
             "untested_countries": "unknown" if tested else "all",
+            "unconfirmed_countries": view["unconfirmed"],
             "test_currency": req.get("currency"),
             "currencies_seen": req.get("currencies_seen") or [],
+            "verified_by": "ONAA test checkout with a public test address, cancelled before payment"
+            if req.get("delivery_test") == "address" else ("ONAA test checkout" if tested else None),
+            "quotes": view["quotes"],
+            "quotes_note": "Cheapest shipping option for ONAA's one test item, in minor units of the currency. "
+                           "An example only: your order's shipping depends on items and address."
+            if view["quotes"] else None,
+            "store_published": {
+                "ships_worldwide": view["published_worldwide"],
+                "countries": view["published_ships_to"],
+                "source": view["published_source"],
+                "checked_at": ac.get("checked_at"),
+                "note": "Published by the store itself, read weekly; not tested by ONAA.",
+            } if view["published_known"] else UNKNOWN,
         },
         "catalog": CATALOG_UNKNOWN,
         "trust": {
@@ -165,6 +180,8 @@ class StoreRow:
     status: str
     pays_alone: bool | None
     ships_to: frozenset[str]
+    published_worldwide: bool
+    published_to: frozenset[str]
     protocol: str
     handlers: frozenset[str]
     currencies: frozenset[str]
@@ -204,9 +221,13 @@ def _fingerprint(session: Session) -> tuple:
 
 def _row(rec: dict) -> StoreRow:
     cp, sh = rec["checkout_probe"], rec["shipping"]
+    pub = sh["store_published"]
     return StoreRow(
         key=rec["domain"] or rec["id"], status=cp["status"], pays_alone=cp["agent_can_pay_alone"],
-        ships_to=frozenset(sh["ships_to"]), protocol=(cp["protocol"] or "").lower(),
+        ships_to=frozenset(sh["ships_to"]),
+        published_worldwide=isinstance(pub, dict) and pub["ships_worldwide"] is True,
+        published_to=frozenset(pub["countries"]) if isinstance(pub, dict) else frozenset(),
+        protocol=(cp["protocol"] or "").lower(),
         handlers=frozenset(h.lower() for h in cp["payment_handlers"]),
         currencies=frozenset(sh["currencies_seen"] + ([sh["test_currency"]] if sh["test_currency"] else [])),
         hay=f'{rec["name"]} {rec["domain"] or ""}'.lower(),

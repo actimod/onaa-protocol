@@ -87,7 +87,9 @@ class CheckerLoop:
         self._queue: list[str] = []
         self._claimed: set[str] = set()
         self.stats = {"checked": 0, "recorded": 0, "errors": 0}
-        self.args = SimpleNamespace(country="US", currency="USD", ship_countries="US,GB,DE,JP,KR")
+        from .checkout_checker import SHIP_TEST
+
+        self.args = SimpleNamespace(country="US", currency="USD", ship_countries=",".join(SHIP_TEST))
 
     # ----- queue -----
     def _next(self) -> str | None:
