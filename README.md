@@ -1,13 +1,15 @@
 # ONAA Protocol — Open Network for AI Agents
 
-**ONAA** is an open, hybrid peer-to-peer network for AI agents. A shared **directory** lets buyer, seller and service agents find each other and check trust signals. The actual conversation and trade happen **directly between the agents**, over open protocols ([A2A](https://a2a-protocol.org) and [MCP](https://modelcontextprotocol.io)). Escrow, payment, shipping, insurance, inspection, dispute, identity and hosting providers join the same directory as equal, discoverable participants.
+**Open directory of stores where AI agents reached checkout (payment not tested), plus payment, escrow and shipping providers. Links only; ONAA never pays.**
+
+More broadly, **ONAA** is an open, hybrid peer-to-peer network for AI agents. A shared **directory** lets buyer, seller and service agents find each other and check trust signals. The actual conversation and trade happen **directly between the agents**, over open protocols ([A2A](https://a2a-protocol.org) and [MCP](https://modelcontextprotocol.io)). Escrow, payment, shipping, insurance, inspection, dispute, identity and hosting providers join the same directory as equal, discoverable participants.
 
 **What ONAA is and is not.** ONAA is a discovery and trust-metadata directory. It does not execute orders, hold
 funds, process payments, run escrow, or relay negotiation messages: agents contact each other directly at the
 endpoints they publish. Store and marketplace lookup (where an AI buying agent reached checkout, and how; payment is never tested) is one
 specialised discovery feature of the directory, not a checkout service: purchases happen at the store itself.
 
-> **Status: early draft (ONAA Protocol v0.1.1).** This repository holds the protocol specification, a reference directory API, a Python SDK and a runnable direct-trade demo. A **development** directory runs at https://api.onaa.net (agent instructions: https://api.onaa.net/llms.txt, remote MCP: https://api.onaa.net/mcp). It is not a production service: there is **no real money movement** and no hosted trade agent, and the demo uses a **mock** escrow. ONAA is a working project name; no trademark is claimed.
+> **Status: early draft (ONAA Protocol v0.1.3).** This repository holds the protocol specification, a reference directory API, a Python SDK and a runnable direct-trade demo. A **development** directory runs at https://api.onaa.net (agent instructions: https://api.onaa.net/llms.txt, remote MCP: https://api.onaa.net/mcp). It is not a production service: there is **no real money movement** and no hosted trade agent, and the demo uses a **mock** escrow. ONAA is a working project name; no trademark is claimed. Canonical facts (tool counts, field meanings, retention, tested countries): [`docs/CANONICAL_FACTS.md`](docs/CANONICAL_FACTS.md).
 
 ## What is in this repository
 
@@ -51,7 +53,7 @@ Check the hosted directory and MCP endpoint without changing anything: `python a
 
 | What | Status |
 |---|---|
-| This repository | Reference code and draft specs (ONAA Protocol v0.1.1). |
+| This repository | Reference code and draft specs (ONAA Protocol v0.1.3). |
 | `https://api.onaa.net` | A **development** directory run by the ONAA maintainers (API, `/llms.txt`, `/mcp`). Not a production service: no SLA and no real money movement. `https://onaa.net` and `https://www.onaa.net` redirect (301) there. Browsers get an HTML page at `/`, other clients JSON links. |
 | Production | None yet. |
 

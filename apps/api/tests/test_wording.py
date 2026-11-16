@@ -7,6 +7,7 @@ the fix covers every copy and stays fixed.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -15,8 +16,9 @@ from onaa_registry.mcp_inventory import HOSTED_TOOLS
 ROOT = Path(__file__).resolve().parents[3]
 SCAN = ("apps/api/onaa_registry", "apps/mcp-registry", "packages", "public", "docs", "README.md", "specs/openapi.json")
 SUFFIXES = {".py", ".md", ".txt", ".json", ".html", ".toml", ".yaml", ".yml"}
-BANNED = re.compile(r"(?:can|agents?) (?:actually )?buy (?:here|from|at)|agent can buy|stores you can buy"
-                    r"|can pay alone: yes", re.I)
+# The banned patterns live in specs/onaa-facts.json, the single source of truth for public claims.
+BANNED = re.compile("|".join(json.loads((ROOT / "specs" / "onaa-facts.json").read_text(encoding="utf-8"))
+                             ["checkout_wording"]["banned_regex"]), re.I)
 
 
 def _files():
@@ -26,7 +28,10 @@ def _files():
             yield p
         elif p.is_dir():
             yield from (f for f in p.rglob("*") if f.suffix in SUFFIXES and "__pycache__" not in f.parts
-                        and "tests" not in f.parts)
+                        and "tests" not in f.parts
+                        # These quote banned wording on purpose: the facts page defines the ban, and the
+                        # history file records the wording each change replaced.
+                        and f.name not in {"CANONICAL_FACTS.md"})
 
 
 def test_no_payment_success_wording():

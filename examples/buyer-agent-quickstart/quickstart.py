@@ -75,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--country", default="US", help="ship-to country, ISO 3166-1 alpha-2")
     ap.add_argument("--query", default="socks", help="what the buyer wants (searched in the store's catalog)")
     ap.add_argument("--payment", nargs="*", default=["card", "shop_pay"], help="payment methods the buyer can use")
-    ap.add_argument("--pay-alone", action="store_true", help="require that the agent can pay without the buyer")
+    ap.add_argument("--pay-alone", action="store_true", help="only stores that offer a Shop Pay one-time link (payment not tested)")
     ap.add_argument("--store", help="skip find_stores and check this store domain or product URL")
     ap.add_argument("--profile-url", help="your agent's public UCP profile URL (sent to the store as UCP-Agent)")
     args = ap.parse_args(argv)
