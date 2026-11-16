@@ -297,6 +297,8 @@ Endpoint health filters (find_stores, /v1/stores, /v1/buying/stores):
                                  unreachable). Use it when you need endpoints known to answer now.
   reachable_only=true            relaxed (alias exclude_unreachable): drops only stores whose last 3 probes
                                  failed; stores not probed yet (unknown) stay in. reachability_counts shows the split.
+  Totals and counts in one answer come from one store list (list_as_of on buying answers); two calls made a few
+  minutes apart can differ because new probes landed in between.
 Checkout currency: shipping.currencies_seen (and observed_checkout_currency in buying answers) is what the store's
   test checkout returned. Use the store's own live quote for prices; do not assume your requested currency.
 

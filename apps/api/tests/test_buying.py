@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 
 from conftest import admin_headers
 
@@ -268,6 +269,21 @@ def test_checker_records_endpoint_health_and_strict_filter(client):
         ids = [(i.get("store") or i).get("id") for i in strict["items"]]
         assert ok in ids and bad not in ids
         assert set(k for k, v in strict["reachability_counts"].items() if v) == {"reachable"}
+
+
+def test_strict_and_relaxed_counts_reconcile_within_one_list(client):
+    """Live re-verification 2026-11-17 (5th): strict 18,809 vs relaxed 18,841, both all 'reachable'. The two
+    calls read different store lists (new probes landed in between). Each answer now says which list it read
+    (list_as_of), and within one list strict = relaxed's reachable count."""
+    _store(client, "answered.example.com", "checkout_ready", CARD_ONLY)
+    _store(client, "unprobed.example.com", "buyer_step_required", CARD_ONLY)
+    buying.reset_cache()
+    with client.app.state.sessionmaker() as s:
+        relaxed = buying.find_stores(s, include="all")
+        strict = buying.find_stores(s, include="all", confirmed_reachable_only=True)
+    assert relaxed["total"] == sum(relaxed["reachability_counts"].values())
+    assert strict["total"] == relaxed["reachability_counts"]["reachable"]
+    assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", relaxed["list_as_of"])
 
 
 def test_how_to_buy_uses_the_currency_the_store_actually_returned():
