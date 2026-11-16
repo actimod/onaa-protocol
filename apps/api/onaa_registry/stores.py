@@ -80,7 +80,8 @@ def _assess(listing: Listing, country: str | None = None) -> dict:
 
     a = assess(listing, country=country)
     why = a["reasons"] or a["cautions"]
-    return {"verdict": a["verdict"], "verdict_note": VERDICT_NOTE, **PAYMENT_EVIDENCE,
+    return {"checkout_path_observed": a["checkout_path_observed"], "verdict": a["verdict"],
+            "verdict_note": VERDICT_NOTE, **PAYMENT_EVIDENCE,
             "summary": VERDICT_TEXT[a["verdict"]] + (": " + "; ".join(why) if why else "") + ".",
             "reasons": a["reasons"], "cautions": a["cautions"], "country": a["country"],
             "accepted_agents": a["accepted_agents"], "how_to_buy": a["how_to_buy"]["steps"]}

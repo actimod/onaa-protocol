@@ -34,8 +34,14 @@ from .models import Listing, ListingFacet, utcnow
 Verdict = Literal["yes", "yes_buyer_finishes", "maybe", "no", "unknown"]
 # ONAA's checker always stops before payment. Every answer and store record says so in fields, so "yes" is never
 # read as a tested purchase: yes = an agent checkout path was observed (payment not tested).
-VERDICT_NOTE = ("verdict yes = agent checkout path observed (payment not tested); yes_buyer_finishes = an agent can "
-                "build the order, the buyer finishes it. ONAA never pays, so no payment outcome is verified.")
+# Founder decision 2026-11-16: checkout_path_observed leads every answer; verdict "yes" keeps working for 90 days and
+# is then renamed (VERDICT_YES_RENAME_ON). Clients should read checkout_path_observed, not verdict == "yes".
+VERDICT_YES_RENAME_ON = "2027-02-14"
+CHECKOUT_PATH_VERDICTS = ("yes", "yes_buyer_finishes")
+VERDICT_NOTE = ("checkout_path_observed = an agent reached the store's checkout (payment not tested). verdict yes = "
+                "checkout path observed; yes_buyer_finishes = an agent can build the order, the buyer finishes it. "
+                f"verdict value yes is deprecated and will be renamed on {VERDICT_YES_RENAME_ON}; read "
+                "checkout_path_observed instead. ONAA never pays, so no payment outcome is verified.")
 VERDICT_RANK = {"yes": 0, "yes_buyer_finishes": 1, "maybe": 2, "unknown": 3, "no": 4}
 STALE_AFTER = dt.timedelta(days=14)
 TESTED_COUNTRIES = tuple(SHIP_TEST)
@@ -287,6 +293,7 @@ def assess(listing: Listing, *, country: str | None = None, agent: str | None = 
         cautions.append("ONAA's recent health probes could not reach the endpoint")
 
     return {
+        "checkout_path_observed": verdict in CHECKOUT_PATH_VERDICTS,
         "store": {"id": listing.id, "name": listing.display_name, "endpoint_url": listing.endpoint_url,
                   "manifest_url": listing.source_url or listing.documentation_url},
         "verdict": verdict,

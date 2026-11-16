@@ -155,3 +155,14 @@ buyer_step_required, auth_required, no_checkout, failed),
   country and website.
 - Raw client IPs.
 - Plaintext keys or tokens (only SHA-256 hashes).
+
+## Store answers: checkout_path_observed and verdict
+
+Every store answer (`/v1/buying/stores`, `/v1/buying/check`, MCP `find_stores` and `can_i_buy_here`, and
+`agent_purchase` in `/v1/stores` records) leads with `checkout_path_observed`: true when an agent reached the
+store's checkout in ONAA's last probe. Payment is never tested (`payment_tested`, `payment_success_verified` and
+`post_link_autonomy_verified` are always false).
+
+`verdict` stays for compatibility: `yes` (checkout path observed), `yes_buyer_finishes` (the agent builds the
+order, the buyer finishes it), `maybe`, `no`, `unknown`. The value `yes` is deprecated and will be renamed on
+2027-02-14; read `checkout_path_observed` instead of comparing `verdict` with `"yes"`.
