@@ -2,10 +2,10 @@
 
 Built only on what `scripts/check_agent_checkout.py` records in `listings.agent_checkout` (see
 schemas.AgentCheckoutRequirements): protocol, payment handlers offered at checkout, buyer information the checkout
-asked for, tested delivery countries and currencies, whether an agent can pay alone after a one-time link, and
-which agents a store appears to accept. Nothing here probes a store, holds product data or pays: answers are
-derived from the last observation and say when it was made. Product search stays with each store's own catalog
-tool (or Shopify's Shop MCP).
+asked for, tested delivery countries and currencies, whether a Shop Pay one-time link is offered (payment not
+tested), and which agents a store appears to accept. Nothing here probes a store, holds product data or pays:
+answers are derived from the last observation and say when it was made. Product search stays with each store's
+own catalog tool (or Shopify's Shop MCP).
 
 Every answer is an observation by ONAA's checker, not a verification, endorsement or guarantee; the store's own
 terms apply. Answers distinguish "not tested" from "no".
@@ -63,7 +63,8 @@ PAYMENT_ALIASES = {
 }
 HANDLER_TEXT = {
     "shop_pay": "Shop Pay: on the first purchase the buyer approves once at the store's continue_url and can link "
-                "Shop Pay to the agent (identity linking); after that the agent can pay alone",
+                "Shop Pay to the agent (identity linking); whether the agent can then pay without a person is not "
+                "tested",
     "shopify.card": "card: the buyer enters card details on the store's checkout page (continue_url) for each "
                     "purchase",
     "gpay": "Google Pay: the buyer approves in Google Pay",

@@ -290,14 +290,14 @@ Page through, don't download everything: GET {base}/v1/stores?limit=100&offset=0
   is in the answer) with filters to keep it small, e.g. ?ships_to=KR&pays_alone=true (about 15 KB per 100 stores).
 Bulk only if you need all of it: {base}/stores.json (several MB gzip, ETag; also {base}/stores.csv). The
   llms-full.txt store list is large too; agents with fetch limits should use /v1/stores instead.
-MCP (no auth): {base}/mcp, 13 tools; for buying start with find_stores, can_i_buy_here and how_to_buy.
+MCP (no auth): {base}/mcp, {len(HOSTED_TOOLS)} tools; for buying start with find_stores, can_i_buy_here and how_to_buy.
 
 ONAA probes each listed store as an anonymous outside agent: list tools, search, create a one-item checkout,
 cancel it. Never paid, no order placed. Not every probe gets that far: each record says which stages it reached
 (stages: probe_attempted, checkout_reached, shipping_confirmed, payment_attempted=false) and gives each test
 country a state (shipping.country_results: ships, no_shipping, unconfirmed, untested). Results show protocol,
-payment handlers, whether an agent can pay alone
-(Shop Pay one-time link), buyer info required, and delivery (with a cheapest shipping example) to US, GB, DE,
+payment handlers, whether a Shop Pay one-time link is offered (payment not tested), buyer info required, and
+delivery (with a cheapest shipping example) to US, GB, DE,
 JP, KR, CA, AU, FR, SG and IN using a public test address. Each store's own published shipping countries are shown
 apart, as store-published (filter: /v1/stores?store_ships_to=BR). ONAA holds no product data: search products with
 the store's own catalog tool. Not affiliated with the stores; their terms apply.
@@ -468,11 +468,12 @@ def llms_full_txt(request: Request, session: Session = Depends(get_session)):
     def lines(snap):
         yield head + "\n\n"
         yield (f"# ONAA store list ({snap.count} stores, generated {snap.generated_at})\n\n> {FEED_NOTE}\n\n"
-               "One line per store: name | store URL | last checkout probe | agent can pay alone | payment options |"
+               "One line per store: name | store URL | last checkout probe"
+               " | Shop Pay one-time link offered (payment not tested) | payment options |"
                " ships to (tested) | no delivery to (tested) | MCP endpoint | JSON\n\n")
         for it in snap.records():
             cp, sh = it["checkout_probe"], it["shipping"]
-            alone = {True: "yes (after one-time buyer link)", False: "no",
+            alone = {True: "yes", False: "no",
                      None: "unknown"}[cp["agent_can_pay_alone"]]
             name = " ".join(str(it["name"]).split())[:120]
             yield " | ".join([

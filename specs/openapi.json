@@ -5145,7 +5145,7 @@
     },
     "/stores.json": {
       "get": {
-        "description": "The full store feed: every listed store with ONAA's last checkout probe (protocol, payment handlers,\nwhether an agent can pay alone, buyer info required, tested shipping countries) and links. Supports\nIf-None-Match. Same document as /v1/stores.json.",
+        "description": "The full store feed: every listed store with ONAA's last checkout probe (protocol, payment handlers,\nwhether a Shop Pay one-time link is offered (payment not tested), buyer info required, tested shipping\ncountries) and links. Supports If-None-Match. Same document as /v1/stores.json.",
         "operationId": "stores_feed_stores_json_get",
         "responses": {
           "200": {
@@ -7599,13 +7599,13 @@
             }
           },
           {
-            "description": "only stores where the agent can pay without the buyer each time (observed: after a one-time Shop Pay link)",
+            "description": "only stores that offer a Shop Pay one-time link the buyer approves once (offered, not observed; payment not tested)",
             "in": "query",
             "name": "pay_alone",
             "required": false,
             "schema": {
               "default": false,
-              "description": "only stores where the agent can pay without the buyer each time (observed: after a one-time Shop Pay link)",
+              "description": "only stores that offer a Shop Pay one-time link the buyer approves once (offered, not observed; payment not tested)",
               "title": "Pay Alone",
               "type": "boolean"
             }
@@ -7741,13 +7741,13 @@
             }
           },
           {
-            "description": "only stores where the agent can pay without the buyer each time (observed: after a one-time Shop Pay link)",
+            "description": "only stores that offer a Shop Pay one-time link the buyer approves once (offered, not observed; payment not tested)",
             "in": "query",
             "name": "pay_alone",
             "required": false,
             "schema": {
               "default": false,
-              "description": "only stores where the agent can pay without the buyer each time (observed: after a one-time Shop Pay link)",
+              "description": "only stores that offer a Shop Pay one-time link the buyer approves once (offered, not observed; payment not tested)",
               "title": "Pay Alone",
               "type": "boolean"
             }
@@ -10058,7 +10058,7 @@
             }
           },
           {
-            "description": "true: an agent can pay alone after the buyer approves a one-time link (Shop Pay identity linking)",
+            "description": "true: the store offers a Shop Pay one-time link the buyer approves once (identity linking); payment not tested",
             "in": "query",
             "name": "pays_alone",
             "required": false,
@@ -10071,7 +10071,7 @@
                   "type": "null"
                 }
               ],
-              "description": "true: an agent can pay alone after the buyer approves a one-time link (Shop Pay identity linking)",
+              "description": "true: the store offers a Shop Pay one-time link the buyer approves once (identity linking); payment not tested",
               "title": "Pays Alone"
             }
           },

@@ -18,8 +18,8 @@ Country = Annotated[str | None, Query(max_length=2, description="ISO 3166-1 coun
 Agent = Annotated[str | None, Query(max_length=60, description="your agent or platform, e.g. gemini, chatgpt, claude")]
 Payment = Annotated[list[str] | None, Query(description="payment methods you or your buyer can use: shop_pay, card, "
                                                         "google_pay (comma-separated or repeated)")]
-PayAlone = Annotated[bool, Query(description="only stores where the agent can pay without the buyer each time "
-                                             "(observed: after a one-time Shop Pay link)")]
+PayAlone = Annotated[bool, Query(description="only stores that offer a Shop Pay one-time link the buyer "
+                                             "approves once (offered, not observed; payment not tested)")]
 ClaimedOnly = Annotated[bool, Query(description="only stores posted by their operator; most stores are unclaimed "
                                                 "(found on the public web by ONAA), so this can return few or none")]
 ReachableOnly = Annotated[bool, Query(description="hide stores whose last 3 health probes failed "

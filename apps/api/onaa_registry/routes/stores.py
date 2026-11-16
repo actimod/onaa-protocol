@@ -71,8 +71,8 @@ def _feed_response(request: Request, session: Session) -> Response:
 @router.get("/stores.json", summary="All stores probed for AI agent checkout, with checkout requirements (one file)")
 def stores_feed(request: Request, session: Session = Depends(get_session)):
     """The full store feed: every listed store with ONAA's last checkout probe (protocol, payment handlers,
-    whether an agent can pay alone, buyer info required, tested shipping countries) and links. Supports
-    If-None-Match. Same document as /v1/stores.json."""
+    whether a Shop Pay one-time link is offered (payment not tested), buyer info required, tested shipping
+    countries) and links. Supports If-None-Match. Same document as /v1/stores.json."""
     return _feed_response(request, session)
 
 
@@ -99,8 +99,9 @@ def list_stores(
     store_ships_to: Annotated[list[str] | None, Query(
         description="ISO country the store's own published shipping list includes (worldwide counts; "
                     "store-published, not tested by ONAA). Works for any country")] = None,
-    pays_alone: Annotated[bool | None, Query(description="true: an agent can pay alone after the buyer approves "
-                                                         "a one-time link (Shop Pay identity linking)")] = None,
+    pays_alone: Annotated[bool | None, Query(description="true: the store offers a Shop Pay one-time link the "
+                                                         "buyer approves once (identity linking); payment not "
+                                                         "tested")] = None,
     checkout: Annotated[list[str] | None, Query(description="last probe status: checkout_ready, "
                                                             "buyer_step_required, auth_required, no_checkout, "
                                                             "failed, not_checked_yet")] = None,
@@ -287,8 +288,10 @@ def _page(title: str, desc: str, body: str, alt_json: str) -> str:
 
 
 STATUS_TEXT = {
-    "checkout_ready": "Checkout tested: an outside agent reached a checkout that asks for payment (payment not tested)",
-    "buyer_step_required": "An outside agent built a checkout; the buyer must finish a step",
+    "checkout_ready": "Agent checkout path observed (payment not tested): an outside agent reached a checkout that "
+                      "asks for payment",
+    "buyer_step_required": "Checkout reached, buyer step needed: an outside agent built a checkout; the buyer must "
+                           "finish a step",
     "auth_required": "Partner or approved agents only",
     "no_checkout": "No agent checkout found",
     "failed": "Last check failed",
@@ -350,9 +353,9 @@ def store_page(store: str, request: Request, session: Session = Depends(get_sess
         ("Last checked", cp["checked_at"] or "not yet"),
         ("Result", STATUS_TEXT.get(cp["status"], cp["status"])),
         ("Protocol", cp["protocol"] or "unknown"),
-        ("Agent can pay alone (not tested)",
-         {True: "Shop Pay one-time link offered; ONAA never pays, so whether the agent can then pay alone is "
-                "not verified", False: "no", None: "unknown"}[cp["agent_can_pay_alone"]]),
+        ("Shop Pay one-time link (payment not tested)",
+         {True: "offered; ONAA never pays, so whether the agent can then pay without a person is not verified",
+          False: "no", None: "unknown"}[cp["agent_can_pay_alone"]]),
         ("Payment tested", "no: ONAA's checker always stops before payment"),
         ("Payment options at checkout", ", ".join(cp["payment_handlers"]) or "none seen"),
         ("Buyer must provide", ", ".join(cp["buyer_info_required"]) or "nothing reported"),

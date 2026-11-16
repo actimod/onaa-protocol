@@ -20,7 +20,7 @@ BRAND = "ONAA"
 TAGLINE = ("Find stores and marketplaces where AI buying agents reach checkout, with each store's tested checkout "
            "requirements (UCP, Shop MCP). Links only.")
 CHECKOUT_LABELS = {
-    "checkout_ready": "Checkout tested (payment not tested)",
+    "checkout_ready": "Agent checkout path observed (payment not tested)",
     "buyer_step_required": "Checkout reached, buyer step needed",
     "auth_required": "Partner or approved agents only",
     "no_checkout": "No agent checkout found",
@@ -30,8 +30,8 @@ CHECKOUT_LABELS = {
 # Sections a human can open from the board. Values: (heading, listing types, facet filters, service types).
 SECTIONS: dict[str, tuple[str, tuple[str, ...], dict[str, list[str]], list[str] | None]] = {
     "stores": ("Stores where agents reach checkout", ("service",), {}, ["marketplace"]),
-    "stores-ready": ("Checkout tested (payment not tested)", ("service",), {"agent_checkout": ["checkout_ready"]},
-                     ["marketplace"]),
+    "stores-ready": ("Agent checkout path observed (payment not tested)", ("service",),
+                     {"agent_checkout": ["checkout_ready"]}, ["marketplace"]),
     "stores-buyer-step": ("Checkout reached, buyer step needed", ("service",),
                           {"agent_checkout": ["buyer_step_required"]}, ["marketplace"]),
     "stores-partner": ("Partner or approved agents only", ("service",), {"agent_checkout": ["auth_required"]},

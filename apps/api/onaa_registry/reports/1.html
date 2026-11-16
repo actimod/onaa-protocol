@@ -14,7 +14,7 @@
 <h2>What kind of human OK do stores need?</h2>
 <p>"A human has to step in" can mean very different things. We sorted the 13,481 stores where the agent opened a checkout into four kinds:</p>
 <p><img src="/reports/1/approval.svg" alt="What kind of human OK the store offers" width="760" loading="lazy"></p><p class="chart-note">Payment never attempted. This chart shows what stores offer, not payments we saw: our agent stops at checkout and cancels. Observed on one visit per store; data as of 2026-11-15 23:19 UTC.</p>
-<ul><li><strong>The buyer finishes on the store's page (46%).</strong> The agent hands over a checkout link, and the buyer reviews and completes it.</li><li><strong>The buyer pays each time (28%).</strong> The agent does everything else, and the buyer types a card for every order.</li><li><strong>Shop Pay offered, OK once (26%).</strong> The store offers Shop Pay, which lets a buyer link it to an agent one time; after that the agent could pay alone. Offered, not observed.</li><li><strong>Pre-approved payment: 0.</strong> This is the "agent can pay from day one" kind: a payment mandate the buyer signs in advance (Google's AP2), card-network agent tokens, or Stripe's shared payment tokens. None of the 10,925 store manifests we read offer any of these yet.</li></ul>
+<ul><li><strong>The buyer finishes on the store's page (46%).</strong> The agent hands over a checkout link, and the buyer reviews and completes it.</li><li><strong>The buyer pays each time (28%).</strong> The agent does everything else, and the buyer types a card for every order.</li><li><strong>Shop Pay offered, OK once (26%).</strong> The store offers Shop Pay, which lets a buyer link it to an agent one time; whether the agent could then pay without a person was not tested. Offered, not observed.</li><li><strong>Pre-approved payment: 0.</strong> This is the "agent can pay from day one" kind: a payment mandate the buyer signs in advance (Google's AP2), card-network agent tokens, or Stripe's shared payment tokens. None of the 10,925 store manifests we read offer any of these yet.</li></ul>
 <p><em>Two honest notes on this chart.</em> The Shop Pay group is based on what the store offers, not on watching it work: we stop before paying, so we can't see the one-time code or a bank check (3-D Secure) that may still pop up. And 2,836 stores offered no way for an agent to pay at all, only the buyer.</p>
 <h2>Two real stores, two different endings</h2>
 <p><strong>A US garden-supply store.</strong> The agent found the product, opened a checkout and got a delivery quote. It only needed the buyer's email and phone, which an agent can pass along. Then the buyer types a card, or approves Shop Pay once. Smooth.</p>
@@ -23,7 +23,7 @@
 <h2>The three things that stop agents most</h2>
 <ol><li><strong>"Who are you?"</strong> 87% of checkouts want the buyer's email or phone. Easy, if the agent has it.</li><li><strong>"Click here first."</strong> 41% add an on-page step built for humans.</li><li><strong>"Log in."</strong> 5% want the agent signed in to an account.</li></ol>
 <h2>How agents can pay today</h2>
-<ul><li><strong>Card typed by the buyer:</strong> 10,575 stores. A human every time.</li><li><strong>Shop Pay offered:</strong> 7,966 stores. A human once, then the agent could pay alone (if nothing else blocks it). Offered, not observed.</li><li><strong>Google Pay:</strong> 134 stores.</li><li><strong>Crypto or agent-native payment at checkout:</strong> none seen yet.</li></ul>
+<ul><li><strong>Card typed by the buyer:</strong> 10,575 stores. A human every time.</li><li><strong>Shop Pay offered:</strong> 7,966 stores. A human once to link it; whether the agent could then pay without a person was not tested. Offered, not observed.</li><li><strong>Google Pay:</strong> 134 stores.</li><li><strong>Crypto or agent-native payment at checkout:</strong> none seen yet.</li></ul>
 <h2>Where they'll ship</h2>
 <p>We asked 5,872 stores for a delivery quote to our test addresses. Stores that offered delivery, by country; the top five were nearly tied: <strong>US 5,555 · UK 4,727 · Germany 4,711 · Japan 4,581 · Korea 4,537.</strong> (Canada, Australia, France, Singapore and India testing has just started.)</p>
 <h2>Data dictionary and method</h2>
@@ -36,7 +36,7 @@
 <tr><td>agent connected</td><td>Store's agent endpoint listed its tools</td><td>14,190</td><td>95%</td></tr>
 <tr><td>search worked</td><td>Catalog search returned an item</td><td>14,083</td><td>94%</td></tr>
 <tr><td><code>checkout_reached</code></td><td>A one-item checkout was created</td><td>13,482</td><td>90%</td></tr>
-<tr><td>checkout ready, no buyer step</td><td>Derived: checkout status <code>checkout_ready</code>. Checkout tested, payment not tested</td><td>7,320</td><td>49%</td></tr>
+<tr><td>checkout ready, no buyer step</td><td>Derived: checkout status <code>checkout_ready</code>. Agent checkout path observed (payment not tested)</td><td>7,320</td><td>49%</td></tr>
 <tr><td>buyer step required</td><td>Checkout status <code>buyer_step_required</code></td><td>6,161</td><td>41%</td></tr>
 <tr><td>partner agents only</td><td>Checkout status <code>auth_required</code> (agent must sign in)</td><td>768</td><td>5%</td></tr>
 <tr><td>no checkout</td><td>Manifest found, no checkout reached</td><td>544</td><td>4%</td></tr>
