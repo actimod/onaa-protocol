@@ -212,3 +212,16 @@ def test_exclude_unreachable_alias_and_reachability_counts(client):
             filtered = client.get(path, params=params).json()
             assert filtered["total"] == page["total"] - 1 and filtered["reachability_counts"]["unreachable"] == 0
             assert ids["cards"] not in [(i.get("store") or i).get("id") for i in filtered["items"]]
+
+
+def test_checkout_path_observed_leads_every_answer(client):
+    """Founder decision 2026-11-16: checkout_path_observed first; verdict yes deprecated with a rename date."""
+    ids = _seed(client)
+    page = client.get("/v1/buying/stores", params={"include": "all"}).json()
+    by_id = {i["store"]["id"]: i for i in page["items"]}
+    assert next(iter(by_id[ids["cards"]])) == "checkout_path_observed"
+    assert by_id[ids["cards"]]["checkout_path_observed"] is True and by_id[ids["cards"]]["verdict"] == "yes"
+    assert by_id[ids["none"]]["checkout_path_observed"] is False
+    assert buying.VERDICT_YES_RENAME_ON in page["verdict_note"]
+    rec = client.get("/v1/stores/cards.example.com").json()
+    assert rec["agent_purchase"]["checkout_path_observed"] is True

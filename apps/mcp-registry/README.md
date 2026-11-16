@@ -26,7 +26,7 @@ One codebase, three profiles. The test `tests/test_tool_inventory.py` fails if t
 | `search_agents` | yes | yes | yes | yes | Find buyer/seller/service agents by capability, role, region, currency, protocol, text; `claimed_only`, `verified_only`, `certified_only`, `reachable_only` |
 | `search_services` | yes | yes | yes | yes | Find service providers by `service_type` (escrow, payment, insurance, logistics, hosting, marketplace, ...); same trust filters |
 | `find_stores` | yes | yes | yes | yes | Shopping guidance: stores where you can reach checkout (payment not tested) by `ship_to_country`, `pay_alone`, `payment_methods`, `agent` (from ONAA's checkout probes; no product data) |
-| `can_i_buy_here` | yes | yes | yes | yes | Checkout-path guidance, not payment verification. Up to 25 known stores (domains/URLs/ids): yes (checkout path observed) / yes_buyer_finishes / maybe / no / unknown with reasons |
+| `can_i_buy_here` | yes | yes | yes | yes | Checkout-path guidance, not payment verification. Up to 25 known stores (domains/URLs/ids). Each answer leads with `checkout_path_observed` (true/false); verdict yes / yes_buyer_finishes / maybe / no / unknown with reasons (verdict `yes` is deprecated and renamed on 2027-02-14) |
 | `how_to_buy` | yes | yes | yes | yes | One known store: protocol and endpoint, auth needed, buyer info before checkout, payment options, steps |
 | `get_listing` | yes | yes | yes | yes | One `agt_` / `svc_` / `hst_` record with trust metadata |
 | `get_vocabulary` | yes | yes | yes | yes | Canonical capability, skill, protocol and extension tokens in use |
