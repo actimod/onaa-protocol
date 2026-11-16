@@ -7847,6 +7847,18 @@
               "title": "Exclude Unreachable",
               "type": "boolean"
             }
+          },
+          {
+            "description": "strict: only stores whose last endpoint probe answered; drops unknown",
+            "in": "query",
+            "name": "confirmed_reachable_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "strict: only stores whose last endpoint probe answered; drops unknown",
+              "title": "Confirmed Reachable Only",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -10199,6 +10211,18 @@
               "default": false,
               "description": "clearer name for reachable_only (same rule): drop only stores whose last 3 health probes failed",
               "title": "Exclude Unreachable",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "strict: only stores whose last endpoint probe answered (reachability=reachable); drops unknown and unreachable",
+            "in": "query",
+            "name": "confirmed_reachable_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "strict: only stores whose last endpoint probe answered (reachability=reachable); drops unknown and unreachable",
+              "title": "Confirmed Reachable Only",
               "type": "boolean"
             }
           },

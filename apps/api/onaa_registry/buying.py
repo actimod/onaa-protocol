@@ -38,10 +38,14 @@ Verdict = Literal["yes", "yes_buyer_finishes", "maybe", "no", "unknown"]
 # is then renamed (VERDICT_YES_RENAME_ON). Clients should read checkout_path_observed, not verdict == "yes".
 VERDICT_YES_RENAME_ON = "2027-02-14"
 CHECKOUT_PATH_VERDICTS = ("yes", "yes_buyer_finishes")
-VERDICT_NOTE = ("checkout_path_observed = an agent reached the store's checkout (payment not tested). verdict yes = "
-                "checkout path observed; yes_buyer_finishes = an agent can build the order, the buyer finishes it. "
+CHECKOUT_REACHED_STATUSES = ("checkout_ready", "buyer_step_required")
+VERDICT_NOTE = ("checkout_path_observed = ONAA's last probe reached the store's checkout (payment not tested); it is "
+                "the same whatever conditions you pass. eligible_for_request = the store also meets your conditions "
+                "(country, payment, pay_alone, agent); eligibility_reasons says why not. verdict yes = checkout "
+                "path observed and eligible; yes_buyer_finishes = an agent can build the order, the buyer finishes it. "
                 f"verdict value yes is deprecated and will be renamed on {VERDICT_YES_RENAME_ON}; read "
-                "checkout_path_observed instead. ONAA never pays, so no payment outcome is verified.")
+                "checkout_path_observed and eligible_for_request instead. ONAA never pays, so no payment outcome "
+                "is verified.")
 VERDICT_RANK = {"yes": 0, "yes_buyer_finishes": 1, "maybe": 2, "unknown": 3, "no": 4}
 STALE_AFTER = dt.timedelta(days=14)
 TESTED_COUNTRIES = tuple(SHIP_TEST)
@@ -293,7 +297,10 @@ def assess(listing: Listing, *, country: str | None = None, agent: str | None = 
         cautions.append("ONAA's recent health probes could not reach the endpoint")
 
     return {
-        "checkout_path_observed": verdict in CHECKOUT_PATH_VERDICTS,
+        # The probe's observation never depends on the caller's conditions; eligibility does.
+        "checkout_path_observed": status in CHECKOUT_REACHED_STATUSES,
+        "eligible_for_request": verdict in CHECKOUT_PATH_VERDICTS,
+        "eligibility_reasons": reasons,
         "store": {"id": listing.id, "name": listing.display_name, "endpoint_url": listing.endpoint_url,
                   "manifest_url": listing.source_url or listing.documentation_url},
         "verdict": verdict,
@@ -518,14 +525,16 @@ def _matches_text(listing: Listing, q: str | None) -> bool:
 def find_stores(session: Session, *, country: str | None = None, agent: str | None = None,
                 payment: list[str] | None = None, pay_alone: bool = False, q: str | None = None,
                 include: Literal["buyable", "possible", "all"] = "possible", limit: int = 20,
-                offset: int = 0, claimed_only: bool = False, reachable_only: bool = False) -> dict[str, Any]:
+                offset: int = 0, claimed_only: bool = False, reachable_only: bool = False,
+                confirmed_reachable_only: bool = False) -> dict[str, Any]:
     """Stores matching the buyer's conditions, best answers first."""
     wanted = {"buyable": ("yes", "yes_buyer_finishes"), "possible": ("yes", "yes_buyer_finishes", "maybe"),
               "all": tuple(VERDICT_RANK)}[include]
     pairs = [(s, assess(s, country=country, agent=agent, payment=payment, pay_alone=pay_alone))
              for s in _cached_stores(session, None if include == "all" else POSSIBLE_STATUSES)
              if _matches_text(s, q) and (not claimed_only or s.claimed)
-             and (not reachable_only or s.reachability != "unreachable")]
+             and (not reachable_only or s.reachability != "unreachable")
+             and (not confirmed_reachable_only or s.reachability == "reachable")]
     pairs = [(s, r) for s, r in pairs if r["verdict"] in wanted]
     rows = [r for _, r in pairs]
     rows.sort(key=lambda r: (VERDICT_RANK[r["verdict"]], r["pay_alone"] != "after_one_time_link",
@@ -536,7 +545,7 @@ def find_stores(session: Session, *, country: str | None = None, agent: str | No
             "reachability_counts": reachability_counts(s.reachability or "unknown" for s, _ in pairs),
             "conditions": {"country": _country(country), "agent": agent, "payment": normalise_payment(payment),
                            "pay_alone": pay_alone, "query": q, "include": include, "claimed_only": claimed_only,
-                           "reachable_only": reachable_only},
+                           "reachable_only": reachable_only, "confirmed_reachable_only": confirmed_reachable_only},
             "tested_countries": list(TESTED_COUNTRIES), "note": NOTE, "verdict_note": VERDICT_NOTE}
 
 

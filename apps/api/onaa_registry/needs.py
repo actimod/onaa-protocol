@@ -184,13 +184,16 @@ _COUNTRY_RE = re.compile(r"\b(?:to|in|into|within|from|ship(?:s|ping)? to|delive
 _STATE_RE = re.compile(r"\b(" + "|".join(sorted((n for n in US_STATES.values()), key=len, reverse=True)) + r")\b",
                        re.I)
 _PAY_ALONE_RE = re.compile(r"\b(pay (?:alone|by itself|on its own|without me|automatically)|without (?:me|my "
-                           r"approval|asking me)|autonomous(?:ly)?|hands[- ]free|on my behalf|on its own)\b", re.I)
+                           r"approval|asking me)|autonomous(?:ly)?|hands[- ]free|on my behalf|on its own|"
+                           r"(?:no|without(?: any)?) (?:manual |human |buyer |user )*(?:approval|confirmation|"
+                           r"sign[- ]off)|no human in the loop)\b", re.I)
 _PRICE_RE = re.compile(r"(?:under|below|less than|max(?:imum)?|up to|budget(?: of)?|<)\s*\$?\s*(\d{1,6}(?:\.\d\d)?)"
                        r"\s*(?:usd|dollars|bucks)?|\$\s*(\d{1,6})(?:\s*(?:max|or less|tops))", re.I)
 _PAYMENT_PHRASES = {  # multi-word payment names -> the words traffic.PAYMENT_VOCAB knows
     "apple pay": "apple_pay", "google pay": "google_pay", "shop pay": "shop_pay", "amazon pay": "amazon_pay",
     "credit card": "card", "debit card": "card", "bank transfer": "bank_transfer", "cash on delivery": "cod",
-    "gift card": "gift_card",
+    "gift card": "gift_card", "card checkout": "card", "card payment": "card", "pay by card": "card",
+    "pay with card": "card", "pay with a card": "card", "by credit or debit": "card",
 }
 STOPWORDS = frozenset("""
 a about above after again all also am an and any anything are around as at available be because been best better
@@ -202,6 +205,7 @@ them then there these they thing things this to under up us usd use using very w
 who will with within without would you your less than below max maximum budget tops bucks dollar cost costs
 fast free quick quickly next day week today tomorrow agent agents online size sizes color colour
 name email call phone ssn exp card number address zip com net org www http https ignore instructions
+checkout manual approval approve approved human buyer buyers user confirmation autonomous autonomously
 """.split())
 _STATE_CODE_RE = re.compile(r"\b(" + "|".join(c for c in US_STATES if c not in ("IN", "OR", "ME", "OK", "HI", "OH",
                                                                               "DE", "PA", "MA", "AL", "CO"))
@@ -403,6 +407,32 @@ def record(session: Session, redacted: str, conditions: dict[str, Any], *, match
     return True
 
 
+def constraints_report(c: dict[str, Any]) -> tuple[list[dict], list[dict]]:
+    """Which parts of the request filtered the matches, and which did not (the caller must re-apply those)."""
+    applied: list[dict] = []
+    unapplied: list[dict] = [{"constraint": "product", "reason": "ONAA has no product data: keywords matched store "
+                                                               "names and descriptions, not items or stock"}]
+    if c["keywords"]:
+        applied.append({"constraint": "keywords", "value": c["keywords"],
+                        "how": "store name, domain or description contains a keyword"})
+    if c["ship_to_country"]:
+        applied.append({"constraint": "ship_to_country", "value": c["ship_to_country"],
+                        "how": "delivery observed at ONAA's test checkout or published by the store"})
+    if c["payment_methods"]:
+        applied.append({"constraint": "payment_methods", "value": c["payment_methods"],
+                        "how": "one of them was offered at ONAA's test checkout"})
+    if c["pay_alone"]:
+        applied.append({"constraint": "pay_alone", "value": True,
+                        "how": "store offers a one-time Shop Pay link after which an agent may pay (not verified)"})
+    if c["region"]:
+        unapplied.append({"constraint": "region", "value": c["region"],
+                          "reason": "delivery is tested per country, not per state or region"})
+    if c["max_price_usd"] is not None:
+        unapplied.append({"constraint": "max_price_usd", "value": c["max_price_usd"],
+                          "reason": "ONAA holds no prices; apply the budget in the store's catalog search"})
+    return applied, unapplied
+
+
 def describe_need(session: Session, text: str, *, ship_to_country: str | None, agent: str | None, origin: str,
                   retention_days: int) -> dict[str, Any]:
     from .traffic import search_value
@@ -424,10 +454,16 @@ def describe_need(session: Session, text: str, *, ship_to_country: str | None, a
     next_steps.append("For structured filters use find_stores (ship_to_country, payment_methods, pay_alone).")
     if conditions["max_price_usd"] is not None:
         next_steps.append("ONAA holds no prices: apply the budget when you search the store's catalog.")
+    applied, unapplied = constraints_report(conditions)
+    if unapplied:
+        next_steps.append("Re-apply every entry of unapplied_constraints yourself: the matches were not filtered "
+                          "by them.")
     return {
         "status": "matched" if matches else "not_found_noted",
         "understood": {k: conditions[k] for k in ("ship_to_country", "region", "payment_methods", "pay_alone",
                                                   "max_price_usd", "keywords", "themes")},
+        "applied_constraints": applied,
+        "unapplied_constraints": unapplied,
         "total_matches": total,
         "matches": matches,
         "next_steps": next_steps,

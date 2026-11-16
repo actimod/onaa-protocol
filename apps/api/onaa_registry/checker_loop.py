@@ -24,6 +24,7 @@ from types import SimpleNamespace
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .health import apply_probe_result
 from .logic import PUBLIC_STATUSES, aware, set_facet_kind
 from .models import Listing, ListingFacet, utcnow
 
@@ -43,6 +44,10 @@ def apply_observation(session: Session, listing: Listing, obs: dict, actor: str 
 
     listing.agent_checkout = {**obs, "checked_at": aware(utcnow()).isoformat(), "note": NOTE}
     set_facet_kind(listing, "agent_checkout", {obs["status"]})
+    # The checker contacted the store's endpoint: record that as endpoint health too (discovered stores get no
+    # other health probe). Any answer counts as reachable; "failed" (network or protocol error) counts as a failure,
+    # and three in a row mark the store unreachable, as for the health job.
+    apply_probe_result(listing, "checkout_probe_failed" if obs["status"] == "failed" else "ok")
     listing.updated_at = utcnow()
     audit(session, actor, None, "listing.agent_checkout", listing.id, status=obs["status"])
 

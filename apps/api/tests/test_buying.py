@@ -171,12 +171,13 @@ def test_find_stores_trust_filters(client):
     for path in ("/v1/buying/stores", "/v1/stores"):
         everything = client.get(path).json()["total"]
         assert everything > 0
-        # Every seeded store was found on the web (unclaimed) and never health-checked.
+        # Every seeded store was found on the web (unclaimed).
         assert client.get(path, params={"claimed_only": "true"}).json()["total"] == 0
         # reachable_only hides only "unreachable" (same as /v1/services); unknown stays.
         assert client.get(path, params={"reachable_only": "true"}).json()["total"] == everything
     item = client.get("/v1/stores").json()["items"][0]
-    assert item["trust"]["claimed"] is False and item["trust"]["reachability"] == "unknown"
+    # The checkout probe reached the endpoint, so it counts as reachable (endpoint health from the checker).
+    assert item["trust"]["claimed"] is False and item["trust"]["reachability"] == "reachable"
 
 
 def test_services_agent_checkout_carries_payment_flags(client):
@@ -206,7 +207,9 @@ def test_exclude_unreachable_alias_and_reachability_counts(client):
     for path in ("/v1/buying/stores", "/v1/stores"):
         page = client.get(path, params={"include": "all"} if "buying" in path else {}).json()
         counts = page["reachability_counts"]
-        assert counts["unreachable"] == 1 and counts["reachable"] == 1 and sum(counts.values()) == page["total"]
+        # Every probed store answered (reachable) except the one marked unreachable.
+        assert counts["unreachable"] == 1 and counts["reachable"] == page["total"] - 1
+        assert sum(counts.values()) == page["total"]
         for flag in ("reachable_only", "exclude_unreachable"):
             params = {flag: "true", **({"include": "all"} if "buying" in path else {})}
             filtered = client.get(path, params=params).json()
@@ -225,3 +228,43 @@ def test_checkout_path_observed_leads_every_answer(client):
     assert buying.VERDICT_YES_RENAME_ON in page["verdict_note"]
     rec = client.get("/v1/stores/cards.example.com").json()
     assert rec["agent_purchase"]["checkout_path_observed"] is True
+
+
+def test_observation_does_not_change_with_caller_conditions(client):
+    """BeUrbanRunning case: card-only store, checkout_ready. pay_alone=true makes it ineligible, but the
+    observation (checkout reached) stays true; only eligible_for_request and its reasons change."""
+    _store(client, "beurban.example.com", "checkout_ready", CARD_ONLY)
+    answers = {}
+    for flag in ("false", "true"):
+        r = client.get("/v1/buying/check", params={"store": "beurban.example.com", "country": "US",
+                                                   "payment": "card,shop_pay", "pay_alone": flag})
+        answers[flag] = r.json()["items"][0]
+    loose, strict = answers["false"], answers["true"]
+    assert loose["checkout_path_observed"] is True and strict["checkout_path_observed"] is True
+    assert loose["checkout_status"] == strict["checkout_status"] == "checkout_ready"
+    assert loose["eligible_for_request"] is True and loose["eligibility_reasons"] == []
+    assert strict["eligible_for_request"] is False and strict["verdict"] == "no"
+    assert any("pay alone" in r for r in strict["eligibility_reasons"])
+
+
+
+def test_checker_records_endpoint_health_and_strict_filter(client):
+    """Developer evaluation 2026-11-16: every store was 'unknown' because discovered stores were never
+    health-probed. The checkout probe now records endpoint health; confirmed_reachable_only keeps only stores
+    whose last probe answered; three failed probes make a store unreachable."""
+    ok = _store(client, "answered.example.com", "checkout_ready", CARD_ONLY)
+    bad = _store(client, "broken.example.com", "failed")
+    with client.app.state.sessionmaker() as s:
+        assert s.get(Listing, ok).reachability == "reachable" and s.get(Listing, ok).last_check_result == "ok"
+        assert s.get(Listing, bad).reachability == "unknown" and s.get(Listing, bad).consecutive_check_failures == 1
+    for _ in range(2):
+        client.post(f"/v1/admin/listings/{bad}/agent-checkout", headers=admin_headers(), json={"status": "failed"})
+    with client.app.state.sessionmaker() as s:
+        assert s.get(Listing, bad).reachability == "unreachable"
+    buying.reset_cache()
+    for path in ("/v1/buying/stores", "/v1/stores"):
+        params = {"include": "all"} if "buying" in path else {}
+        strict = client.get(path, params={**params, "confirmed_reachable_only": "true"}).json()
+        ids = [(i.get("store") or i).get("id") for i in strict["items"]]
+        assert ok in ids and bad not in ids
+        assert set(k for k, v in strict["reachability_counts"].items() if v) == {"reachable"}
