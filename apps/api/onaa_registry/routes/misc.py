@@ -279,8 +279,9 @@ Can my agent reach checkout here, and how? (any product URL, store domain or svc
   Answer per store: verdict (yes, yes_buyer_finishes, maybe, no, unknown), reasons, cautions, how_to_buy steps.
   verdict yes = agent checkout path observed (payment not tested). Every answer carries payment_tested=false,
   payment_success_verified=false and post_link_autonomy_verified=false: ONAA never pays.
-  Found a product with Shop MCP or a store's own search? Pass those shop URLs here to see which ones your agent
-  can actually check out at. A store ONAA has not listed is looked up live at its /.well-known/ucp.
+  Found a product with Shop MCP or a store's own search? Pass those shop URLs here to see at which stores ONAA
+  observed a created checkout, and which buyer steps remain. A store ONAA has not listed is looked up live at
+  its /.well-known/ucp.
 Where can my agent reach checkout?
   GET {base}/v1/stores?ships_to=US&pays_alone=true    (also checkout=, protocol=ucp|shop-mcp, payment_handler=,
       currency=, q=)
@@ -291,6 +292,13 @@ Page through, don't download everything: GET {base}/v1/stores?limit=100&offset=0
 Bulk only if you need all of it: {base}/stores.json (several MB gzip, ETag; also {base}/stores.csv). The
   llms-full.txt store list is large too; agents with fetch limits should use /v1/stores instead.
 MCP (no auth): {base}/mcp, {len(HOSTED_TOOLS)} tools; for buying start with find_stores, can_i_buy_here and how_to_buy.
+Endpoint health filters (find_stores, /v1/stores, /v1/buying/stores):
+  confirmed_reachable_only=true  strict: only stores whose last endpoint probe answered (drops unknown and
+                                 unreachable). Use it when you need endpoints known to answer now.
+  reachable_only=true            relaxed (alias exclude_unreachable): drops only stores whose last 3 probes
+                                 failed; stores not probed yet (unknown) stay in. reachability_counts shows the split.
+Checkout currency: shipping.currencies_seen (and observed_checkout_currency in buying answers) is what the store's
+  test checkout returned. Use the store's own live quote for prices; do not assume your requested currency.
 
 ONAA probes each listed store as an anonymous outside agent: list tools, search, create a one-item checkout,
 cancel it. Never paid, no order placed. Not every probe gets that far: each record says which stages it reached
