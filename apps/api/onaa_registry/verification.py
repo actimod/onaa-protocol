@@ -110,13 +110,16 @@ def expire_verifications(session: Session) -> list[str]:
 def maybe_sweep(app_state, session: Session) -> None:
     """Run the expiry sweep at most once per interval per process (cheap lazy cron)."""
     now = time.monotonic()
-    if now - getattr(app_state, "last_expiry_sweep", 0.0) < EXPIRY_SWEEP_INTERVAL_SECONDS:
+    if now - getattr(app_state, "last_expiry_sweep", float("-inf")) < EXPIRY_SWEEP_INTERVAL_SECONDS:
         return
     app_state.last_expiry_sweep = now
+    from .needs import purge_expired_needs
     from .routes.optout import expire_opt_outs  # restores discovered entries whose opt-out was never proven
 
     ids = expire_verifications(session)
-    if ids or expire_opt_outs(session):
+    settings = getattr(app_state, "settings", None)
+    purged = purge_expired_needs(session, settings.need_text_retention_days) if settings is not None else 0
+    if ids or expire_opt_outs(session) or purged:
         session.commit()
 
 

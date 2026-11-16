@@ -258,3 +258,39 @@ def test_snapshot_rows_share_country_sets():
     a, b = st._row(rec(1), pool), st._row(rec(2), pool)
     assert a.published_to is b.published_to and a.handlers is b.handlers and a.ships_to is b.ships_to
     assert a.published_to == frozenset({"US", "CA", "DE"})
+
+
+def test_record_has_per_country_states_and_stage_denominators(client):
+    """Each record says how many countries were tried, when, and gives every tested country an explicit state."""
+    _store(client, "new.example", "checkout_ready", ships_to=["KR"], no_shipping_to=["IN"], delivery_test="address",
+           shipping_quotes={"KR": {"options": 2, "cheapest_amount": 18000, "currency": "KRW"}})
+    _store(client, "old.example", "buyer_step_required", ships_to=[], no_shipping_to=["US"],
+           buyer_info_required=["delivery_address_required"])
+    sh = client.get("/v1/stores/new.example").json()
+    s = sh["shipping"]
+    assert s["tested_countries_count"] == 2 and s["tested_at"] and s["delivery_quote_obtained"] is True
+    assert s["country_results"]["KR"] == "ships" and s["country_results"]["IN"] == "no_shipping"
+    assert s["country_results"]["FR"] == "untested" and len(s["country_results"]) == 10
+    assert sh["stages"]["shipping_confirmed"] is True and sh["stages"]["payment_attempted"] is False
+    assert "last_health_check_at" in sh["trust"]
+    old = client.get("/v1/stores/old.example").json()
+    assert old["shipping"]["country_results"]["US"] == "unconfirmed"
+    assert old["shipping"]["tested_countries_count"] == 0 and old["shipping"]["delivery_quote_obtained"] is False
+    assert old["stages"]["shipping_confirmed"] is False
+
+
+def test_payment_is_never_claimed_as_tested(client):
+    """P1-01: a yes verdict reads as an observed checkout path, and every answer says payment was not tested."""
+    _store(client, "ready.example", "checkout_ready", ships_to=["US"], delivery_test="address",
+           autonomous_payment="after_one_time_link")
+    rec = client.get("/v1/stores/ready.example", params={"country": "US"}).json()
+    ap = rec["agent_purchase"]
+    assert ap["summary"].startswith("Agent checkout path observed (payment not tested)")
+    for block in (ap, rec["checkout_probe"]):
+        assert block["payment_tested"] is False and block["payment_success_verified"] is False
+        assert block["post_link_autonomy_verified"] is False
+    found = client.get("/v1/buying/stores", params={"country": "US"}).json()
+    assert "payment not tested" in found["verdict_note"] and found["items"][0]["payment_tested"] is False
+    page = client.get("/stores/ready.example").text
+    assert "can buy here" not in page and "Payment tested" in page and "payment not tested" in page
+    assert "can actually buy" not in client.get("/", headers={"accept": "text/html"}).text

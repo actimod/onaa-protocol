@@ -109,8 +109,10 @@ def list_stores(
     q: Annotated[str | None, Query(max_length=200, description="store name or domain contains")] = None,
     claimed_only: Annotated[bool, Query(description="only stores posted by their operator; most are unclaimed "
                                                     "(found on the public web by ONAA)")] = False,
-    reachable_only: Annotated[bool, Query(description="only stores whose endpoint passed ONAA's last health check "
-                                                      "(endpoint health, not checkout status)")] = False,
+    reachable_only: Annotated[bool, Query(description="hide stores whose last 3 health probes failed "
+                                                      "(reachability=unreachable); not-yet-checked (unknown) stay. "
+                                                      "Same as on /v1/services. Endpoint health, not checkout "
+                                                      "status")] = False,
     limit: Annotated[int, Query(ge=1, le=500)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     session: Session = Depends(get_session),
@@ -298,7 +300,7 @@ def stores_index(request: Request, page: Annotated[int, Query(ge=1, le=10_000)] 
     for it in snap.records(snap.rows[(page - 1) * PAGE_SIZE:page * PAGE_SIZE]):
         cp = it["checkout_probe"]
         key = it["domain"] or it["id"]
-        pay = " · agent can pay alone after a one-time link" if cp["agent_can_pay_alone"] else ""
+        pay = " · Shop Pay one-time link offered (payment not tested)" if cp["agent_can_pay_alone"] else ""
         ships = ", ".join(it["shipping"]["ships_to"])
         rows.append(f'<div class="item"><h3><a href="/stores/{_e(key)}">{_e(it["name"])}</a></h3>'
                     f'<p>{_e(STATUS_TEXT.get(cp["status"], cp["status"]))}{_e(pay)}'
@@ -306,12 +308,13 @@ def stores_index(request: Request, page: Annotated[int, Query(ge=1, le=10_000)] 
     nav = " ".join(([f'<a href="/stores?page={page - 1}" rel="prev">previous</a>'] if page > 1 else [])
                    + [f"page {page} of {pages}"]
                    + ([f'<a href="/stores?page={page + 1}" rel="next">next</a>'] if page < pages else []))
-    body = (f'<section class="hero"><h1>{snap.count} stores AI agents can buy from</h1>'
-            '<p>Each store was tested by ONAA as an outside agent, up to a created checkout that was then '
-            f'cancelled. Agents: get everything at once from <a href="{_e(base)}/stores.json">/stores.json</a> or '
-            f'filter with <code>GET {_e(base)}/v1/stores?ships_to=US&amp;pays_alone=true</code>.</p></section>'
+    body = (f'<section class="hero"><h1>{snap.count} stores probed for AI agent checkout</h1>'
+            '<p>ONAA probes each store as an outside agent, up to a created checkout that is then cancelled; '
+            'payment is never tested. Agents: page through '
+            f'<code>GET {_e(base)}/v1/stores?ships_to=US&amp;pays_alone=true&amp;limit=100</code>, or get '
+            f'everything at once from <a href="{_e(base)}/stores.json">/stores.json</a>.</p></section>'
             f'<p class="list-sub">{nav}</p>' + "".join(rows) + f'<p class="list-sub">{nav}</p>')
-    return HTMLResponse(_page(f"{snap.count} stores AI agents can buy from | ONAA",
+    return HTMLResponse(_page(f"{snap.count} stores probed for AI agent checkout | ONAA",
                               "Stores and marketplaces with an agent checkout, tested by ONAA.", body,
                               f"{base}/stores.json"), headers={"Cache-Control": CACHE})
 
@@ -339,8 +342,10 @@ def store_page(store: str, request: Request, session: Session = Depends(get_sess
         ("Last checked", cp["checked_at"] or "not yet"),
         ("Result", STATUS_TEXT.get(cp["status"], cp["status"])),
         ("Protocol", cp["protocol"] or "unknown"),
-        ("Agent can pay alone", {True: "yes, after the buyer approves a one-time link", False: "no",
-                                 None: "unknown"}[cp["agent_can_pay_alone"]]),
+        ("Agent can pay alone (not tested)",
+         {True: "Shop Pay one-time link offered; ONAA never pays, so whether the agent can then pay alone is "
+                "not verified", False: "no", None: "unknown"}[cp["agent_can_pay_alone"]]),
+        ("Payment tested", "no: ONAA's checker always stops before payment"),
         ("Payment options at checkout", ", ".join(cp["payment_handlers"]) or "none seen"),
         ("Buyer must provide", ", ".join(cp["buyer_info_required"]) or "nothing reported"),
         ("Ships to (tested by ONAA)", ", ".join(sh["ships_to"]) or "none of the tested countries confirmed"),

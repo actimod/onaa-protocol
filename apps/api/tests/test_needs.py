@@ -26,6 +26,22 @@ UA = {"User-Agent": "Mozilla/5.0 (compatible; ChatGPT-User/1.0)"}
     ("see https://shop.example.com/cart?token=abc123", "token", {"link_path"}),
     ("key tok_51Habcdefghijklmnopqrstuvwxyz0123", "tok_51H", {"secret"}),
     ("dob: 04/12/1988, need a stroller", "1988", {"date_of_birth"}),
+    # Obfuscated contacts and secret-like strings (live re-verification, P2-06)
+    ("write to jane.doe at gmail dot com", "jane.doe", {"email"}),
+    ("jane [at] example [dot] com", "jane", {"email"}),
+    ("mail kim(at)naver.com", "kim", {"email"}),
+    ("my key is sk-proj-abc123XYZ", "abc123", {"secret"}),
+    ("token ghp_a1B2c3D4e5F6g7H8", "ghp_", {"secret"}),
+    ("password: hunter2!", "hunter2", {"secret"}),
+    ("order Xk9pQ2mZr7Lw4Tb8 never came", "Xk9pQ2mZr7Lw4Tb8", {"secret"}),
+    # Other countries' formats
+    ("연락처 010-1234-5678", "5678", {"phone"}),
+    ("call 020 7946 0958", "7946", {"phone"}),
+    ("London SW1A 1AA please", "1AA", {"zip_code"}),
+    ("〒150-0001 Tokyo", "0001", {"zip_code"}),
+    ("서울 강남구 테헤란로 123 으로 배송", "123", {"street_address"}),
+    ("101동 1203호", "1203", {"street_address"}),
+    ("제 이름은 홍길동 입니다", "홍길동", {"korean_name"}),
 ])
 def test_personal_data_is_removed(text, gone, labels):
     redacted, removed = needs.redact(needs.normalise(text))
@@ -175,3 +191,17 @@ def test_aggregate_only_pack_has_no_text(client, tmp_path):
     pack = (tmp_path / "pack.md").read_text() + (tmp_path / "pack.json").read_text()
     assert "zebra" not in pack and "saddle" not in pack and "untrusted_buyer_text" not in pack
     assert "| dog | 2 |" in pack and "(rare)" in pack
+
+
+def test_sweep_purges_old_rows_without_any_new_request_to_the_tool(client):
+    """Rows from the 30-day era are deleted by the once-a-minute sweep, not only when the tool is used again."""
+    client.post("/v1/buying/needs", headers=UA, json={"text": "standing desk"})
+    client.post("/v1/buying/needs", headers=UA, json={"text": "office chair"})
+    with client.app.state.sessionmaker() as s:
+        s.query(BuyerNeed).filter(BuyerNeed.text == "standing desk").update(
+            {"created_at": dt.datetime.now(dt.UTC) - dt.timedelta(days=8)})
+        s.commit()
+    client.app.state.last_expiry_sweep = float("-inf")  # monotonic() can be < 60 s on a fresh CI VM
+    assert client.get("/v1/stores").status_code == 200  # any request with a DB session runs the sweep
+    with client.app.state.sessionmaker() as s:
+        assert [r.text for r in s.query(BuyerNeed).all()] == ["office chair"]

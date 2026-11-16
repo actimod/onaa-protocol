@@ -40,6 +40,32 @@ from .verification import TxtResolver, system_txt_resolver
 SCHEMA_PATH = Path(__file__).resolve().parent / "registry-record.schema.json"
 
 
+# Pages that state rules or how to use ONAA: caches and crawlers must revalidate, so nobody keeps reading an old
+# version (e.g. the opt-out rules before the 7-day proof step). Routes that set their own Cache-Control keep it.
+POLICY_PATHS = frozenset({"/opt-out", "/privacy", "/privacy.txt", "/llms.txt", "/llms-full.txt", "/v1/terms",
+                          "/openapi.json", "/.well-known/onaa-registry.json", "/v1"})
+
+
+class PolicyNoCacheMiddleware:
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope.get("path") not in POLICY_PATHS:
+            await self.app(scope, receive, send)
+            return
+
+        async def wrapped(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                if not any(k.lower() == b"cache-control" for k, _ in headers):
+                    headers.append((b"cache-control", b"no-cache"))
+                    message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, wrapped)
+
+
 def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
                txt_resolver: TxtResolver | None = None, conformance_runner: ConformanceRunner | None = None) -> FastAPI:
     settings = settings or Settings()
@@ -52,7 +78,7 @@ def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
         title="ONAA API (Open Network for AI Agents)",
         version=__version__,
         description=(
-            "Find stores and marketplaces AI buying agents can actually buy from, with each store's tested "
+            "Find stores and marketplaces where AI buying agents reach checkout, with each store's tested "
             "checkout requirements (UCP, Shop MCP); links only. Also lists payment and other providers and buyer "
             "and seller agents. This directory API holds listings and trust metadata "
             "only; it never relays buyer/seller transactions, holds funds, or hosts seller data."
@@ -73,9 +99,11 @@ def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
     app.state.self_register_limiter = RateLimiter(settings.self_registration_per_ip_per_hour, window_seconds=3600)
     app.state.store_probe_limiter = RateLimiter(settings.store_probe_per_ip_per_hour, window_seconds=3600)
     app.state.needs_limiter = RateLimiter(settings.needs_per_ip_per_hour, window_seconds=3600)
+    app.state.opt_out_limiter = RateLimiter(settings.opt_out_per_ip_per_day, window_seconds=86400)
     # Anonymous agent-traffic counters (no IPs or user agents stored); see traffic.py.
     app.state.usage = Usage(app.state.sessionmaker, settings.usage_flush_seconds)
     app.add_middleware(TrafficMiddleware, usage=app.state.usage)
+    app.add_middleware(PolicyNoCacheMiddleware)
     app.add_event_handler("startup", app.state.usage.start)
     app.add_event_handler("shutdown", app.state.usage.stop)
     if os.environ.get("ONAA_STORE_FEED_WARM", "0") == "1":  # build the store snapshot at startup (production)

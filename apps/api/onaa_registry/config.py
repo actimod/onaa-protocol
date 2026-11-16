@@ -109,6 +109,9 @@ class Settings:
         default_factory=lambda: int(os.environ.get("ONAA_NEED_TEXT_RETENTION_DAYS", "7")))
     needs_per_ip_per_hour: int = field(
         default_factory=lambda: int(os.environ.get("ONAA_NEEDS_PER_IP_PER_HOUR", "30")))
+    # Opt-out requests (no account, no proof yet) per client IP per day (live re-verification P1-02).
+    opt_out_per_ip_per_day: int = field(
+        default_factory=lambda: int(os.environ.get("ONAA_OPT_OUT_PER_IP_PER_DAY", "2")))
 
 
 def _file_or_env(name: str) -> str | None:

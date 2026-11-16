@@ -157,7 +157,7 @@ def onboarding(settings) -> dict:
     }
 
 
-SUMMARY = ("Find stores and marketplaces AI buying agents can actually buy from, with each store's tested checkout "
+SUMMARY = ("Find stores and marketplaces where AI buying agents reach checkout, with each store's tested checkout "
            "requirements (UCP, Shop MCP). Links only. Also lists payment, escrow and shipping providers and seller "
            "and buyer agents; any agent can list itself for its operator without a human signup form. Purchases "
            "happen at the store itself; ONAA never relays them or holds funds.")
@@ -179,6 +179,14 @@ def discovery_links(base: str) -> dict:
         "terms": f"{base}/v1/terms",
         "source": "https://github.com/actimod/onaa-protocol",
     }
+
+
+@router.get("/v1", tags=["meta"])
+def api_index(request: Request):
+    """API index: where each part of the v1 API starts (the homepage "api" link points here)."""
+    base = request.app.state.settings.public_base_url.rstrip("/")
+    return {"name": NAME, "version": "v1", "description": SUMMARY,
+            "openapi": f"{base}/openapi.json", "start_here": f"{base}/llms.txt", "links": discovery_links(base)}
 
 
 @router.get("/", tags=["meta"], include_in_schema=False)
@@ -259,7 +267,7 @@ def llms_txt(request: Request):
         "\nNOTE: self-registration is currently disabled on this registry.\n")
     return PlainTextResponse(f"""# ONAA (Open Network for AI Agents)
 
-> Find stores and marketplaces AI buying agents can actually buy from, with each store's tested checkout
+> Find stores and marketplaces where AI buying agents reach checkout, with each store's tested checkout
 > requirements (UCP, Shop MCP). Links only. ONAA stores links and its own test results, no product data; you
 > buy at the store itself under the store's terms. ONAA never relays purchases or holds funds.
 {enabled}
@@ -269,6 +277,8 @@ Can my agent buy at this store, and how?   (any product URL, store domain or svc
   GET  {base}/v1/stores/check?url=https://<store>/products/<item>&country=US
   POST {base}/v1/stores/check  {{"stores": ["<url or domain>", ...], "country": "US", "pay_alone": true}}
   Answer per store: verdict (yes, yes_buyer_finishes, maybe, no, unknown), reasons, cautions, how_to_buy steps.
+  verdict yes = agent checkout path observed (payment not tested). Every answer carries payment_tested=false,
+  payment_success_verified=false and post_link_autonomy_verified=false: ONAA never pays.
   Found a product with Shop MCP or a store's own search? Pass those shop URLs here to see which ones your agent
   can actually check out at. A store ONAA has not listed is looked up live at its /.well-known/ucp.
 Which stores can my agent buy from?
@@ -276,11 +286,17 @@ Which stores can my agent buy from?
       currency=, q=)
   GET {base}/v1/buying/stores?country=US&payment=shop_pay&agent=gemini   (ranked by verdict)
 One store: GET {base}/v1/stores/<domain or svc_ id>    Page for people: {base}/stores/<domain>
-Everything in one request: {base}/stores.json (ETag; also {base}/stores.csv and {base}/llms-full.txt)
+Page through, don't download everything: GET {base}/v1/stores?limit=100&offset=0 (then offset=100, ...; total
+  is in the answer) with filters to keep it small, e.g. ?ships_to=KR&pays_alone=true (about 15 KB per 100 stores).
+Bulk only if you need all of it: {base}/stores.json (several MB gzip, ETag; also {base}/stores.csv). The
+  llms-full.txt store list is large too; agents with fetch limits should use /v1/stores instead.
 MCP (no auth): {base}/mcp, 13 tools; for buying start with find_stores, can_i_buy_here and how_to_buy.
 
-Every store was tested by ONAA as an anonymous outside agent: list tools, search, create a one-item checkout,
-cancel it. Never paid, no order placed. Results show protocol, payment handlers, whether an agent can pay alone
+ONAA probes each listed store as an anonymous outside agent: list tools, search, create a one-item checkout,
+cancel it. Never paid, no order placed. Not every probe gets that far: each record says which stages it reached
+(stages: probe_attempted, checkout_reached, shipping_confirmed, payment_attempted=false) and gives each test
+country a state (shipping.country_results: ships, no_shipping, unconfirmed, untested). Results show protocol,
+payment handlers, whether an agent can pay alone
 (Shop Pay one-time link), buyer info required, and delivery (with a cheapest shipping example) to US, GB, DE,
 JP, KR, CA, AU, FR, SG and IN using a public test address. Each store's own published shipping countries are shown
 apart, as store-published (filter: /v1/stores?store_ships_to=BR). ONAA holds no product data: search products with

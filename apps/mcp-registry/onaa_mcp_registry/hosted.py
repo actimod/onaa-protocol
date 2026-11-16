@@ -205,6 +205,9 @@ def _count_mcp_doc(doc: Any, usage, origin: str | None = None) -> None:
                 usage.hit("mcp_tool", str(name)[:60] if name else "unknown", origin=origin)
             elif method in ("initialize", "tools/list", "resources/list", "prompts/list"):
                 usage.hit("mcp_method", method, origin=origin)
+                if method == "initialize" and _traffic is not None:
+                    info = (call.get("params") or {}).get("clientInfo") or {}
+                    usage.hit("mcp_client", _traffic.mcp_client_name(info.get("name")), origin=origin)
     except (ValueError, TypeError, AttributeError):
         pass
 

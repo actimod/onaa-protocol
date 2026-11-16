@@ -22,8 +22,9 @@ PayAlone = Annotated[bool, Query(description="only stores where the agent can pa
                                              "(observed: after a one-time Shop Pay link)")]
 ClaimedOnly = Annotated[bool, Query(description="only stores posted by their operator; most stores are unclaimed "
                                                 "(found on the public web by ONAA), so this can return few or none")]
-ReachableOnly = Annotated[bool, Query(description="only stores whose endpoint passed ONAA's last health check "
-                                                  "(reachability=reachable; endpoint health, not checkout status)")]
+ReachableOnly = Annotated[bool, Query(description="hide stores whose last 3 health probes failed "
+                                                  "(reachability=unreachable); not-yet-checked (unknown) stay. "
+                                                  "Same as on /v1/services. Endpoint health, not checkout status")]
 
 
 def _split(values: list[str] | None) -> list[str]:

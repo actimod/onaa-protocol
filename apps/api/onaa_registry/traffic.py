@@ -34,11 +34,11 @@ import threading
 from collections.abc import Callable
 from contextvars import ContextVar
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from .models import UsageCounter
+from .models import UsageCounter, UsageCounterHourly
 
 log = logging.getLogger("onaa.traffic")
 
@@ -138,6 +138,7 @@ EXACT_PATHS = frozenset({
     "/mcp",
     "/stores", "/stores.json", "/stores.csv", "/v1/stores", "/v1/stores/check", "/v1/stores/stats",
     "/v1/buying/stores", "/v1/buying/check", "/v1/agents", "/v1/services", "/v1/stats/usage", "/v1/terms",
+    "/v1/stats/usage/hourly", "/v1/stats/usage/weekly",
     "/v1/vocabulary", "/v1/self-register", "/agent/ucp-profile.json", "/.well-known/onaa-registry.json",
     "/.well-known/agent-card.json", "/.well-known/agent.json", "/.well-known/mcp.json",
     "/.well-known/mcp/server-card.json", "/.well-known/onaa-stores.json", "/.well-known/ucp",
@@ -153,7 +154,8 @@ PREFIX_GROUPS = (
     ("/v1/", "/v1/other"),
 )
 HOST_RE = re.compile(r"^(?=.{4,120}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$")
-MAX_KEYS = 5000
+MAX_KEYS = 10000  # daily + hourly buffer entries between flushes
+HOURLY_KEEP_DAYS = 30
 
 # ---- search-condition vocabulary (anything outside it is counted as "other"; free text never stored) ----
 SEARCH_DOORS = ("find_stores", "check", "list")
@@ -308,8 +310,13 @@ def _today() -> str:
     return dt.datetime.now(dt.UTC).date().isoformat()
 
 
+def _this_hour() -> str:
+    return dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H")
+
+
 class Usage:
-    """Thread-safe in-memory buffer of (day, kind, key) -> count, flushed into `usage_counters`."""
+    """Thread-safe in-memory buffer of (day or hour, kind, key) -> count, flushed into `usage_counters` (per UTC
+    day, kept) and `usage_counters_hourly` (per UTC hour, deleted after HOURLY_KEEP_DAYS)."""
 
     def __init__(self, sessionmaker: Callable[[], Session] | None = None, flush_seconds: float = 30.0):
         self.sessionmaker = sessionmaker
@@ -319,14 +326,16 @@ class Usage:
         self._flush_lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._pruned_at: str | None = None
 
     def hit(self, kind: str, key: str, n: int = 1, origin: str | None = None) -> None:
         origin = origin if origin in ORIGINS else current_origin.get()
-        k = (_today(), kind[:20], f"{key[:150]}|{origin}")
+        key = f"{key[:150]}|{origin}"
         with self._lock:
-            if k not in self._buf and len(self._buf) >= MAX_KEYS:
-                return  # bounded memory; the next flush makes room
-            self._buf[k] = self._buf.get(k, 0) + n
+            for k in ((_today(), kind[:20], key), (_this_hour(), kind[:20], key)):
+                if k not in self._buf and len(self._buf) >= MAX_KEYS:
+                    return  # bounded memory; the next flush makes room
+                self._buf[k] = self._buf.get(k, 0) + n
 
     def hit_http(self, path: str, user_agent: str | None, internal: str | None = None,
                  origin: str | None = None) -> str:
@@ -398,13 +407,23 @@ class Usage:
                 return 0
             try:
                 with self.sessionmaker() as session:
-                    for (day, kind, key), n in items.items():
-                        _add(session, day, kind, key, n)
+                    for (bucket, kind, key), n in items.items():
+                        _add(session, UsageCounterHourly if len(bucket) > 10 else UsageCounter, bucket, kind, key, n)
+                    self._prune(session)
                     session.commit()
             except SQLAlchemyError:
                 log.warning("usage flush failed; %d counters dropped", len(items), exc_info=True)
                 return 0
             return len(items)
+
+    def _prune(self, session: Session) -> None:
+        """Delete hourly rows older than HOURLY_KEEP_DAYS, at most once per hour (daily rows are kept)."""
+        hour = _this_hour()
+        if self._pruned_at == hour:
+            return
+        cutoff = (dt.datetime.now(dt.UTC) - dt.timedelta(days=HOURLY_KEEP_DAYS)).strftime("%Y-%m-%dT%H")
+        session.execute(delete(UsageCounterHourly).where(UsageCounterHourly.hour < cutoff))
+        self._pruned_at = hour
 
     def start(self) -> None:
         if self.flush_seconds <= 0 or self._thread is not None or self.sessionmaker is None:
@@ -428,19 +447,16 @@ class Usage:
             pass
 
 
-def _add(session: Session, day: str, kind: str, key: str, n: int) -> None:
-    res = session.execute(update(UsageCounter).where(UsageCounter.day == day, UsageCounter.kind == kind,
-                                                     UsageCounter.key == key)
-                          .values(count=UsageCounter.count + n))
-    if res.rowcount:
+def _add(session: Session, model, bucket: str, kind: str, key: str, n: int) -> None:
+    col = model.hour if model is UsageCounterHourly else model.day
+    where = (col == bucket, model.kind == kind, model.key == key)
+    if session.execute(update(model).where(*where).values(count=model.count + n)).rowcount:
         return
     try:
         with session.begin_nested():
-            session.add(UsageCounter(day=day, kind=kind, key=key, count=n))
+            session.add(model(**{col.key: bucket}, kind=kind, key=key, count=n))
     except IntegrityError:  # another process inserted the same row first
-        session.execute(update(UsageCounter).where(UsageCounter.day == day, UsageCounter.kind == kind,
-                                                   UsageCounter.key == key)
-                        .values(count=UsageCounter.count + n))
+        session.execute(update(model).where(*where).values(count=model.count + n))
 
 
 LOOPBACK = ("127.", "::1", "localhost")
@@ -595,3 +611,148 @@ def usage_report(session: Session, days: int = 14) -> dict:
         "ours": groups[OURS],
         "probes": groups[PROBES],
     }
+
+
+def hourly_report(session: Session, hours: int = 48) -> dict:
+    """Per UTC hour and origin: requests, AI agent requests, MCP tool calls, agent classes, tools, report views."""
+    hours = max(1, min(hours, HOURLY_KEEP_DAYS * 24))
+    since = (dt.datetime.now(dt.UTC) - dt.timedelta(hours=hours - 1)).strftime("%Y-%m-%dT%H")
+    rows = session.execute(select(UsageCounterHourly.hour, UsageCounterHourly.kind, UsageCounterHourly.key,
+                                  UsageCounterHourly.count).where(UsageCounterHourly.hour >= since)).all()
+    out: dict[str, dict[str, dict]] = {}
+    for hour, kind, raw, n in rows:
+        key, origin, _ = split_origin(raw, kind)
+        h = out.setdefault(hour, {})
+        g = h.setdefault(origin, {"requests": 0, "ai_agent_requests": 0, "mcp_tool_calls": 0, "by_agent_class": {},
+                                  "by_path": {}, "mcp_tools": {}, "report_views": {}})
+        if kind == "http":
+            path, _, cls = key.partition("|")
+            g["requests"] += n
+            _inc(g["by_agent_class"], cls, n)
+            _inc(g["by_path"], path, n)
+            if cls in AI_AGENT_CLASSES:
+                g["ai_agent_requests"] += n
+        elif kind == "mcp_tool":
+            g["mcp_tool_calls"] += n
+            _inc(g["mcp_tools"], key, n)
+        elif kind == "report_view":
+            issue, _, ref = key.partition("|")
+            _inc(g["report_views"], f"{issue} from {ref}", n)
+    for h in out.values():
+        for g in h.values():
+            for f in ("by_agent_class", "by_path"):
+                g[f] = dict(sorted(g[f].items(), key=lambda kv: (-kv[1], kv[0]))[:20])
+    return {"since": since, "hours": hours, "keep_days": HOURLY_KEEP_DAYS,
+            "note": ("The same anonymous counts as /v1/stats/usage, per UTC hour, kept for 30 days. No IP addresses, "
+                     "user agents, query text or listing ids are stored."),
+            "by_hour": dict(sorted(out.items()))}
+
+
+# ---------- MCP client names and weekly third-party usage (evidence for reports) ----------
+_CLIENT_RE = re.compile(r"[^a-z0-9._-]+")
+
+
+def mcp_client_name(raw: object) -> str:
+    """An MCP client's self-declared name (initialize.params.clientInfo.name) as a short public token: lower case,
+    letters, digits, '.', '_' and '-' only, at most 40 characters. A product name, never a person."""
+    name = _CLIENT_RE.sub("-", str(raw or "").strip().lower()).strip("-.")[:40]
+    return name or "(none)"
+
+
+# Request classes as they appear in reports. "User-triggered" agents fetch a page because a person asked an AI
+# assistant to; crawlers index or train; directory checkers and uptime monitors are counted under `probes`.
+USER_TRIGGERED_CLASSES = frozenset({"chatgpt_user", "claude_user", "perplexity_user", "mistral_user"})
+CRAWLER_CLASSES = frozenset({"openai_crawler", "openai_search", "claude_crawler", "claude_search",
+                             "perplexity_crawler", "google_crawler", "google_other", "google_vertex", "bing_crawler",
+                             "apple_crawler", "amazon_crawler", "bytedance_crawler", "meta_ai", "duckduckgo_ai",
+                             "commoncrawl", "you_com", "cohere"})
+STORE_DATA_PATHS = frozenset({"/stores/{store}", "/v1/stores/{store}", "/v1/services/{id}", "/stores", "/stores.json",
+                              "/stores.csv", "/llms-full.txt", "/v1/stores", "/v1/stores/check", "/v1/buying/stores",
+                              "/v1/buying/check", "/.well-known/onaa-stores.json"})
+
+
+def _week(day: str) -> str:
+    d = dt.date.fromisoformat(day)
+    return (d - dt.timedelta(days=d.weekday())).isoformat()  # Monday (UTC) of that ISO week
+
+
+def _week_row() -> dict:
+    return {"requests": 0, "crawler_requests": {}, "user_triggered_agent_requests": {},
+            "store_data_fetches": {"total": 0, "by_class": {}, "by_path": {}},
+            "mcp_connections": 0, "mcp_tool_calls": {}, "mcp_clients": {}, "agent_searches": 0,
+            "report_views": 0, "probe_requests": 0, "probe_mcp_calls": 0}
+
+
+def weekly_report(session: Session, weeks: int = 12) -> dict:
+    """Third-party (external origin) usage per ISO week plus running totals: crawler visits by bot, store data
+    fetched, MCP connections, tool calls and client names, user-triggered agent fetches. Directory checkers and
+    monitors are shown separately (probe_*); ONAA's own traffic is excluded."""
+    weeks = max(1, min(weeks, 104))
+    today = dt.datetime.now(dt.UTC).date()
+    since = (today - dt.timedelta(days=today.weekday()) - dt.timedelta(weeks=weeks - 1)).isoformat()
+    rows = session.execute(select(UsageCounter.day, UsageCounter.kind, UsageCounter.key, UsageCounter.count)
+                           .where(UsageCounter.day >= since)).all()
+    out: dict[str, dict] = {}
+    for day, kind, raw, n in rows:
+        key, origin, _ = split_origin(raw, kind)
+        if origin == OURS:
+            continue
+        w = out.setdefault(_week(day), _week_row())
+        if origin == PROBES:
+            if kind == "http":
+                w["probe_requests"] += n
+            elif kind == "mcp_tool":
+                w["probe_mcp_calls"] += n
+            continue
+        if kind == "http":
+            path, _, cls = key.partition("|")
+            w["requests"] += n
+            if cls in CRAWLER_CLASSES:
+                _inc(w["crawler_requests"], cls, n)
+            if cls in USER_TRIGGERED_CLASSES:
+                _inc(w["user_triggered_agent_requests"], cls, n)
+            if path in STORE_DATA_PATHS:
+                f = w["store_data_fetches"]
+                f["total"] += n
+                _inc(f["by_class"], cls, n)
+                _inc(f["by_path"], path, n)
+        elif kind == "mcp_method" and key == "initialize":
+            w["mcp_connections"] += n
+        elif kind == "mcp_tool":
+            _inc(w["mcp_tool_calls"], key, n)
+        elif kind == "mcp_client":
+            _inc(w["mcp_clients"], key, n)
+        elif kind == "search_filter" and key.endswith("|_searches"):
+            w["agent_searches"] += n
+        elif kind == "report_view":
+            w["report_views"] += n
+
+    def top(d: dict[str, int], k: int = 25) -> dict[str, int]:
+        return dict(sorted(d.items(), key=lambda kv: (-kv[1], kv[0]))[:k])
+
+    totals = {"requests": 0, "crawler_requests": 0, "store_data_fetches": 0, "mcp_connections": 0,
+              "mcp_tool_calls": 0, "user_triggered_agent_requests": 0, "agent_searches": 0}
+    series = []
+    for week in sorted(out):
+        w = out[week]
+        for f in ("crawler_requests", "user_triggered_agent_requests", "mcp_tool_calls", "mcp_clients"):
+            w[f] = top(w[f])
+        w["store_data_fetches"]["by_class"] = top(w["store_data_fetches"]["by_class"], 15)
+        w["store_data_fetches"]["by_path"] = top(w["store_data_fetches"]["by_path"], 15)
+        totals["requests"] += w["requests"]
+        totals["crawler_requests"] += sum(w["crawler_requests"].values())
+        totals["store_data_fetches"] += w["store_data_fetches"]["total"]
+        totals["mcp_connections"] += w["mcp_connections"]
+        totals["mcp_tool_calls"] += sum(w["mcp_tool_calls"].values())
+        totals["user_triggered_agent_requests"] += sum(w["user_triggered_agent_requests"].values())
+        totals["agent_searches"] += w["agent_searches"]
+        series.append({"week_of": week, **w, "cumulative": dict(totals)})
+    return {"since": since, "weeks": weeks,
+            "note": ("Third-party use of ONAA per ISO week (Monday, UTC), with running totals. Excludes ONAA's own "
+                     "scripts, tests and checker. Directory checkers and uptime monitors are shown separately as "
+                     "probe_*. Bot names come from the User-Agent header and can be spoofed; a person testing "
+                     "ONAA through a public AI assistant cannot be told apart from any other user of it. "
+                     "mcp_connections counts MCP initialize calls, which directory checkers also make; "
+                     "mcp_clients counts the client's self-declared product name only. No IP addresses, full user "
+                     "agents or query text are stored."),
+            "series": series}

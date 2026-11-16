@@ -32,6 +32,11 @@ from .logic import PUBLIC_STATUSES, aware
 from .models import Listing, ListingFacet, utcnow
 
 Verdict = Literal["yes", "yes_buyer_finishes", "maybe", "no", "unknown"]
+# ONAA's checker always stops before payment. Every answer and store record says so in fields, so "yes" is never
+# read as a tested purchase: yes = an agent checkout path was observed (payment not tested).
+PAYMENT_EVIDENCE = {"payment_tested": False, "payment_success_verified": False, "post_link_autonomy_verified": False}
+VERDICT_NOTE = ("verdict yes = agent checkout path observed (payment not tested); yes_buyer_finishes = an agent can "
+                "build the order, the buyer finishes it. ONAA never pays, so no payment outcome is verified.")
 VERDICT_RANK = {"yes": 0, "yes_buyer_finishes": 1, "maybe": 2, "unknown": 3, "no": 4}
 STALE_AFTER = dt.timedelta(days=14)
 TESTED_COUNTRIES = tuple(SHIP_TEST)
@@ -303,6 +308,7 @@ def assess(listing: Listing, *, country: str | None = None, agent: str | None = 
                                                               else None),
         "how_to_buy": how_to_buy(ac, country=cc),
         "last_checked_at": checked,
+        **PAYMENT_EVIDENCE,
     }
 
 
@@ -479,7 +485,7 @@ def find_stores(session: Session, *, country: str | None = None, agent: str | No
     rows = [assess(s, country=country, agent=agent, payment=payment, pay_alone=pay_alone)
             for s in _cached_stores(session, None if include == "all" else POSSIBLE_STATUSES)
             if _matches_text(s, q) and (not claimed_only or s.claimed)
-            and (not reachable_only or s.reachability == "reachable")]
+            and (not reachable_only or s.reachability != "unreachable")]
     rows = [r for r in rows if r["verdict"] in wanted]
     rows.sort(key=lambda r: (VERDICT_RANK[r["verdict"]], r["pay_alone"] != "after_one_time_link",
                              r["ships_to_country"] is not True, (r["store"]["name"] or "").lower()))
@@ -487,7 +493,7 @@ def find_stores(session: Session, *, country: str | None = None, agent: str | No
             "conditions": {"country": _country(country), "agent": agent, "payment": normalise_payment(payment),
                            "pay_alone": pay_alone, "query": q, "include": include, "claimed_only": claimed_only,
                            "reachable_only": reachable_only},
-            "tested_countries": list(TESTED_COUNTRIES), "note": NOTE}
+            "tested_countries": list(TESTED_COUNTRIES), "note": NOTE, "verdict_note": VERDICT_NOTE}
 
 
 def check_stores(session: Session, stores: list[str], *, country: str | None = None, agent: str | None = None,
@@ -514,4 +520,4 @@ def check_stores(session: Session, stores: list[str], *, country: str | None = N
         items.append(miss)
     return {"items": items, "conditions": {"country": _country(country), "agent": agent,
                                            "payment": normalise_payment(payment), "pay_alone": pay_alone},
-            "note": NOTE}
+            "note": NOTE, "verdict_note": VERDICT_NOTE}

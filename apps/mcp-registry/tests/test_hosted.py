@@ -275,6 +275,16 @@ def test_mcp_traffic_is_split_by_origin(hosted):
     assert "__mcpcheckup_probe_nonexistent_tool__" not in stats["external"]["mcp_tools"]
 
 
+def test_mcp_client_names_are_counted_as_product_tokens(hosted):
+    base, _ = hosted
+    init = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+        "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "OpenAI MCP", "version": "1.0"}}}
+    assert _rpc(base, init, "openai-mcp/1.0.0").status_code == 200
+    weekly = httpx.get(f"{base}/v1/stats/usage/weekly").json()
+    week = weekly["series"][-1]
+    assert week["mcp_clients"].get("openai-mcp", 0) >= 1 and week["mcp_connections"] >= 1
+
+
 def test_mcp_search_conditions_are_counted_for_external_callers_only(hosted):
     """find_stores / can_i_buy_here filters reach the search-condition counts through the loopback API call,
     with the MCP caller's origin; free text never does."""
