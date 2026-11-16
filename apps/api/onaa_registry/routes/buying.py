@@ -42,12 +42,15 @@ def stores(request: Request, session: Session = Depends(get_session), country: C
            limit: Annotated[int, Query(ge=1, le=100)] = 20, offset: Annotated[int, Query(ge=0, le=10_000)] = 0,
            claimed_only: ClaimedOnly = False, reachable_only: ReachableOnly = False,
            exclude_unreachable: Annotated[bool, Query(description="clearer name for reachable_only (same rule)")]
-           = False):
+           = False,
+           confirmed_reachable_only: Annotated[bool, Query(description="strict: only stores whose last endpoint "
+                                                                       "probe answered; drops unknown")] = False):
     from .stores import count_search
 
     result = buying.find_stores(session, country=country, agent=agent, payment=_split(payment), pay_alone=pay_alone,
                                 q=q, include=include, limit=limit, offset=offset, claimed_only=claimed_only,
-                                reachable_only=reachable_only or exclude_unreachable)
+                                reachable_only=reachable_only or exclude_unreachable,
+                                confirmed_reachable_only=confirmed_reachable_only)
     if offset == 0:  # count searches, not the pages of one search
         count_search(request, "find_stores", {"country": country, "agent": agent, "payment": _split(payment),
                                               "pays_alone": True if pay_alone else None,

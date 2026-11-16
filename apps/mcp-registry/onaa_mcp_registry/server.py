@@ -297,6 +297,7 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         claimed_only: bool = False,
         reachable_only: bool = False,
         exclude_unreachable: bool = False,
+        confirmed_reachable_only: bool = False,
     ) -> dict[str, Any]:
         """Where can I (an AI buying agent) reach checkout? E.g. "stores that ship to Korea where I can pay on my
         own": ship_to_country=KR, pay_alone=true. payment_methods: what you or your buyer can use (shop_pay, card,
@@ -308,13 +309,16 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         checker (stops before payment), not verified. Trust filters mean the same as on search_services:
         claimed_only = posted by the store's operator (most stores are unclaimed, found on the public web by ONAA);
         reachable_only = hide stores whose last 3 health probes failed (reachability unreachable; unknown = not yet
-        checked, kept); exclude_unreachable is a clearer name for the same rule. reachability_counts gives how
-        many results are reachable, unknown or unreachable. Endpoint health, not checkout."""
+        checked, kept); exclude_unreachable is a clearer name for the same rule; confirmed_reachable_only keeps
+        only stores whose last endpoint probe answered. reachability_counts gives how many results are reachable,
+        unknown or unreachable. Endpoint health, not checkout. Each answer separates checkout_path_observed (what
+        ONAA's probe saw, the same whatever you filter on) from eligible_for_request and eligibility_reasons."""
         try:
             return _answers(registry.buying_stores(
                 country=ship_to_country, pay_alone=pay_alone, payment=payment_methods, agent=agent, q=store_text,
                 include=include, limit=max(1, min(limit, MAX_LIMIT)), offset=max(0, offset),
-                claimed_only=claimed_only, reachable_only=reachable_only or exclude_unreachable))
+                claimed_only=claimed_only, reachable_only=reachable_only or exclude_unreachable,
+                confirmed_reachable_only=confirmed_reachable_only))
         except OnaaError as exc:
             return _err(exc)
 

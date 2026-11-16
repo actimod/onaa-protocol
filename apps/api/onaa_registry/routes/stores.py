@@ -116,6 +116,9 @@ def list_stores(
                                                       "status")] = False,
     exclude_unreachable: Annotated[bool, Query(description="clearer name for reachable_only (same rule): drop "
                                                            "only stores whose last 3 health probes failed")] = False,
+    confirmed_reachable_only: Annotated[bool, Query(description="strict: only stores whose last endpoint probe "
+                                                                "answered (reachability=reachable); drops unknown "
+                                                                "and unreachable")] = False,
     limit: Annotated[int, Query(ge=1, le=500)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     session: Session = Depends(get_session),
@@ -151,7 +154,8 @@ def list_stores(
             continue
         if terms and not all(t in row.hay for t in terms):
             continue
-        if (claimed_only and not row.claimed) or (reachable_only and not row.reachable):
+        if (claimed_only and not row.claimed) or (reachable_only and not row.reachable) or \
+                (confirmed_reachable_only and row.reach != "reachable"):
             continue
         matched.append(row)
     if offset == 0:  # count searches, not the pages of one search

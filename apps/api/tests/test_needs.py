@@ -205,3 +205,21 @@ def test_sweep_purges_old_rows_without_any_new_request_to_the_tool(client):
     assert client.get("/v1/stores").status_code == 200  # any request with a DB session runs the sweep
     with client.app.state.sessionmaker() as s:
         assert [r.text for r in s.query(BuyerNeed).all()] == ["office chair"]
+
+
+def test_card_and_no_approval_are_read_and_unapplied_constraints_are_listed(client):
+    """Developer evaluation 2026-11-16: card checkout and 'no manual buyer approval' were ignored, and the
+    $120 cap looked applied. They are now read, and the answer says what did not filter the matches."""
+    c = needs.read_conditions("Trail running shoes under $120, shipping within the United States, with card "
+                              "checkout and no manual buyer approval", "US")
+    assert c["payment_methods"] == ["card"] and c["pay_alone"] is True
+    assert c["keywords"] == ["trail", "running", "shoe"]  # no 'checkout', 'manual', 'buyer', 'approval'
+    _store(client, "trailshoes.example.com", "buyer_step_required", SHOP_PAY)
+    body = client.post("/v1/buying/needs", headers=UA, json={
+        "text": "trail shoes under $120 to Texas, pay with shop pay"}).json()
+    applied = {a["constraint"] for a in body["applied_constraints"]}
+    unapplied = {u["constraint"]: u for u in body["unapplied_constraints"]}
+    assert {"keywords", "ship_to_country", "payment_methods"} <= applied
+    assert unapplied["max_price_usd"]["value"] == 120 and "no prices" in unapplied["max_price_usd"]["reason"]
+    assert "region" in unapplied and "product" in unapplied
+    assert any("unapplied_constraints" in s for s in body["next_steps"])
