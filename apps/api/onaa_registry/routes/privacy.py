@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 from .stores import _page
 
 router = APIRouter(tags=["privacy"])
-NOTICE_VERSION = "2026-11-16"
+NOTICE_VERSION = "2026-11-16.2"
 
 
 def notice_text(base: str, need_days: int) -> list[tuple[str, str]]:
@@ -34,8 +34,9 @@ def notice_text(base: str, need_days: int) -> list[tuple[str, str]]:
          "report pages, the referring site's domain only. No IP address, user agent or person is stored in these "
          "counts."),
         ("IP addresses and hosting logs", "The directory application uses the client IP address in memory for rate "
-         "limiting and does not store it. The hosting providers (Fly.io for the servers, Neon for the database, "
-         "Cloudflare for onaa.net) may keep their own network and access logs under their own terms."),
+         "limiting and to count distinct visitors per day (with a random key that is replaced daily and never "
+         "stored), and does not store the address. The hosting providers (Fly.io for the servers, Neon for the "
+         "database, Cloudflare for onaa.net) may keep their own network and access logs under their own terms."),
         ("Steward questions (ask_steward)", "Questions may be answered with a language model provider's API. Do not "
          "include personal information."),
         ("Requests and contact", f"About a listing: POST {base}/v1/reports with category privacy and the "

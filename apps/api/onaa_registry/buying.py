@@ -14,6 +14,7 @@ terms apply. Answers distinguish "not tested" from "no".
 from __future__ import annotations
 
 import datetime as dt
+import gc
 import logging
 import os
 import re
@@ -279,10 +280,10 @@ def assess(listing: Listing, *, country: str | None = None, agent: str | None = 
     if pay_alone and verdict != "no":
         if alone != "after_one_time_link":
             verdict = "no"
-            reasons.append("no way for an agent to pay alone was observed: the buyer pays each purchase")
+            reasons.append("no Shop Pay one-time link offered: the buyer pays each purchase")
         elif pay and "shop_pay" not in pay:
             verdict = "no"
-            reasons.append("paying alone needs Shop Pay, which is not among your payment methods")
+            reasons.append("the one-time link needs Shop Pay, which is not among your payment methods")
         else:
             cautions.append("paying alone works after the buyer links Shop Pay once (first purchase)")
 
@@ -393,6 +394,10 @@ _cache_lock = threading.Lock()
 _refreshing: set[tuple[str, ...] | None] = set()
 COLD_WAIT_SECONDS = float(os.environ.get("ONAA_STORE_COLD_WAIT_SECONDS", "25"))
 log = logging.getLogger("onaa.buying")
+# One heavy read at a time: the store snapshot build (stores._build) and this list's loads each read every store
+# with its probe JSON. Run together on the 512 MB, one shared CPU machine they starved each other and the request
+# threads, so after a restart neither finished and /v1/stores answered 503 for good (production outage 2026-11-16).
+HEAVY_BUILD_LOCK = threading.Lock()
 
 
 def _cached_stores(session: Session, statuses: tuple[str, ...] | None) -> list[StoreView]:
@@ -425,6 +430,13 @@ def _watermark(session: Session):
 
 
 def _load(session: Session, statuses: tuple[str, ...], prev: tuple | None) -> tuple:
+    with HEAVY_BUILD_LOCK:
+        out = _load_unlocked(session, statuses, prev)
+    gc.collect()  # hand the build's temporaries back before the next one starts
+    return out
+
+
+def _load_unlocked(session: Session, statuses: tuple[str, ...], prev: tuple | None) -> tuple:
     now = time.monotonic()
     watermark = _watermark(session)
     if prev is None or prev[2] is None or watermark is None or now - prev[3] >= FULL_RELOAD_SECONDS:
@@ -460,12 +472,15 @@ def _refresh_in_background(session: Session, statuses: tuple[str, ...] | None) -
     threading.Thread(target=run, name="onaa-buying-cache", daemon=True).start()
 
 
-def warm_cache(sessionmaker) -> None:
-    """Load the default candidate list at startup (see BUYING_CACHE_SECONDS)."""
+def warm_cache(sessionmaker, after: threading.Thread | None = None) -> None:
+    """Load the default candidate list at startup (see BUYING_CACHE_SECONDS), after `after` (the store snapshot
+    warm-up) has finished, so the two full reads never run at the same time."""
     if BUYING_CACHE_SECONDS <= 0:
         return
 
     def run() -> None:
+        if after is not None:
+            after.join()
         try:
             with sessionmaker() as s:
                 _cached_stores(s, POSSIBLE_STATUSES)

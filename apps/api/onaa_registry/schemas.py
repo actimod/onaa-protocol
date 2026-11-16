@@ -734,8 +734,9 @@ class AgentCheckoutRequirements(StrictModel):
         default=None, max_length=200, description="which agents the store appears to serve when it refuses "
                                                   "anonymous agents, inferred from its manifest. Not confirmed")
     autonomous_payment: Literal["after_one_time_link", "none_observed", "not_offered"] | None = Field(
-        default=None, description="after_one_time_link: a handler (Shop Pay identity linking) lets an agent pay "
-                                  "alone after the buyer approves once; none_observed: every offered handler needs "
+        default=None, description="after_one_time_link: the store offers a Shop Pay one-time link the buyer "
+                                  "approves once (identity linking); later unattended payment is not verified; "
+                                  "none_observed: every offered handler needs "
                                   "the buyer per purchase or undocumented approval; not_offered: no agent payment "
                                   "handler at checkout")
 

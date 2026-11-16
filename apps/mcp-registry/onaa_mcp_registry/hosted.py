@@ -123,7 +123,9 @@ class _Dispatcher:
             origin = _traffic.origin_of(_traffic.path_group(path), _traffic.agent_class(ua), internal)
             if doc is not None:
                 origin = _traffic.mcp_origin(doc, origin)
-        self.usage.hit_http(path, ua, internal, origin=origin)
+        client = (_traffic.scope_client_ip(scope, getattr(self.usage, "trusted_proxy_hops", 0))
+                  if _traffic is not None else None)
+        self.usage.hit_http(path, ua, internal, origin=origin, client=client)
         if doc is not None:
             _count_mcp_doc(doc, self.usage, origin)
         if _traffic is None:

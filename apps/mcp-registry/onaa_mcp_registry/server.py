@@ -336,7 +336,7 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         ONAA never pays. stores: 1-25 store domains, URLs (e.g. product URLs from Shopify
         Shop MCP results) or svc_ ids. Answers per store: verdict yes / yes_buyer_finishes (buyer confirms or pays
         at the store's continue_url) / maybe / no / unknown, with reasons (refuses anonymous agents, no delivery
-        to your country, none of your payment methods offered, no way to pay alone), what the buyer must provide
+        to your country, none of your payment methods offered, no Shop Pay one-time link), what the buyer must provide
         and the steps. Stores ONAA has not checked come back found=false. Observed, not verified."""
         if not stores:
             return {"error": {"status": 400, "detail": "give at least one store domain, URL or svc_ id"}}

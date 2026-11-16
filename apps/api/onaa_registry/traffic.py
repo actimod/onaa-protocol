@@ -28,8 +28,11 @@ show up. Searches that found nothing are counted too (``_no_results``).
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
+import hmac
 import logging
 import re
+import secrets
 import threading
 from collections.abc import Callable
 from contextvars import ContextVar
@@ -156,6 +159,7 @@ PREFIX_GROUPS = (
 HOST_RE = re.compile(r"^(?=.{4,120}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$")
 MAX_KEYS = 10000  # daily + hourly buffer entries between flushes
 HOURLY_KEEP_DAYS = 30
+MAX_VISITORS_PER_DAY = 200_000  # memory bound (about 10 MB); beyond it new visitors are not counted
 
 # ---- search-condition vocabulary (anything outside it is counted as "other"; free text never stored) ----
 SEARCH_DOORS = ("find_stores", "check", "list")
@@ -327,6 +331,13 @@ class Usage:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._pruned_at: str | None = None
+        self.trusted_proxy_hops = 0
+        # Unique visitors: a random key that lives only in memory and is replaced every UTC day, and a set of short
+        # keyed hashes of (IP, agent class) for that day only. Neither the IP nor the hashes are ever written
+        # anywhere; only the number of new visitors per category is counted.
+        self._visitor_day: str | None = None
+        self._visitor_key = b""
+        self._visitors: set[bytes] = set()
 
     def hit(self, kind: str, key: str, n: int = 1, origin: str | None = None) -> None:
         origin = origin if origin in ORIGINS else current_origin.get()
@@ -338,12 +349,28 @@ class Usage:
                 self._buf[k] = self._buf.get(k, 0) + n
 
     def hit_http(self, path: str, user_agent: str | None, internal: str | None = None,
-                 origin: str | None = None) -> str:
-        """Count one request; returns its origin (pass `origin` to override the header/User-Agent rule)."""
+                 origin: str | None = None, client: str | None = None) -> str:
+        """Count one request; returns its origin (pass `origin` to override the header/User-Agent rule).
+        `client` (the caller's IP) is used in memory only, to count unique visitors per day; it is never stored."""
         grp, cls = path_group(path), agent_class(user_agent)
         origin = origin if origin in ORIGINS else origin_of(grp, cls, internal)
         self.hit("http", f"{grp}|{cls}", origin=origin)
+        if client and origin == EXTERNAL:
+            self._visit(client, cls)
         return origin
+
+    def _visit(self, client: str, cls: str) -> None:
+        day = _today()
+        with self._lock:
+            if day != self._visitor_day:  # new UTC day: forget yesterday's key and hashes
+                self._visitor_day, self._visitor_key, self._visitors = day, secrets.token_bytes(32), set()
+            if len(self._visitors) >= MAX_VISITORS_PER_DAY:
+                return
+            tag = hmac.new(self._visitor_key, f"{client}|{cls}".encode(), hashlib.sha256).digest()[:12]
+            if tag in self._visitors:
+                return
+            self._visitors.add(tag)
+        self.hit("visitor", visitor_category(cls), origin=EXTERNAL)
 
     def hit_store_asked(self, domain: str) -> None:
         d = (domain or "").lower().strip(".")
@@ -488,7 +515,8 @@ class TrafficMiddleware:
             origin = EXTERNAL
             try:
                 origin = self.usage.hit_http(scope.get("path", ""), header(scope, b"user-agent"),
-                                             header(scope, INTERNAL_HEADER))
+                                             header(scope, INTERNAL_HEADER),
+                                             client=scope_client_ip(scope, self.usage.trusted_proxy_hops))
             except Exception:  # noqa: BLE001
                 pass
         token = current_origin.set(origin)
@@ -502,7 +530,7 @@ def _empty_group() -> dict:
     return {"requests": 0, "ai_agent_requests": 0, "mcp_tool_calls": 0, "by_agent_class": {}, "by_path": {},
             "ai_agents_by_path": {}, "mcp_tools": {}, "mcp_methods": {}, "store_checks": {},
             "unlisted_stores_asked": {}, "search_conditions": {}, "search_combinations": {},
-            "free_text_needs": {"totals": {}, "themes": {}}, "report_views": {},
+            "free_text_needs": {"totals": {}, "themes": {}}, "report_views": {}, "unique_visitors_by_day": {},
             "counted_before_origin_tagging": 0}
 
 
@@ -560,6 +588,8 @@ def usage_report(session: Session, days: int = 14) -> dict:
                 _inc(g["free_text_needs"]["totals"], key[1:], n)
             else:
                 _inc(g["free_text_needs"]["themes"], key.partition("=")[2], n)
+        elif kind == "visitor":
+            _inc(g["unique_visitors_by_day"].setdefault(day, {}), key, n)
         elif kind == "report_view":
             issue, _, ref = key.partition("|")
             r = g["report_views"].setdefault(issue, {"views": 0, "by_referrer": {}})
@@ -582,6 +612,7 @@ def usage_report(session: Session, days: int = 14) -> dict:
         g["free_text_needs"]["themes"] = top(g["free_text_needs"]["themes"], 40)
         for r in g["report_views"].values():
             r["by_referrer"] = top(r["by_referrer"], 30)
+        g["unique_visitors_by_day"] = dict(sorted(g["unique_visitors_by_day"].items()))
 
     return {
         "since": since,
@@ -601,7 +632,12 @@ def usage_report(session: Session, days: int = 14) -> dict:
                  "to describe_need / POST /v1/buying/needs by theme from a fixed vocabulary; the redacted text "
                  "itself is never published (admin-only, deleted after 7 days). report_views counts views of each "
                  "Agent Checkout Report page (/reports/N) with the referring site's domain only ('(direct)' when "
-                 "none); by_path shows the same pages split by agent class (browser vs bots)."),
+                 "none); by_path shows the same pages split by agent class (browser vs bots). "
+                 "unique_visitors_by_day (external only) counts distinct callers per UTC day by category "
+                 "(people = a browser, crawler, ai_agent, "
+                 "script, other), told apart in memory with a key that is replaced every day; no IP address or "
+                 "hash is stored, and a server restart starts the day's count afresh (so it can count someone "
+                 "twice)."),
         "origin_tagging_since": first_tagged,
         "summary": {o: {f: groups[o][f] for f in ("requests", "ai_agent_requests", "mcp_tool_calls")}
                     for o in ORIGINS},
@@ -624,7 +660,7 @@ def hourly_report(session: Session, hours: int = 48) -> dict:
         key, origin, _ = split_origin(raw, kind)
         h = out.setdefault(hour, {})
         g = h.setdefault(origin, {"requests": 0, "ai_agent_requests": 0, "mcp_tool_calls": 0, "by_agent_class": {},
-                                  "by_path": {}, "mcp_tools": {}, "report_views": {}})
+                                  "by_path": {}, "mcp_tools": {}, "report_views": {}, "new_unique_visitors": {}})
         if kind == "http":
             path, _, cls = key.partition("|")
             g["requests"] += n
@@ -638,6 +674,8 @@ def hourly_report(session: Session, hours: int = 48) -> dict:
         elif kind == "report_view":
             issue, _, ref = key.partition("|")
             _inc(g["report_views"], f"{issue} from {ref}", n)
+        elif kind == "visitor":
+            _inc(g["new_unique_visitors"], key, n)
     for h in out.values():
         for g in h.values():
             for f in ("by_agent_class", "by_path"):
@@ -680,6 +718,7 @@ def _week_row() -> dict:
     return {"requests": 0, "crawler_requests": {}, "user_triggered_agent_requests": {},
             "store_data_fetches": {"total": 0, "by_class": {}, "by_path": {}},
             "mcp_connections": 0, "mcp_tool_calls": {}, "mcp_clients": {}, "agent_searches": 0,
+            "visitor_days": {},
             "report_views": 0, "probe_requests": 0, "probe_mcp_calls": 0}
 
 
@@ -722,6 +761,8 @@ def weekly_report(session: Session, weeks: int = 12) -> dict:
             _inc(w["mcp_tool_calls"], key, n)
         elif kind == "mcp_client":
             _inc(w["mcp_clients"], key, n)
+        elif kind == "visitor":
+            _inc(w["visitor_days"], key, n)
         elif kind == "search_filter" and key.endswith("|_searches"):
             w["agent_searches"] += n
         elif kind == "report_view":
@@ -756,3 +797,26 @@ def weekly_report(session: Session, weeks: int = 12) -> dict:
                      "mcp_clients counts the client's self-declared product name only. No IP addresses, full user "
                      "agents or query text are stored."),
             "series": series}
+
+
+def visitor_category(cls: str) -> str:
+    """people (a browser), crawler (indexing/training bots), ai_agent (an AI assistant or MCP client acting for
+    someone), script (HTTP libraries and command-line tools), other."""
+    if cls == "browser":
+        return "people"
+    if cls in CRAWLER_CLASSES or cls == "other_bot":
+        return "crawler"
+    if cls in USER_TRIGGERED_CLASSES or cls in AI_AGENT_CLASSES or cls == "mcp_client":
+        return "ai_agent"
+    if cls in ("python_script", "node_script", "go_script", "cli"):
+        return "script"
+    return "other"
+
+
+def scope_client_ip(scope, hops: int) -> str | None:
+    """The caller's IP for an ASGI scope, resolved like security.client_ip (used in memory only)."""
+    peer = (scope.get("client") or ("", 0))[0] or None
+    if hops <= 0:
+        return peer
+    chain = [p.strip() for p in (header(scope, b"x-forwarded-for") or "").split(",") if p.strip()]
+    return chain[-hops] if len(chain) >= hops else peer

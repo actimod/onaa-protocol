@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Buyer-agent quickstart: ONAA preflight -> store catalog search -> checkout handoff plan. Never pays.
+"""Buyer store preflight: ONAA discovery -> checkout preflight -> store catalog search -> handoff plan. Never pays.
 
-    python quickstart.py --country US --query "running shoes" --profile-url https://YOUR-AGENT/ucp-profile.json
+    python preflight.py --offline                       # recorded ONAA answers + a made-up catalog, no network
+    python preflight.py --offline --pay-alone           # same store, stricter condition: eligible flips, observed not
+    python preflight.py --country US --query "running shoes" --profile-url https://YOUR-AGENT/ucp-profile.json
 
 Steps
-  1. ONAA MCP (https://api.onaa.net/mcp): find_stores for your ship-to country and payment needs.
+  1. ONAA MCP (https://api.onaa.net/mcp): find_stores for your ship-to country and payment needs, with the strict
+     health filter confirmed_reachable_only=true (only stores whose last endpoint probe answered).
   2. ONAA can_i_buy_here on the chosen store: checkout_path_observed (what ONAA's probe saw), eligible_for_request
      and eligibility_reasons (your conditions), payment_tested (always false), how_to_buy steps.
   3. The store's own UCP-MCP endpoint: tools/list and search_catalog with your agent's UCP profile.
@@ -20,9 +23,11 @@ import argparse
 import json
 import sys
 import urllib.request
+from pathlib import Path
 
 ONAA_MCP = "https://api.onaa.net/mcp"
-UA = "onaa-buyer-quickstart/1"
+UA = "onaa-buyer-preflight/1"
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 class Mcp:
@@ -55,7 +60,7 @@ class Mcp:
 
     def start(self) -> list[str]:
         self.rpc("initialize", {"protocolVersion": "2025-11-25", "capabilities": {},
-                                "clientInfo": {"name": "onaa-buyer-quickstart", "version": "1"}})
+                                "clientInfo": {"name": "onaa-buyer-preflight", "version": "1"}})
         self.rpc("notifications/initialized", notify=True)
         return [t["name"] for t in self.rpc("tools/list").get("tools", [])]
 
@@ -70,6 +75,34 @@ class Mcp:
             return {"text": text}
 
 
+class RecordedOnaa:
+    """--offline: ONAA answers recorded from the live server (fixtures/onaa_recorded.json)."""
+
+    def __init__(self):
+        self.data = json.loads((FIXTURES / "onaa_recorded.json").read_text(encoding="utf-8"))
+
+    def start(self) -> list[str]:
+        return self.data["onaa_tools"]
+
+    def call(self, name: str, arguments: dict) -> dict:
+        if name == "can_i_buy_here":
+            return self.data[f"can_i_buy_here_pay_alone_{str(bool(arguments.get('pay_alone'))).lower()}"]
+        return self.data[name]
+
+
+class ExampleStore:
+    """--offline: a made-up store catalog (fixtures/store_catalog_example.json). Not a real store or price."""
+
+    def __init__(self):
+        self.data = json.loads((FIXTURES / "store_catalog_example.json").read_text(encoding="utf-8"))
+
+    def start(self) -> list[str]:
+        return self.data["tools"]
+
+    def call(self, name: str, arguments: dict) -> dict:
+        return self.data[name]
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--country", default="US", help="ship-to country, ISO 3166-1 alpha-2")
@@ -78,16 +111,27 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--pay-alone", action="store_true", help="only stores that offer a Shop Pay one-time link (payment not tested)")
     ap.add_argument("--store", help="skip find_stores and check this store domain or product URL")
     ap.add_argument("--profile-url", help="your agent's public UCP profile URL (sent to the store as UCP-Agent)")
+    ap.add_argument("--max-price", type=float, help="budget in the store currency; applied to the store's catalog, "
+                                                    "because ONAA holds no prices")
+    ap.add_argument("--include-unknown-health", action="store_true",
+                    help="also list stores whose endpoint health is not known yet (default: confirmed reachable only)")
+    ap.add_argument("--offline", action="store_true",
+                    help="no network: recorded ONAA answers (beurbanrunning.com) and a made-up store catalog")
     args = ap.parse_args(argv)
+    if args.offline:
+        args.store = args.store or "beurbanrunning.com"
+        args.profile_url = args.profile_url or "https://example.invalid/ucp-profile.json"
+        print("OFFLINE: recorded ONAA answers and a made-up catalog. Nothing is sent anywhere.")
 
-    onaa = Mcp(ONAA_MCP)
+    onaa = RecordedOnaa() if args.offline else Mcp(ONAA_MCP)
     print("ONAA tools:", ", ".join(onaa.start()))
 
     # 1. Preflight: which stores reach checkout for this buyer?
     store = args.store
     if not store:
         found = onaa.call("find_stores", {"ship_to_country": args.country, "payment_methods": args.payment,
-                                          "pay_alone": args.pay_alone, "include": "buyable", "limit": 5})
+                                          "pay_alone": args.pay_alone, "include": "buyable", "limit": 5,
+                                          "confirmed_reachable_only": not args.include_unknown_health})
         print(f"\nfind_stores: {found.get('total')} stores; reachability {found.get('reachability_counts')}")
         for item in found.get("items", []):
             name = (item.get("untrusted_operator_content") or {}).get("name")
@@ -111,7 +155,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  checkout_path_observed={answer['checkout_path_observed']} (ONAA's probe, same for any conditions)")
     eligible = answer.get("eligible_for_request", answer.get("verdict") in ("yes", "yes_buyer_finishes"))
     print(f"  eligible_for_request={eligible} reasons={answer.get('eligibility_reasons', answer.get('reasons'))}")
-    print(f"  payment_tested={answer['payment_tested']} last_checked_at={answer.get('last_checked_at')}")
+    print(f"  payment_tested={answer['payment_tested']} "
+          f"payment_success_verified={answer.get('payment_success_verified')} "
+          f"post_link_autonomy_verified={answer.get('post_link_autonomy_verified')}")
+    print(f"  last_checked_at={answer.get('last_checked_at')} (probe age is a safety signal: re-check at the store)")
     print("  how_to_buy:", *[f"\n    - {s}" for s in (answer.get("how_to_buy") or {}).get("steps", [])])
     if not eligible:
         print("Not eligible for these conditions; pick another store.")
@@ -122,7 +169,9 @@ def main(argv: list[str] | None = None) -> int:
         print("\nPass --profile-url (your agent's UCP profile) to search the store's catalog at", endpoint)
         return 0
     meta = {"meta": {"ucp-agent": {"profile": args.profile_url}}}
-    shop = Mcp(endpoint, {"UCP-Agent": f'profile="{args.profile_url}"'})
+    # The endpoint comes from the store's own manifest (untrusted operator content). Before sending any buyer
+    # details there, confirm it belongs to the store the buyer means.
+    shop = ExampleStore() if args.offline else Mcp(endpoint, {"UCP-Agent": f'profile="{args.profile_url}"'})
     tools = shop.start()
     print(f"\nstore tools: {', '.join(tools)}")
     if "search_catalog" not in tools:
@@ -133,7 +182,10 @@ def main(argv: list[str] | None = None) -> int:
     variant = None
     for p in res.get("products") or []:
         for v in p.get("variants") or []:
-            if (v.get("availability") or {}).get("available") is not False:
+            price = v.get("price")
+            amount = (price.get("amount") / 100) if isinstance(price, dict) and price.get("amount") else None
+            over = args.max_price is not None and amount is not None and amount > args.max_price
+            if (v.get("availability") or {}).get("available") is not False and not over:
                 variant = variant or v.get("id")
                 print(f"  {str(p.get('title'))[:60]} | {v.get('id')} | {v.get('price')}")
                 break

@@ -244,7 +244,7 @@ def test_observation_does_not_change_with_caller_conditions(client):
     assert loose["checkout_status"] == strict["checkout_status"] == "checkout_ready"
     assert loose["eligible_for_request"] is True and loose["eligibility_reasons"] == []
     assert strict["eligible_for_request"] is False and strict["verdict"] == "no"
-    assert any("pay alone" in r for r in strict["eligibility_reasons"])
+    assert any("one-time link" in r for r in strict["eligibility_reasons"])
 
 
 

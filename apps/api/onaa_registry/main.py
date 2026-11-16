@@ -102,14 +102,16 @@ def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
     app.state.opt_out_limiter = RateLimiter(settings.opt_out_per_ip_per_day, window_seconds=86400)
     # Anonymous agent-traffic counters (no IPs or user agents stored); see traffic.py.
     app.state.usage = Usage(app.state.sessionmaker, settings.usage_flush_seconds)
+    app.state.usage.trusted_proxy_hops = settings.trusted_proxy_hops
     app.add_middleware(TrafficMiddleware, usage=app.state.usage)
     app.add_middleware(PolicyNoCacheMiddleware)
     app.add_event_handler("startup", app.state.usage.start)
     app.add_event_handler("shutdown", app.state.usage.stop)
     if os.environ.get("ONAA_STORE_FEED_WARM", "0") == "1":  # build the store snapshot at startup (production)
         base = settings.public_base_url.rstrip("/")
-        app.add_event_handler("startup", lambda: warm_snapshot(app.state.sessionmaker, base))
-        app.add_event_handler("startup", lambda: buying_warm_cache(app.state.sessionmaker))
+        # One after the other: both read every store, and together they starved the small machine (2026-11-16).
+        app.add_event_handler("startup", lambda: buying_warm_cache(
+            app.state.sessionmaker, after=warm_snapshot(app.state.sessionmaker, base)))
     app.state.checker = checker_from_env(app.state.sessionmaker, settings.public_base_url)
     if app.state.checker is not None:
         app.add_event_handler("startup", app.state.checker.start)

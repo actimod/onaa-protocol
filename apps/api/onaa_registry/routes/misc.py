@@ -413,6 +413,8 @@ onaa-demo.widgets.sell, SKU widget-std), escrow https://onaa-demo-escrow.fly.dev
 ## Clients
 
 - Public source, specs, SDK and demo (Apache-2.0): https://github.com/actimod/onaa-protocol
+- Shopping-agent preflight example (no payment; --offline needs no network):
+  https://github.com/actimod/onaa-protocol/tree/main/examples/buyer-store-preflight
 
 - Remote MCP (no install): add {base}/mcp as a Streamable HTTP MCP server, no auth. 13 tools. Read-only:
   search_agents, search_services, find_stores, can_i_buy_here, how_to_buy, get_listing, get_vocabulary,
