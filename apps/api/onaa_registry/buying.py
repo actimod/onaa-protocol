@@ -14,7 +14,12 @@ terms apply. Answers distinguish "not tested" from "no".
 from __future__ import annotations
 
 import datetime as dt
+import logging
+import os
 import re
+import sys
+import threading
+import time
 from dataclasses import dataclass
 from typing import Any, Literal
 from urllib.parse import urlsplit
@@ -312,10 +317,18 @@ class StoreView:
     documentation_url: str | None
     agent_checkout: dict | None
     reachability: str | None
+    operator_id: str | None
+    lifecycle_status: str | None
+
+    @property
+    def claimed(self) -> bool:
+        """Posted by its operator (not only found on the public web by ONAA)."""
+        return self.operator_id is not None and self.lifecycle_status != "discovered"
 
 
 _VIEW_COLUMNS = (Listing.id, Listing.display_name, Listing.description, Listing.endpoint_url, Listing.source_url,
-                 Listing.documentation_url, Listing.agent_checkout, Listing.reachability)
+                 Listing.documentation_url, Listing.agent_checkout, Listing.reachability, Listing.operator_id,
+                 Listing.lifecycle_status)
 # Probe results that can lead to a yes or maybe; every other status always answers no or unknown.
 POSSIBLE_STATUSES = ("checkout_ready", "buyer_step_required", "auth_required")
 
@@ -330,7 +343,86 @@ def _stores(session: Session, statuses: tuple[str, ...] | None = None) -> list[S
     if statuses is not None:
         q = q.where(Listing.id.in_(select(ListingFacet.listing_id).where(
             ListingFacet.kind == "agent_checkout", ListingFacet.value.in_(statuses))))
-    return [StoreView(*row) for row in session.execute(q.order_by(Listing.id)).all()]
+    rows = session.execute(q.order_by(Listing.id).execution_options(yield_per=500))  # compact while reading
+    return [StoreView(*row[:6], _compact(row[6]), *row[7:]) for row in rows]
+
+
+def _compact(value: Any) -> Any:
+    """The probe JSON with every string interned. Each store repeats the same short strings (country codes in
+    published_ships_to, handler and status names), so ~16k decoded probe records took ~290 MB as separate
+    objects and ~60 MB interned; two copies during a cache refresh ran the 512 MB machine out of memory."""
+    if isinstance(value, str):
+        return sys.intern(value)
+    if isinstance(value, list):
+        return [_compact(v) for v in value]
+    if isinstance(value, dict):
+        return {sys.intern(k): _compact(v) for k, v in value.items()}
+    return value
+
+
+# find_stores reads every candidate store (thousands of rows with their probe JSON) and ranks them per request.
+# On the small production machine that took 10-40 s per call, so the candidate list is kept in memory for
+# BUYING_CACHE_SECONDS and refreshed in the background while the previous list keeps being served. Probe results
+# change at most every few minutes (the checker), so answers stay as fresh as the store feed. 0 = no cache (tests).
+BUYING_CACHE_SECONDS = float(os.environ.get("ONAA_BUYING_CACHE_SECONDS", "0"))
+_cache: dict[tuple[str, ...] | None, tuple[float, list[StoreView]]] = {}
+_cache_lock = threading.Lock()
+_refreshing: set[tuple[str, ...] | None] = set()
+log = logging.getLogger("onaa.buying")
+
+
+def _cached_stores(session: Session, statuses: tuple[str, ...] | None) -> list[StoreView]:
+    if BUYING_CACHE_SECONDS <= 0 or statuses is None:  # include=all (every store) is rare and too big to keep
+        return _stores(session, statuses)
+    hit = _cache.get(statuses)
+    if hit is not None:
+        if time.monotonic() - hit[0] >= BUYING_CACHE_SECONDS:
+            _refresh_in_background(session, statuses)
+        return hit[1]  # fresh, or stale while a refresh runs
+    with _cache_lock:  # cold: one request builds, concurrent ones wait for it instead of building again
+        hit = _cache.get(statuses)
+        if hit is None:
+            hit = _cache[statuses] = (time.monotonic(), _stores(session, statuses))
+    return hit[1]
+
+
+def _refresh_in_background(session: Session, statuses: tuple[str, ...] | None) -> None:
+    with _cache_lock:
+        if statuses in _refreshing:
+            return
+        _refreshing.add(statuses)
+    bind = session.get_bind()
+
+    def run() -> None:
+        try:
+            with Session(bind=bind) as s:
+                _cache[statuses] = (time.monotonic(), _stores(s, statuses))
+        except Exception:  # noqa: BLE001 - keep serving the previous list
+            log.warning("buying store list refresh failed", exc_info=True)
+        finally:
+            with _cache_lock:
+                _refreshing.discard(statuses)
+
+    threading.Thread(target=run, name="onaa-buying-cache", daemon=True).start()
+
+
+def warm_cache(sessionmaker) -> None:
+    """Load the default candidate list at startup (see BUYING_CACHE_SECONDS)."""
+    if BUYING_CACHE_SECONDS <= 0:
+        return
+
+    def run() -> None:
+        try:
+            with sessionmaker() as s:
+                _cached_stores(s, POSSIBLE_STATUSES)
+        except Exception:  # noqa: BLE001
+            log.warning("buying store list warm-up failed", exc_info=True)
+
+    threading.Thread(target=run, name="onaa-buying-warm", daemon=True).start()
+
+
+def reset_cache() -> None:
+    _cache.clear()
 
 
 def _lookup(session: Session, key: str) -> StoreView | None:
@@ -380,18 +472,21 @@ def _matches_text(listing: Listing, q: str | None) -> bool:
 def find_stores(session: Session, *, country: str | None = None, agent: str | None = None,
                 payment: list[str] | None = None, pay_alone: bool = False, q: str | None = None,
                 include: Literal["buyable", "possible", "all"] = "possible", limit: int = 20,
-                offset: int = 0) -> dict[str, Any]:
+                offset: int = 0, claimed_only: bool = False, reachable_only: bool = False) -> dict[str, Any]:
     """Stores matching the buyer's conditions, best answers first."""
     wanted = {"buyable": ("yes", "yes_buyer_finishes"), "possible": ("yes", "yes_buyer_finishes", "maybe"),
               "all": tuple(VERDICT_RANK)}[include]
     rows = [assess(s, country=country, agent=agent, payment=payment, pay_alone=pay_alone)
-            for s in _stores(session, None if include == "all" else POSSIBLE_STATUSES) if _matches_text(s, q)]
+            for s in _cached_stores(session, None if include == "all" else POSSIBLE_STATUSES)
+            if _matches_text(s, q) and (not claimed_only or s.claimed)
+            and (not reachable_only or s.reachability == "reachable")]
     rows = [r for r in rows if r["verdict"] in wanted]
     rows.sort(key=lambda r: (VERDICT_RANK[r["verdict"]], r["pay_alone"] != "after_one_time_link",
                              r["ships_to_country"] is not True, (r["store"]["name"] or "").lower()))
     return {"total": len(rows), "offset": offset, "items": rows[offset:offset + limit],
             "conditions": {"country": _country(country), "agent": agent, "payment": normalise_payment(payment),
-                           "pay_alone": pay_alone, "query": q, "include": include},
+                           "pay_alone": pay_alone, "query": q, "include": include, "claimed_only": claimed_only,
+                           "reachable_only": reachable_only},
             "tested_countries": list(TESTED_COUNTRIES), "note": NOTE}
 
 

@@ -1325,6 +1325,40 @@
         "title": "ChallengeStart",
         "type": "object"
       },
+      "ClaimLink": {
+        "properties": {
+          "key_claim_expires_at": {
+            "title": "Key Claim Expires At",
+            "type": "string"
+          },
+          "key_claim_url": {
+            "title": "Key Claim Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key_claim_url",
+          "key_claim_expires_at"
+        ],
+        "title": "ClaimLink",
+        "type": "object"
+      },
+      "ClaimLinkRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "registration_secret": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Registration Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "registration_secret"
+        ],
+        "title": "ClaimLinkRequest",
+        "type": "object"
+      },
       "Classification": {
         "additionalProperties": false,
         "description": "What is traded, in a public code list: UNSPSC (UN), HS (WCO), GS1 GPC, ISIC (UN) or NAICS.",
@@ -2143,6 +2177,88 @@
         "title": "Jurisdiction",
         "type": "object"
       },
+      "KeyClaimRedeem": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "KeyClaimRedeem",
+        "type": "object"
+      },
+      "KeyClaimed": {
+        "properties": {
+          "api_key": {
+            "description": "Shown once. ONAA keeps only a hash.",
+            "title": "Api Key",
+            "type": "string"
+          },
+          "note": {
+            "default": "Store it in a secret manager now. Send it as 'Authorization: Bearer <key>'.",
+            "title": "Note",
+            "type": "string"
+          },
+          "operator_id": {
+            "title": "Operator Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operator_id",
+          "api_key"
+        ],
+        "title": "KeyClaimed",
+        "type": "object"
+      },
+      "NeedIn": {
+        "properties": {
+          "agent": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "your agent or platform, e.g. chatgpt, claude",
+            "title": "Agent"
+          },
+          "ship_to_country": {
+            "anyOf": [
+              {
+                "maxLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 3166-1 country, e.g. US",
+            "title": "Ship To Country"
+          },
+          "text": {
+            "description": "what you are looking for, in your own words, without personal information, e.g. \"trail running shoes under $120, ship to Texas, pay with Apple Pay\"",
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "NeedIn",
+        "type": "object"
+      },
       "OperatorCreate": {
         "additionalProperties": false,
         "properties": {
@@ -2384,6 +2500,49 @@
         "title": "OperatorUpdate",
         "type": "object"
       },
+      "OptOutConfirm": {
+        "additionalProperties": false,
+        "properties": {
+          "method": {
+            "default": "well_known",
+            "enum": [
+              "well_known",
+              "dns_txt"
+            ],
+            "title": "Method",
+            "type": "string"
+          }
+        },
+        "title": "OptOutConfirm",
+        "type": "object"
+      },
+      "OptOutConfirmResult": {
+        "properties": {
+          "note": {
+            "default": "Erased; only hashes of the URL or host are kept so the entries are not added again.",
+            "title": "Note",
+            "type": "string"
+          },
+          "removed_listing_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Removed Listing Ids",
+            "type": "array"
+          },
+          "status": {
+            "const": "removed",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "removed_listing_ids"
+        ],
+        "title": "OptOutConfirmResult",
+        "type": "object"
+      },
       "OptOutRequest": {
         "additionalProperties": false,
         "description": "Remove discovered (never registered) entries for a URL or a whole host and stop re-importing them.",
@@ -2426,30 +2585,62 @@
       },
       "OptOutResult": {
         "properties": {
+          "confirm_url": {
+            "title": "Confirm Url",
+            "type": "string"
+          },
+          "dns_record_name": {
+            "title": "Dns Record Name",
+            "type": "string"
+          },
+          "expires_at": {
+            "title": "Expires At",
+            "type": "string"
+          },
           "note": {
-            "default": "Discovered entries matching this request are removed and will not be re-imported. Registered listings are not affected: their owner can delete them with their own key.",
+            "default": "The matched discovered entries are hidden now and are not re-imported while this request waits. To erase them for good, prove control of the host before expires_at (7 days) and POST confirm_url with {\"method\": \"well_known\"} or {\"method\": \"dns_txt\"}. Without proof they are listed again when the request expires. Registered listings are not affected: their owner can delete them with their own key.",
             "title": "Note",
             "type": "string"
           },
           "removed_listing_ids": {
+            "description": "Discovered entries hidden now (not yet erased)",
             "items": {
               "type": "string"
             },
             "title": "Removed Listing Ids",
             "type": "array"
           },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
           "status": {
             "enum": [
-              "removed",
-              "suppressed"
+              "hidden",
+              "pending"
             ],
             "title": "Status",
+            "type": "string"
+          },
+          "token": {
+            "description": "Publish this at well_known_url (HTTP 200, body = token, no redirect) or as a DNS TXT record at dns_record_name, then call confirm_url",
+            "title": "Token",
+            "type": "string"
+          },
+          "well_known_url": {
+            "title": "Well Known Url",
             "type": "string"
           }
         },
         "required": [
           "status",
-          "removed_listing_ids"
+          "removed_listing_ids",
+          "request_id",
+          "token",
+          "expires_at",
+          "well_known_url",
+          "dns_record_name",
+          "confirm_url"
         ],
         "title": "OptOutResult",
         "type": "object"
@@ -3417,6 +3608,16 @@
       "SelfRegistrationComplete": {
         "additionalProperties": false,
         "properties": {
+          "key_delivery": {
+            "default": "inline",
+            "description": "inline: the API key is in this answer (shown once). claim_link: no key here; a one-time link (valid 24 hours) for your operator to collect the key outside this conversation",
+            "enum": [
+              "inline",
+              "claim_link"
+            ],
+            "title": "Key Delivery",
+            "type": "string"
+          },
           "registration_secret": {
             "maxLength": 200,
             "minLength": 1,
@@ -3433,9 +3634,39 @@
       "SelfRegistrationCompleted": {
         "properties": {
           "api_key": {
-            "description": "Agent-scoped key, shown once. ONAA keeps only a hash.",
-            "title": "Api Key",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Agent-scoped key, shown once (key_delivery=inline). ONAA keeps only a hash.",
+            "title": "Api Key"
+          },
+          "key_claim_expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Claim Expires At"
+          },
+          "key_claim_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "key_delivery=claim_link: one-time link for the operator; the key is created when it is used",
+            "title": "Key Claim Url"
           },
           "listing": {
             "$ref": "#/components/schemas/RegistryRecord"
@@ -3464,7 +3695,6 @@
           "registration_id",
           "status",
           "operator",
-          "api_key",
           "listing",
           "next_steps"
         ],
@@ -4787,7 +5017,7 @@
     }
   },
   "info": {
-    "description": "Find stores and marketplaces AI buying agents can actually buy from, with each store's tested checkout requirements (UCP, Shop MCP); links only. Also lists payment and other providers and buyer and seller agents. This registry API holds listings and trust metadata only; it never relays buyer/seller transactions, holds funds, or hosts seller data.",
+    "description": "Find stores and marketplaces AI buying agents can actually buy from, with each store's tested checkout requirements (UCP, Shop MCP); links only. Also lists payment and other providers and buyer and seller agents. This directory API holds listings and trust metadata only; it never relays buyer/seller transactions, holds funds, or hosts seller data.",
     "title": "ONAA API (Open Network for AI Agents)",
     "version": "0.1.0"
   },
@@ -5424,6 +5654,71 @@
         "summary": "List Runs",
         "tags": [
           "trust",
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/needs": {
+      "get": {
+        "description": "Weekly demand review (admin token): theme counts and redacted texts, as untrusted data.",
+        "operationId": "review_needs_v1_admin_needs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 7,
+              "maximum": 90,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "origin",
+            "required": false,
+            "schema": {
+              "default": "external",
+              "enum": [
+                "external",
+                "ours",
+                "probes",
+                "all"
+              ],
+              "title": "Origin",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Weekly demand review of free-text needs (admin)",
+        "tags": [
           "admin"
         ]
       }
@@ -7177,7 +7472,7 @@
             }
           },
           {
-            "description": "ISO 3166-1 country to ship to, e.g. KR",
+            "description": "ISO 3166-1 country to ship to, e.g. US",
             "in": "query",
             "name": "country",
             "required": false,
@@ -7191,7 +7486,7 @@
                   "type": "null"
                 }
               ],
-              "description": "ISO 3166-1 country to ship to, e.g. KR",
+              "description": "ISO 3166-1 country to ship to, e.g. US",
               "title": "Country"
             }
           },
@@ -7274,12 +7569,52 @@
         ]
       }
     },
+    "/v1/buying/needs": {
+      "post": {
+        "description": "Rules-only reading (no language model). Personal data is removed before matching; only the redacted text is\nkept, for up to ONAA_NEED_TEXT_RETENTION_DAYS days (default 7), for anonymous demand review.",
+        "operationId": "describe_need_v1_buying_needs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NeedIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Describe what you want in free text; get matching stores now (personal data removed)",
+        "tags": [
+          "buying"
+        ]
+      }
+    },
     "/v1/buying/stores": {
       "get": {
         "operationId": "stores_v1_buying_stores_get",
         "parameters": [
           {
-            "description": "ISO 3166-1 country to ship to, e.g. KR",
+            "description": "ISO 3166-1 country to ship to, e.g. US",
             "in": "query",
             "name": "country",
             "required": false,
@@ -7293,7 +7628,7 @@
                   "type": "null"
                 }
               ],
-              "description": "ISO 3166-1 country to ship to, e.g. KR",
+              "description": "ISO 3166-1 country to ship to, e.g. US",
               "title": "Country"
             }
           },
@@ -7407,6 +7742,30 @@
               "minimum": 0,
               "title": "Offset",
               "type": "integer"
+            }
+          },
+          {
+            "description": "only stores posted by their operator; most stores are unclaimed (found on the public web by ONAA), so this can return few or none",
+            "in": "query",
+            "name": "claimed_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "only stores posted by their operator; most stores are unclaimed (found on the public web by ONAA), so this can return few or none",
+              "title": "Claimed Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "only stores whose endpoint passed ONAA's last health check (reachability=reachable; endpoint health, not checkout status)",
+            "in": "query",
+            "name": "reachable_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "only stores whose endpoint passed ONAA's last health check (reachability=reachable; endpoint health, not checkout status)",
+              "title": "Reachable Only",
+              "type": "boolean"
             }
           }
         ],
@@ -7610,7 +7969,59 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Remove discovered (unregistered) entries for a URL or host and block re-import",
+        "summary": "Hide discovered (unregistered) entries for a URL or host; erase them once the host proves control",
+        "tags": [
+          "opt-out"
+        ]
+      }
+    },
+    "/v1/discovered/opt-out/{request_id}/confirm": {
+      "post": {
+        "operationId": "confirm_opt_out_v1_discovered_opt_out__request_id__confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "title": "Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OptOutConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptOutConfirmResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Prove control of the host (well-known file or DNS TXT) to erase the hidden entries for good",
         "tags": [
           "opt-out"
         ]
@@ -7713,6 +8124,58 @@
         "tags": [
           "policy",
           "trust"
+        ]
+      }
+    },
+    "/v1/key-claims/{claim_id}": {
+      "post": {
+        "operationId": "redeem_json_v1_key_claims__claim_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "claim_id",
+            "required": true,
+            "schema": {
+              "title": "Claim Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeyClaimRedeem"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyClaimed"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Use a one-time key link (JSON)",
+        "tags": [
+          "self-registration"
         ]
       }
     },
@@ -8015,6 +8478,58 @@
           }
         },
         "summary": "Agent self-registration, step 1: submit the listing and receive an endpoint-control challenge",
+        "tags": [
+          "self-registration"
+        ]
+      }
+    },
+    "/v1/self-register/{registration_id}/claim-link": {
+      "post": {
+        "operationId": "claim_link_v1_self_register__registration_id__claim_link_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "registration_id",
+            "required": true,
+            "schema": {
+              "title": "Registration Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimLink"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "New one-time key link for a completed self-registration whose key was never collected",
         "tags": [
           "self-registration"
         ]
@@ -9323,7 +9838,7 @@
         "operationId": "list_stores_v1_stores_get",
         "parameters": [
           {
-            "description": "ISO country ONAA's test checkout confirmed delivery to (verified; tested: US, GB, DE, JP, KR, CA, AU, FR, SG, IN)",
+            "description": "ISO country where ONAA's test checkout (one test item, public test address, cancelled before payment) offered a delivery option. Observed, not a guarantee for your items or address. Tested: US, GB, DE, JP, KR, CA, AU, FR, SG, IN",
             "in": "query",
             "name": "ships_to",
             "required": false,
@@ -9339,7 +9854,7 @@
                   "type": "null"
                 }
               ],
-              "description": "ISO country ONAA's test checkout confirmed delivery to (verified; tested: US, GB, DE, JP, KR, CA, AU, FR, SG, IN)",
+              "description": "ISO country where ONAA's test checkout (one test item, public test address, cancelled before payment) offered a delivery option. Observed, not a guarantee for your items or address. Tested: US, GB, DE, JP, KR, CA, AU, FR, SG, IN",
               "title": "Ships To"
             }
           },
@@ -9483,6 +9998,30 @@
               ],
               "description": "store name or domain contains",
               "title": "Q"
+            }
+          },
+          {
+            "description": "only stores posted by their operator; most are unclaimed (found on the public web by ONAA)",
+            "in": "query",
+            "name": "claimed_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "only stores posted by their operator; most are unclaimed (found on the public web by ONAA)",
+              "title": "Claimed Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "only stores whose endpoint passed ONAA's last health check (endpoint health, not checkout status)",
+            "in": "query",
+            "name": "reachable_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "only stores whose endpoint passed ONAA's last health check (endpoint health, not checkout status)",
+              "title": "Reachable Only",
+              "type": "boolean"
             }
           },
           {
@@ -9665,7 +10204,7 @@
                 "additionalProperties": true,
                 "examples": [
                   {
-                    "country": "KR",
+                    "country": "US",
                     "pay_alone": true,
                     "stores": [
                       "https://example-shop.com/products/x",
@@ -9777,7 +10316,7 @@
             "description": "Successful Response"
           }
         },
-        "summary": "Current registry terms: version, SHA-256 and full text",
+        "summary": "Current directory terms: version, SHA-256 and full text",
         "tags": [
           "meta"
         ]
@@ -9798,7 +10337,7 @@
             "description": "Successful Response"
           }
         },
-        "summary": "Current registry terms text",
+        "summary": "Current directory terms text",
         "tags": [
           "meta"
         ]

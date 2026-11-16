@@ -1,10 +1,10 @@
-# ONAA Registry API (MVP)
+# ONAA Directory API (MVP)
 
 Central **discovery, registration and trust metadata** for ONAA (Open Network for AI Agents).
-The Registry is a control plane only: buyers, sellers and service providers transact **directly** over
-their own A2A/HTTPS endpoints. The Registry never relays commerce messages, holds funds, or hosts seller data.
+The Directory is a control plane only: buyers, sellers and service providers transact **directly** over
+their own A2A/HTTPS endpoints. The Directory never relays commerce messages, holds funds, or hosts seller data.
 
-Status: development build. This code runs the **development** registry at https://api.onaa.net (no SLA, no real money movement); there is no production deployment. Running it locally, as below, needs no credentials.
+Status: development build. This code runs the **development** directory at https://api.onaa.net (no SLA, no real money movement); there is no production deployment. Running it locally, as below, needs no credentials.
 
 ## Run locally
 
@@ -108,7 +108,7 @@ paid operator verification); it does not verify anything by itself.
 
 Acceptance evidence is stored on the operator row: `terms_version`, `terms_sha256`, `terms_accepted_at` and
 `terms_acceptance_method` (`agent_on_behalf_of_operator` or `operator_account`). `operator_contact` is private: it
-is never in registry records or audit details. Withdrawal is `DELETE` on the listing or `DELETE /v1/operators/me`;
+is never in directory records or audit details. Withdrawal is `DELETE` on the listing or `DELETE /v1/operators/me`;
 a rightful owner who did not authorise a registration reports it with category `unauthorized_registration`.
 
 Abuse limits (env): `ONAA_SELF_REGISTRATION_TTL_SECONDS` (3600), `ONAA_SELF_REGISTRATION_PER_IP_PER_HOUR` (10),
@@ -140,7 +140,7 @@ skills; `refresh-card` caches a bounded summary and makes skill ids/tags searcha
 and they are not registered or endorsed. Search shows them by default; `claimed_only=true` hides them. When the
 provider self-registers on the same host and service type (or the same Agent Card), the discovered copy is retired.
 `scripts/import_discovered.py SEED` validates a seed file offline; `--apply` posts it with `ONAA_ADMIN_TOKEN`.
-Importing into a public registry needs founder approval and a live opt-out page.
+Importing into a public directory needs founder approval and a live opt-out page.
 Opt-out: `GET /opt-out` (human page) and `POST /v1/discovered/opt-out {"url", "scope": "host"|"url"}` (no account,
 no proof) remove matching discovered entries immediately, erase their content and store only SHA-256 hashes of the
 URL/host so admin imports of that URL/host return 410. Registered listings are never affected; the optional reason
@@ -184,7 +184,7 @@ Each level is reported separately in `trust` and never implies another:
    **Endpoint Verified is a paid tier; listing and search stay free.** `verify-domain` returns
    `402` unless the operator is in the Founding Cohort (agent listings only; granted by an admin via
    `POST /v1/admin/operators/{id}/founding-cohort`, seats capped and never silently reopened) or the listing has an
-   approved `endpoint_verified` application (`POST /v1/certifications/applications`). The Registry has no billing:
+   approved `endpoint_verified` application (`POST /v1/certifications/applications`). The Directory has no billing:
    any fee is handled outside it and needs separate founder approval. An entitlement is not itself a trust signal.
 4. `operator_identity_verified` — only via a reviewed `operator_verified` certification.
 5. `certifications[]` — reviewed, time-limited (`expires_at`); applying (or paying) never certifies.
@@ -217,4 +217,4 @@ displayed as claims, never as verified licences.
 * OIDC operator login (ENG-009); periodic endpoint health checks (latency/uptime).
 * Shared (multi-instance) rate-limit store; moderation UI for `review_flags` such as `name_collision_review`.
 * Shared rate-limit store; abuse report moderation queue UI; admin audit export.
-* Registry MCP server (DEV-003) and Python SDK (DEV-001) on top of this API.
+* Directory MCP server (DEV-003) and Python SDK (DEV-001) on top of this API.

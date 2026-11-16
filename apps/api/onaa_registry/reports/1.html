@@ -1,0 +1,37 @@
+<h1>We sent an AI agent shopping at 14,991 stores. Not one let it buy alone the first time.</h1>
+<p><em>ONAA Agent Checkout Report #1 · data as of Nov 15, 2026 · <a href="https://api.onaa.net/stores.json">raw data</a></em></p>
+<h2>TL;DR</h2>
+<ul><li><strong>About half the stores let our agent do the shopping.</strong> At 49% it searched, filled a cart and reached "ready to pay" with no human help.</li><li><strong>Zero let it pay alone on the first try.</strong> A person always had to step in at least once.</li><li><strong>One OK can be enough.</strong> At about a quarter of stores (3,513), the buyer approves Shop Pay once and the agent could pay alone after that.</li></ul>
+<hr>
+<h2>The experiment</h2>
+<p>Lots of stores now say "AI agents welcome." They publish a small file that tells agents how to shop there. We found <strong>32,306</strong> of them. So far we've visited <strong>14,991</strong>.</p>
+<p>At each one, our agent behaved like any stranger's agent would. It searched, picked one item, opened a checkout, and then <strong>cancelled</strong>. We never paid and never placed an order.</p>
+<h2>How far it got</h2>
+<p><img src="/reports/1/funnel.svg" alt="How far our agent got" width="760" loading="lazy"></p>
+<p>Getting in, searching and opening a checkout worked almost everywhere (90%). The big drop comes right at the end: paying.</p>
+<h2>Where it ended up</h2>
+<p><img src="/reports/1/outcomes.svg" alt="Where the agent ended up" width="760" loading="lazy"></p>
+<h2>What kind of human OK do stores need?</h2>
+<p>"A human has to step in" can mean very different things. We sorted the 13,481 stores where the agent opened a checkout into four kinds:</p>
+<p><img src="/reports/1/approval.svg" alt="What kind of human OK the store needs" width="760" loading="lazy"></p>
+<ul><li><strong>The buyer finishes on the store's page (46%).</strong> The agent hands over a checkout link, and the buyer reviews and completes it.</li><li><strong>The buyer pays each time (28%).</strong> The agent does everything else, and the buyer types a card for every order.</li><li><strong>The buyer OKs once, then the agent pays alone (26%).</strong> Shop Pay lets the buyer link it to the agent one time.</li><li><strong>Pre-approved payment: 0.</strong> This is the "agent can pay from day one" kind: a payment mandate the buyer signs in advance (Google's AP2), card-network agent tokens, or Stripe's shared payment tokens. None of the 10,925 store manifests we read offer any of these yet.</li></ul>
+<p><em>Two honest notes on this chart.</em> The Shop Pay group is based on what the store offers, not on watching it work: we stop before paying, so we can't see the one-time code or a bank check (3-D Secure) that may still pop up. And 2,836 stores offered no way for an agent to pay at all, only the buyer.</p>
+<h2>Two real stores, two different endings</h2>
+<p><strong>A US garden-supply store.</strong> The agent found the product, opened a checkout and got a delivery quote. It only needed the buyer's email and phone, which an agent can pass along. Then the buyer types a card, or approves Shop Pay once. Smooth.</p>
+<p><strong>A UK beauty shop.</strong> The agent built the order fine. Then the checkout asked for an extra on-page step that only a person in a browser can do, so the buyer has to finish it. That extra step showed up at <strong>41%</strong> of the stores we checked.</p>
+<p><em>(We don't name stores without their permission.)</em></p>
+<h2>The three things that stop agents most</h2>
+<ol><li><strong>"Who are you?"</strong> 87% of checkouts want the buyer's email or phone. Easy, if the agent has it.</li><li><strong>"Click here first."</strong> 41% add an on-page step built for humans.</li><li><strong>"Log in."</strong> 5% want the agent signed in to an account.</li></ol>
+<h2>How agents can pay today</h2>
+<ul><li><strong>Card typed by the buyer:</strong> 10,575 stores. A human every time.</li><li><strong>Shop Pay:</strong> 7,966 stores. A human once, then the agent can pay alone (if nothing else blocks it).</li><li><strong>Google Pay:</strong> 134 stores.</li><li><strong>Crypto or agent-native payment at checkout:</strong> none seen yet.</li></ul>
+<h2>Where they'll ship</h2>
+<p>Real delivery quotes from 5,872 stores. The top five were nearly tied: <strong>US 5,555 · UK 4,727 · Germany 4,711 · Japan 4,581 · Korea 4,537.</strong> (Canada, Australia, France, Singapore and India testing has just started.)</p>
+<h2>The honest fine print</h2>
+<ul><li><strong>Observed, not verified.</strong> Every number is what our agent saw on one visit. No store has confirmed its result yet (verified: 0). Stores change their setup all the time.</li><li><strong>Who's in the sample.</strong> Only stores that already advertise agent shopping, and almost all run on Shopify. So "49%" means 49% of agent-ready stores, not of all online shops.</li><li><strong>We stop before paying.</strong> Anything that happens at the payment step itself (one-time codes, bank checks) is outside what we can see.</li><li><strong>Still counting.</strong> 17,315 stores aren't checked yet. Next issue shows what changed.</li><li>Stores aren't affiliated with ONAA. ONAA never buys anything or holds money.</li></ul>
+<h2>Check a store yourself</h2>
+<pre><code>curl &quot;https://api.onaa.net/v1/stores/check?url=&lt;any store or product URL&gt;&amp;country=US&quot;</code></pre>
+<p>Also as an MCP server, no sign-up: <code>https://api.onaa.net/mcp</code>. All the data: <code>https://api.onaa.net/stores.json</code>.</p>
+<hr>
+<h2>One question for you</h2>
+<p><strong>What would it take for you to let an agent pay on the very first purchase, with no human in the loop?</strong> Reply here. We'll share the best answers in the next issue.</p>
+<p><em>ONAA (Open Network for AI Agents) is an open directory of agents and the stores and services they can use. Not affiliated with the stores, Shopify, Google, Stripe or the A2A project. Next issue in two weeks.</em></p>

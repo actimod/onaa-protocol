@@ -568,3 +568,48 @@ def test_agent_checkout_extended_requirements(client):
     assert req["ships_to"] == ["JP", "US"] and req["currencies_seen"] == ["USD"]
     bad = {"status": "failed", "requirements": {"ships_to": ["USA"]}}
     assert client.post(path, headers=admin_headers(), json=bad).status_code == 422
+
+
+def test_claim_link_keeps_the_key_out_of_the_agent_answer(client, fetcher):
+    from urllib.parse import parse_qs, urlsplit
+
+    chl = start(client, agent=AGENT).json()
+    fetcher.routes[chl["challenge_url"]] = (200, chl["token"] + "\n")
+    done = client.post(f"/v1/self-register/{chl['registration_id']}/complete",
+                       json={"registration_secret": chl["registration_secret"], "key_delivery": "claim_link"})
+    assert done.status_code == 201, done.text
+    out = done.json()
+    assert out["api_key"] is None and "onaa_" not in json.dumps({k: v for k, v in out.items() if k != "key_claim_url"})
+    parts = urlsplit(out["key_claim_url"])
+    claim_id, code = parts.path.rsplit("/", 1)[1], parse_qs(parts.query)["code"][0]
+    # Opening the link (a preview or crawler) does not use it.
+    page = client.get(parts.path, params={"code": code})
+    assert page.status_code == 200 and "Show the key once" in page.text and code in page.text
+    assert client.post(f"/v1/key-claims/{claim_id}", json={"code": "wrong"}).status_code == 404
+    got = client.post(f"/v1/key-claims/{claim_id}", json={"code": code})
+    assert got.status_code == 200 and got.headers["cache-control"] == "no-store"
+    key = got.json()["api_key"]
+    assert client.get("/v1/operators/me", headers={"Authorization": f"Bearer {key}"}).status_code == 200
+    assert client.post(f"/v1/key-claims/{claim_id}", json={"code": code}).status_code == 410  # single use
+    # No new link once the key was collected.
+    again = client.post(f"/v1/self-register/{chl['registration_id']}/claim-link",
+                        json={"registration_secret": chl["registration_secret"]})
+    assert again.status_code == 409
+
+
+def test_claim_link_can_be_reissued_until_collected_and_html_form_works(client, fetcher):
+    from urllib.parse import parse_qs, urlsplit
+
+    chl = start(client, agent=AGENT).json()
+    fetcher.routes[chl["challenge_url"]] = (200, chl["token"] + "\n")
+    first = client.post(f"/v1/self-register/{chl['registration_id']}/complete",
+                        json={"registration_secret": chl["registration_secret"], "key_delivery": "claim_link"}).json()
+    new = client.post(f"/v1/self-register/{chl['registration_id']}/claim-link",
+                      json={"registration_secret": chl["registration_secret"]})
+    assert new.status_code == 200
+    old = urlsplit(first["key_claim_url"])
+    assert client.post(f"/v1/key-claims/{old.path.rsplit('/', 1)[1]}",
+                       json={"code": parse_qs(old.query)["code"][0]}).status_code == 410  # replaced
+    link = urlsplit(new.json()["key_claim_url"])
+    shown = client.post(link.path, data={"code": parse_qs(link.query)["code"][0]})
+    assert shown.status_code == 200 and "onaa_" in shown.text and shown.headers["cache-control"] == "no-store"

@@ -66,9 +66,9 @@ MAX_BODY = 64 * 1024
 LISTING_ID_CHARS = set("abcdefghijklmnopqrstuvwxyz0123456789_")
 
 SKILLS = [
-    ("validate_listing", "Validate a listing", "Check a registry listing for missing fields, card mismatches and "
+    ("validate_listing", "Validate a listing", "Check a directory listing for missing fields, card mismatches and "
      "duplicates.", ["registry", "validation", "onboarding"]),
-    ("check_health", "Check health", "Probe a listed agent now and record the result in the registry.",
+    ("check_health", "Check health", "Probe a listed agent now and record the result in the directory.",
      ["health", "monitoring"]),
     ("compatibility_test", "A2A compatibility test", "Check the Agent Card and A2A 1.0 JSON-RPC endpoint of a "
      "listed agent.", ["a2a", "compatibility", "testing"]),
@@ -77,23 +77,23 @@ SKILLS = [
     ("incident_status", "Incident status", "Open and recent incidents for a listing.", ["incident", "status"]),
     ("network_status", "Network status", "Aggregate network snapshot: supply by capability, reachability, open "
      "incidents.", ["network", "analytics"]),
-    ("search_listings", "Search listings", "Search the registry by free text.", ["registry", "search"]),
-    ("get_listing", "Get listing", "Registry record of one listing.", ["registry"]),
+    ("search_listings", "Search listings", "Search the directory by free text.", ["registry", "search"]),
+    ("get_listing", "Get listing", "Directory record of one listing.", ["registry"]),
     ("ask", "Ask the steward", "Ask a question in natural language (any language); the steward runs the checks "
      "it needs and answers. Also triggered by a plain-text message.", ["support", "chat", "help"]),
 ]
 
-HELP = ("ONAA Registry Steward. Ask in plain text when conversation is enabled, or send a data part "
+HELP = ("ONAA Directory Steward. Ask in plain text when conversation is enabled, or send a data part "
         "{\"skill\": <id>, \"listing_id\": <id>} with one of: "
         + ", ".join(s[0] for s in SKILLS)
         + ". report_issue also takes \"symptom\". The steward never relays trades and cannot change your agent; "
-        "registry changes go through the ONAA policy service.")
+        "directory changes go through the ONAA policy service.")
 
 
 def build_card(public_url: str, registry_url: str) -> dict[str, Any]:
     return {
-        "name": "ONAA Registry Steward",
-        "description": "System agent of the ONAA registry: validates listings, checks agent health and A2A "
+        "name": "ONAA Directory Steward",
+        "description": "System agent of the ONAA directory: validates listings, checks agent health and A2A "
                        "compatibility, tracks incidents and asks failing agents for a diagnosis. Not in the trade "
                        "path; no admin rights.",
         "version": __version__,
@@ -156,7 +156,7 @@ def _rpc_error(rid: Any, code: int, message: str) -> JSONResponse:
 def _listing_id(args: dict[str, Any]) -> str:
     lid = args.get("listing_id")
     if not isinstance(lid, str) or not 3 <= len(lid) <= 40 or not set(lid) <= LISTING_ID_CHARS:
-        raise A2AError(INVALID_PARAMS, "listing_id (a registry listing id) is required")
+        raise A2AError(INVALID_PARAMS, "listing_id (a directory listing id) is required")
     return lid
 
 

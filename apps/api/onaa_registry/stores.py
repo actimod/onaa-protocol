@@ -16,6 +16,7 @@ import io
 import json
 import logging
 import os
+import sys
 import threading
 import time
 import zlib
@@ -148,6 +149,7 @@ def store_record(listing: Listing, base: str, *, country: str | None = None) -> 
         "trust": {
             "registration_status": listing.lifecycle_status,
             "claimed": listing.operator_id is not None and listing.lifecycle_status != "discovered",
+            "reachability": listing.reachability or "unknown",
             "affiliated_with_onaa": False,
         },
         "first_seen": aware(listing.discovered_at or listing.created_at).isoformat()
@@ -186,7 +188,9 @@ class StoreRow:
     handlers: frozenset[str]
     currencies: frozenset[str]
     hay: str
-    blob: bytes  # zlib(JSON store record)
+    blob: bytes
+    claimed: bool = False
+    reachable: bool = False  # zlib(JSON store record)
 
     def record(self) -> dict:
         return json.loads(zlib.decompress(self.blob))
@@ -219,18 +223,27 @@ def _fingerprint(session: Session) -> tuple:
     return (row[0], str(row[1]))
 
 
-def _row(rec: dict) -> StoreRow:
+def _shared(values, pool: dict | None) -> frozenset[str]:
+    """One frozenset object per distinct set of codes. Most stores publish one of a few shipping lists (~240
+    countries each); a separate set per store for ~30k stores took hundreds of MB on the 512 MB machine."""
+    fs = frozenset(sys.intern(v) for v in values)
+    return fs if pool is None else pool.setdefault(fs, fs)
+
+
+def _row(rec: dict, pool: dict | None = None) -> StoreRow:
     cp, sh = rec["checkout_probe"], rec["shipping"]
     pub = sh["store_published"]
     return StoreRow(
-        key=rec["domain"] or rec["id"], status=cp["status"], pays_alone=cp["agent_can_pay_alone"],
-        ships_to=frozenset(sh["ships_to"]),
+        key=rec["domain"] or rec["id"], status=sys.intern(cp["status"]) if cp["status"] else cp["status"],
+        pays_alone=cp["agent_can_pay_alone"],
+        ships_to=_shared(sh["ships_to"], pool),
         published_worldwide=isinstance(pub, dict) and pub["ships_worldwide"] is True,
-        published_to=frozenset(pub["countries"]) if isinstance(pub, dict) else frozenset(),
+        published_to=_shared(pub["countries"] if isinstance(pub, dict) else (), pool),
         protocol=(cp["protocol"] or "").lower(),
-        handlers=frozenset(h.lower() for h in cp["payment_handlers"]),
-        currencies=frozenset(sh["currencies_seen"] + ([sh["test_currency"]] if sh["test_currency"] else [])),
+        handlers=_shared((h.lower() for h in cp["payment_handlers"]), pool),
+        currencies=_shared(sh["currencies_seen"] + ([sh["test_currency"]] if sh["test_currency"] else []), pool),
         hay=f'{rec["name"]} {rec["domain"] or ""}'.lower(),
+        claimed=bool(rec["trust"]["claimed"]), reachable=rec["trust"].get("reachability") == "reachable",
         blob=zlib.compress(json.dumps(rec, separators=(",", ":"), default=str).encode(), 6))
 
 
@@ -250,13 +263,14 @@ def _build(session: Session, base: str, fp: tuple) -> Snapshot:
 
     head = {"schema": FEED_SCHEMA, "generated_at": generated_at, "count": len(ids), "note": FEED_NOTE,
             "how_to_use": {
-                "filter": f"{base}/v1/stores?ships_to=KR&pays_alone=true",
+                "filter": f"{base}/v1/stores?ships_to=US&pays_alone=true",
                 "can_i_buy_here": f"{base}/v1/stores/check?url=<any product or store URL>",
                 "mcp": f"{base}/mcp",
                 "csv": f"{base}/stores.csv",
             }}
     write(json.dumps(head)[:-1] + ', "items": [')
     rows: list[StoreRow] = []
+    pool: dict[frozenset[str], frozenset[str]] = {}
     counts: dict[str, int] = {}
     pays_alone = 0
     for start in range(0, len(ids), BUILD_CHUNK):
@@ -271,7 +285,7 @@ def _build(session: Session, base: str, fp: tuple) -> Snapshot:
             counts[st] = counts.get(st, 0) + 1
             pays_alone += bool(rec["checkout_probe"]["agent_can_pay_alone"])
             write(("" if not rows else ",") + json.dumps(rec, default=str))
-            rows.append(_row(rec))
+            rows.append(_row(rec, pool))
         session.expunge_all()  # keep memory flat: drop the chunk's ORM objects
     summary = {"by_checkout_status": dict(sorted(counts.items())), "agent_can_pay_alone": pays_alone,
                "tested_countries": list(TESTED_COUNTRIES)}
@@ -311,12 +325,38 @@ def snapshot(session: Session, base: str) -> Snapshot:
     if snap is not None and snap.fp[1] == base and FEED_MIN_REFRESH_SECONDS > 0:
         _rebuild_in_background(session, base)
         return snap
-    with _build_lock:
+    with _build_lock:  # cold start: wait for a build already running (e.g. the startup warm-up) instead of a 2nd
         snap = _snap
-        if snap is not None and snap.fp == fp:
+        if snap is not None and snap.fp[1] == base and (snap.fp == fp or FEED_MIN_REFRESH_SECONDS > 0):
+            # A build finished while we waited. Listings changed meanwhile (the checker writes all the time), but
+            # rebuilding again here would make this request wait twice; the next refresh picks the change up.
             return snap
         _snap = snap = _build(session, base, fp)
     return snap
+
+
+def warm_snapshot(sessionmaker, base: str) -> threading.Thread | None:
+    """Build the snapshot in the background at startup, so the first store request after a deploy or restart
+    does not pay for a full build (tens of seconds for ~30k stores on a small machine)."""
+    if not _build_lock.acquire(blocking=False):
+        return None  # a build is already running
+
+    def run() -> None:
+        global _snap
+        try:
+            with sessionmaker() as s:
+                if _snap is None or _snap.fp[1] != base:
+                    t0 = time.monotonic()
+                    _snap = _build(s, base, (_fingerprint(s), base))
+                    log.info("store snapshot warmed: %d stores in %.1fs", _snap.count, time.monotonic() - t0)
+        except Exception:  # noqa: BLE001 - requests fall back to building on demand
+            log.warning("store snapshot warm-up failed", exc_info=True)
+        finally:
+            _build_lock.release()
+
+    t = threading.Thread(target=run, name="onaa-store-snapshot-warm", daemon=True)
+    t.start()
+    return t
 
 
 def reset_snapshot() -> None:

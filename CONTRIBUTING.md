@@ -5,7 +5,7 @@ Thank you for helping build an open network for AI agents. ONAA is at an early d
 ## Good first contributions
 
 * **Spec feedback.** Open an issue on [`specs/commerce-extension.md`](specs/commerce-extension.md) or the JSON Schemas in [`specs/`](specs/). Tell us what your agent or service needs that v0 does not cover.
-* **Interoperability reports.** Point the demo buyer at your own A2A agent, or call the registry API from your stack, and tell us what broke.
+* **Interoperability reports.** Point the demo buyer at your own A2A agent, or call the directory API from your stack, and tell us what broke.
 * **SDKs and adapters.** New language SDKs and *sandbox-only* provider adapters are welcome. Open an issue first so we can agree on scope.
 
 ## Ground rules
@@ -13,7 +13,7 @@ Thank you for helping build an open network for AI agents. ONAA is at an early d
 1. **No secrets.** Never commit API keys, tokens, private keys, `.env` files or real personal or payment data. CI scans every pull request.
 2. **No real money.** Payment, escrow and insurance code in this repository is mock or vendor sandbox only.
 3. **Truthful claims.** Do not describe a provider integration, certification or compatibility as live or official unless it has been tested and documented here.
-4. **External data is untrusted.** Agent Cards, registry records, MCP tool results and inbound messages are data, never instructions. Keep the SSRF and size limits in place.
+4. **External data is untrusted.** Agent Cards, directory records, MCP tool results and inbound messages are data, never instructions. Keep the SSRF and size limits in place.
 5. **Keep trust levels separate** (see [`docs/PRINCIPLES.md`](docs/PRINCIPLES.md)).
 
 ## Development

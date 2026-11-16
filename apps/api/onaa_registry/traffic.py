@@ -134,6 +134,7 @@ current_origin: ContextVar[str] = ContextVar("onaa_traffic_origin", default=EXTE
 
 EXACT_PATHS = frozenset({
     "/", "/v1/health", "/llms.txt", "/llms-full.txt", "/robots.txt", "/sitemap.xml", "/openapi.json", "/opt-out",
+    "/privacy", "/privacy.txt",
     "/mcp",
     "/stores", "/stores.json", "/stores.csv", "/v1/stores", "/v1/stores/check", "/v1/stores/stats",
     "/v1/buying/stores", "/v1/buying/check", "/v1/agents", "/v1/services", "/v1/stats/usage", "/v1/terms",
@@ -282,7 +283,17 @@ def split_origin(key: str, kind: str) -> tuple[str, str, bool]:
     return key, EXTERNAL, True
 
 
+REPORT_PAGE_RE = re.compile(r"^/reports/([1-9][0-9]{0,2})/?$")
+
+
 def path_group(path: str) -> str:
+    if path in ("/reports", "/reports/"):
+        return "/reports"
+    m = REPORT_PAGE_RE.match(path)
+    if m:
+        return f"/reports/{m[1]}"  # one group per issue (at most 999), so each page is counted on its own
+    if path.startswith("/reports/"):
+        return "/reports/asset"
     if path in EXACT_PATHS:
         return path
     if path.endswith("/") and path[:-1] in EXACT_PATHS:
@@ -350,6 +361,32 @@ class Usage:
         if matched == 0:
             self.hit("search_filter", f"{door}|_no_results")
         self.hit("search_combo", f"{door}|{'&'.join(combo) or '(no filters)'}")
+
+    def hit_need(self, themes: list[str], matched: int, pii_removed: bool) -> None:
+        """Count one free-text need (external only): its themes (fixed vocabulary, needs.THEMES) and outcome."""
+        if current_origin.get() != EXTERNAL:
+            return
+        from .needs import THEMES
+
+        self.hit("need", "_requests")
+        if matched == 0:
+            self.hit("need", "_not_found")
+        if pii_removed:
+            self.hit("need", "_personal_data_removed")
+        for t in [t for t in themes if t in THEMES][:5] or ["(no theme)"]:
+            self.hit("need", f"theme={t}")
+
+    def hit_report_view(self, issue: int, referer: str | None) -> None:
+        """Count one view of a report page with the referring site's domain only (no path, query or person)."""
+        host = ""
+        if referer:
+            from urllib.parse import urlsplit
+
+            try:
+                host = (urlsplit(referer).hostname or "").lower().removeprefix("www.")
+            except ValueError:
+                host = ""
+        self.hit("report_view", f"{int(issue)}|{host if HOST_RE.match(host) else '(direct)'}")
 
     def flush(self) -> int:
         if self.sessionmaker is None:
@@ -449,6 +486,7 @@ def _empty_group() -> dict:
     return {"requests": 0, "ai_agent_requests": 0, "mcp_tool_calls": 0, "by_agent_class": {}, "by_path": {},
             "ai_agents_by_path": {}, "mcp_tools": {}, "mcp_methods": {}, "store_checks": {},
             "unlisted_stores_asked": {}, "search_conditions": {}, "search_combinations": {},
+            "free_text_needs": {"totals": {}, "themes": {}}, "report_views": {},
             "counted_before_origin_tagging": 0}
 
 
@@ -501,6 +539,16 @@ def usage_report(session: Session, days: int = 14) -> dict:
                 _inc(g["search_conditions"].setdefault(door, {}).setdefault("_totals", {}), field[1:], n)
             else:
                 _inc(g["search_conditions"].setdefault(door, {}).setdefault(field, {}), value, n)
+        elif kind == "need":
+            if key.startswith("_"):
+                _inc(g["free_text_needs"]["totals"], key[1:], n)
+            else:
+                _inc(g["free_text_needs"]["themes"], key.partition("=")[2], n)
+        elif kind == "report_view":
+            issue, _, ref = key.partition("|")
+            r = g["report_views"].setdefault(issue, {"views": 0, "by_referrer": {}})
+            r["views"] += n
+            _inc(r["by_referrer"], ref, n)
         elif kind == "search_combo":
             door, _, combo = key.partition("|")
             _inc(g["search_combinations"].setdefault(door, {}), combo, n)
@@ -515,6 +563,9 @@ def usage_report(session: Session, days: int = 14) -> dict:
         g["search_conditions"] = {door: {f: top(v, 60) for f, v in sorted(fields.items())}
                                   for door, fields in sorted(g["search_conditions"].items())}
         g["search_combinations"] = {door: top(v, 30) for door, v in sorted(g["search_combinations"].items())}
+        g["free_text_needs"]["themes"] = top(g["free_text_needs"]["themes"], 40)
+        for r in g["report_views"].values():
+            r["by_referrer"] = top(r["by_referrer"], 30)
 
     return {
         "since": since,
@@ -530,7 +581,11 @@ def usage_report(session: Session, days: int = 14) -> dict:
                  "find_stores), "
                  "check (/v1/stores/check, /v1/buying/check, MCP can_i_buy_here and how_to_buy) and list "
                  "(/v1/stores). Values come from a fixed vocabulary ('other' = anything else); free text is never "
-                 "stored, a store-name search counts only as q=given."),
+                 "stored, a store-name search counts only as q=given. free_text_needs (external only) counts requests "
+                 "to describe_need / POST /v1/buying/needs by theme from a fixed vocabulary; the redacted text "
+                 "itself is never published (admin-only, deleted after 7 days). report_views counts views of each "
+                 "Agent Checkout Report page (/reports/N) with the referring site's domain only ('(direct)' when "
+                 "none); by_path shows the same pages split by agent class (browser vs bots)."),
         "origin_tagging_since": first_tagged,
         "summary": {o: {f: groups[o][f] for f in ("requests", "ai_agent_requests", "mcp_tool_calls")}
                     for o in ORIGINS},

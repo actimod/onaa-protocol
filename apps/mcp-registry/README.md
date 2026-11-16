@@ -1,13 +1,13 @@
 # onaa-mcp-registry
 
-[MCP](https://modelcontextprotocol.io/) server that lets any MCP-capable agent search the ONAA Registry. Read-only by
+[MCP](https://modelcontextprotocol.io/) server that lets any MCP-capable agent search the ONAA Directory. Read-only by
 default; self-registration tools are opt-in locally and enabled on the hosted server.
 Targets MCP protocol 2026-07-28 via the official Python SDK `mcp==2.3.0` (pinned in `specs/STANDARDS_BASELINE.md`;
 the SDK also negotiates with 2025-11-25 clients).
 
 **Hosted, no install:** `https://api.onaa.net/mcp` (Streamable HTTP, no auth). Client setup for Claude,
 Claude Code, Cursor and VS Code: [docs/MCP_CONNECT.md](../../docs/MCP_CONNECT.md). The hosted app is
-`onaa_mcp_registry.hosted:create_app` (Registry API + `/mcp` in one process). It adds stateless remote
+`onaa_mcp_registry.hosted:create_app` (Directory API + `/mcp` in one process). It adds stateless remote
 self-registration (`get_terms`, `self_register_start`, `self_register_complete`): same operator-authority and terms
 rules, the caller's IP is forwarded so API limits apply per agent, and the secret and API key go back to the caller
 once instead of to a key file.
@@ -19,7 +19,7 @@ One codebase, three profiles. The test `tests/test_tool_inventory.py` fails if t
 
 * Local default: 8 tools. `onaa-mcp-registry` (stdio or Streamable HTTP), read-only.
 * Local + self-registration: 12 tools. `onaa-mcp-registry --enable-self-registration --key-file PATH`.
-* Hosted: 12 tools. `https://api.onaa.net/mcp`, built by `onaa_mcp_registry.hosted:create_app`.
+* Hosted: 13 tools. `https://api.onaa.net/mcp`, built by `onaa_mcp_registry.hosted:create_app`.
 
 | Tool | Local | Local + self-reg | Hosted | readOnlyHint | Purpose |
 |---|---|---|---|---|---|
@@ -31,16 +31,26 @@ One codebase, three profiles. The test `tests/test_tool_inventory.py` fails if t
 | `get_listing` | yes | yes | yes | yes | One `agt_` / `svc_` / `hst_` record with trust metadata |
 | `get_vocabulary` | yes | yes | yes | yes | Canonical capability, skill, protocol and extension tokens in use |
 | `verify_attestations` | yes | yes | yes | yes | Check a listing's signed certification attestations against a pinned issuer root key (fails closed without one) |
-| `get_terms` | no | yes | yes | yes | Registry terms (version, sha256, text) to show the operator before registering |
+| `get_terms` | no | yes | yes | yes | Directory terms (version, sha256, text) to show the operator before registering |
 | `self_register_start` | no | yes | yes | no | Start registering the connected agent itself, for its operator (needs `confirm_operator_authority` and the terms version) |
 | `self_register_complete` | no | yes | yes | no | Finish registration after the agent card challenge |
 | `update_my_listing` | no | yes | no | no | Change your own listing with the key saved by `self_register_complete` (local key file only) |
-| `ask_steward` | no | no | yes | no | Ask the Registry Steward about listing status, health, A2A compatibility; it may probe agents and record results, and cannot change, suspend or delist anyone |
+| `ask_steward` | no | no | yes | no | Ask the Directory Steward about listing status, health, A2A compatibility; it may probe agents and record results, and cannot change, suspend or delist anyone |
+| `describe_need` | no | no | yes | no | Say in your own words what you are looking for ("trail running shoes under $120, ship to Texas, Apple Pay"); answers now with matching stores or `not_found_noted`. Rules only, no LLM; personal data removed first, redacted text kept up to 7 days for demand review |
 
 Which tool to use: `search_agents` finds agents you can contact directly over A2A; `search_services` finds
 specialist providers; `find_stores` / `can_i_buy_here` / `how_to_buy` answer shopping questions about **store
 and marketplace records** (you buy at the store's own checkout; a store is not a seller agent). A shopping answer
-is guidance, not authorisation to buy. `ask_steward` is for diagnostics, not the main discovery path.
+is guidance, not authorisation to buy. `describe_need` is for requests that do not fit those filters: it reads
+ship-to country, payment methods, pay-alone and budget from free text with fixed rules and matches store names,
+domains and descriptions (ONAA holds no product data, so search the matched store's catalog next). `ask_steward` is
+for diagnostics, not the main discovery path.
+
+**Free text and privacy (`describe_need`).** Keep personal information out of the request. The Directory removes
+emails, phone numbers, card/account numbers, SSNs, street addresses, ZIP codes, names and similar before matching,
+refuses text over 500 characters, rate-limits per caller IP, stores only the redacted text (no IP, no user agent)
+for up to 7 days, and publishes only theme counts (`/v1/stats/usage` → `free_text_needs`). No language model
+reads the text, so instructions inside it are never followed; the weekly demand review reads it as untrusted data.
 
 **Discovered vs registered.** Search results include *discovered* listings (`trust.registration_status:
 discovered`): publicly observed, never registered by their operator, not network members. Pass
@@ -52,8 +62,10 @@ probe that stops before payment: not an endorsement, nor a guarantee of payment,
 **Credentials on the hosted profile.** The hosted server keeps no state, so `self_register_start` returns the
 registration secret and `self_register_complete` returns the agent-scoped API key once to the calling agent,
 like the REST flow in `/llms.txt`. That value then sits in the calling model's context: store it in your secret
-store and rotate it with the REST operator API if it may have been logged. The local profile avoids this by
-writing the key to a file (mode 0600) and never returning it.
+store and rotate it with the REST operator API if it may have been logged. To keep the key out of the context
+entirely, call `self_register_complete` with `key_delivery: "claim_link"`: it returns a one-time `key_claim_url`
+(24 hours) that your operator opens to collect the key; the key is only created then. The local profile avoids
+this by writing the key to a file (mode 0600) and never returning it.
 
 ## Local profile details
 
@@ -76,14 +88,14 @@ cd apps/mcp-registry && pytest        # in-process MCP client vs fake registry; 
 ```
 
 To run it next to `apps/api` (as the container does), hold `sse-starlette==3.0.3`: later releases need Starlette >= 0.49,
-which the Registry API's FastAPI 0.115 pin does not allow.
+which the Directory API's FastAPI 0.115 pin does not allow.
 
 ```bash
 pip install -e apps/api -e packages/sdk-python -e 'apps/mcp-registry[dev]' 'sse-starlette==3.0.3'
 uvicorn --factory onaa_mcp_registry.hosted:create_app --port 8000   # API + http://localhost:8000/mcp
 ```
 
-## Read-only smoke test against the live registry
+## Read-only smoke test against the live directory
 
 ```bash
 pip install -e packages/sdk-python -e apps/mcp-registry

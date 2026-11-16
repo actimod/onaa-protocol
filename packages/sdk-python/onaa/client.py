@@ -160,12 +160,16 @@ class OnaaClient:
         return self._request("POST", "/v1/self-register", json=body)
 
     def complete_self_registration(self, registration_id: str, registration_secret: str, *,
-                                   set_key: bool = True) -> dict:
+                                   set_key: bool = True, key_delivery: str = "inline") -> dict:
         """Step 2. On success returns {'operator', 'api_key', 'listing', 'next_steps'} and sets api_key on this
-        client. Raises OnaaError(422) with body['error'] while the proof is not visible yet."""
-        data = self._request("POST", f"/v1/self-register/{registration_id}/complete",
-                             json={"registration_secret": registration_secret})
-        if set_key:
+        client. key_delivery="claim_link" returns no key but 'key_claim_url', a one-time link (24 hours) for the
+        operator to collect the key outside the agent's context. Raises OnaaError(422) with body['error'] while
+        the proof is not visible yet."""
+        body = {"registration_secret": registration_secret}
+        if key_delivery != "inline":
+            body["key_delivery"] = key_delivery
+        data = self._request("POST", f"/v1/self-register/{registration_id}/complete", json=body)
+        if set_key and data.get("api_key"):
             self.api_key = data["api_key"]
         return data
 
@@ -283,6 +287,13 @@ class OnaaClient:
         """Can I buy at these stores (svc_ ids, domains or URLs), and how. Filters: country, agent, payment,
         pay_alone."""
         return self._request("GET", "/v1/buying/check", params=_params({**filters, "store": list(stores)}))
+
+    def buying_need(self, text: str, *, ship_to_country: str | None = None, agent: str | None = None) -> dict:
+        """Describe what you are looking for in free text (no personal information); returns matching stores now.
+        ONAA removes personal data and keeps only the redacted text for anonymous demand review (see the answer's
+        `privacy`)."""
+        body = {"text": text, "ship_to_country": ship_to_country, "agent": agent}
+        return self._request("POST", "/v1/buying/needs", json={k: v for k, v in body.items() if v is not None})
 
     def iter_search(self, kind: Kind, *, page_size: int = 50, max_items: int | None = None,
                     **filters) -> Iterator[dict]:

@@ -19,8 +19,10 @@ from onaa_mcp_registry.server import build_server
 
 README = Path(__file__).resolve().parents[1] / "README.md"
 PROFILES = ("local", "local_self_registration", "hosted")
-# These tools change registry state or reach out to third parties; they must never claim to be read-only.
-MUST_BE_WRITE = {"self_register_start", "self_register_complete", "update_my_listing", "ask_steward"}
+# These tools change registry state, record data (describe_need keeps redacted text) or reach out to third
+# parties; they must never claim to be read-only.
+MUST_BE_WRITE = {"self_register_start", "self_register_complete", "update_my_listing", "ask_steward",
+                 "describe_need"}
 
 
 def _client() -> OnaaClient:
@@ -34,7 +36,8 @@ def _server(profile: str, tmp_path: Path):
         return build_server(reg)
     if profile == "local_self_registration":
         return build_server(reg, key_file=tmp_path / "key")
-    return build_server(reg, remote_client=lambda ctx: _client(), steward_ask=lambda q, c, ctx: {})
+    return build_server(reg, remote_client=lambda ctx: _client(), steward_ask=lambda q, c, ctx: {},
+                        need_client=lambda ctx: _client())
 
 
 def _readme_table() -> dict[str, dict]:
@@ -80,6 +83,16 @@ def test_readme_profile_counts_match_table():
         assert f"{label}: {n} tools" in text, f"README must state '{label}: {n} tools'"
 
 
+def test_existing_tool_names_stay_compatible():
+    """Tools agents already call keep their names; new tools are additions, never renames."""
+    table = _readme_table()
+    for name in ("search_agents", "search_services", "find_stores", "can_i_buy_here", "how_to_buy", "get_listing",
+                 "get_vocabulary", "verify_attestations", "get_terms", "self_register_start",
+                 "self_register_complete", "ask_steward"):
+        assert "hosted" in table[name]["profiles"], name
+    assert "update_my_listing" in table
+
+
 def test_smoke_script_only_calls_read_only_hosted_tools():
     import importlib.util
 
@@ -91,3 +104,12 @@ def test_smoke_script_only_calls_read_only_hosted_tools():
     assert smoke.documented_hosted_tools() == {n for n, r in table.items() if "hosted" in r["profiles"]}
     assert all(table[n]["read_only"] for n in smoke.READ_ONLY_CALLS)
     assert smoke.WRITE_TOOLS == MUST_BE_WRITE
+
+
+@pytest.mark.anyio
+async def test_directory_discovery_document_lists_the_hosted_tools(tmp_path):
+    """/.well-known/onaa-registry.json and llms.txt take their tool list from onaa_registry.mcp_inventory."""
+    inventory = pytest.importorskip("onaa_registry.mcp_inventory")
+    actual = await _tools("hosted", tmp_path)
+    assert set(inventory.HOSTED_TOOLS) == set(actual), "update onaa_registry/mcp_inventory.py"
+    assert {n for n, ro in actual.items() if ro} == set(inventory.HOSTED_READ_ONLY)

@@ -29,6 +29,10 @@ from .models import Listing, ListingFacet, utcnow
 
 log = logging.getLogger("onaa.checker")
 
+# Bumped whenever the UCP agent profile changes: stores cache the profile by URL, so a new URL makes them read the
+# new one at once (2026-11-16: the fulfillment extension, without which stores ignore the test address).
+PROFILE_REV = "2026-11-16"
+
 NOTE = ("Observed by ONAA's checker, which stops before payment. Not a verification or endorsement; the store's "
         "own terms apply.")
 
@@ -123,7 +127,7 @@ class CheckerLoop:
             info = {"id": listing.id, "endpoint_url": listing.endpoint_url,
                     "documentation_url": listing.documentation_url, "display_name": listing.display_name}
         check_one = self._check_one or checkout_checker.check_one
-        obs = check_one(http, info, f"{self.base}/agent/ucp-profile.json", self.args)
+        obs = check_one(http, info, f"{self.base}/agent/ucp-profile.json?v={PROFILE_REV}", self.args)
         from .schemas import AgentCheckoutObservation
 
         body = AgentCheckoutObservation(**obs).model_dump(mode="json", exclude_none=True)

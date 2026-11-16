@@ -20,14 +20,14 @@ import hmac
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from .. import schemas
 from ..db import get_session
 from ..logic import audit, aware, check_terms_acceptance, to_record
-from ..models import ApiKey, Listing, Operator, SelfRegistration, new_id, utcnow
+from ..models import ApiKey, KeyClaim, Listing, Operator, SelfRegistration, new_id, utcnow
 from ..security import client_ip, issue_api_key, sha256_hex, write_limit
 from ..verification import CHALLENGE_PATH, check_host_proof, dns_record_name
 from .listings import MAX_CHALLENGE_ATTEMPTS, build_agent_listing, build_service_listing
@@ -159,8 +159,10 @@ def complete(registration_id: str, body: schemas.SelfRegistrationComplete, reque
         sr.status = "failed"
         session.commit()
         raise HTTPException(status.HTTP_409_CONFLICT, "listing host changed since the challenge was issued")
-    plaintext, digest, prefix = issue_api_key()
-    op.keys.append(ApiKey(key_hash=digest, prefix=prefix))
+    plaintext = None
+    if body.key_delivery == "inline":
+        plaintext, digest, prefix = issue_api_key()
+        op.keys.append(ApiKey(key_hash=digest, prefix=prefix))
     session.add(op)
     session.flush()  # operator row first: listings.operator_id has an FK but no ORM relationship
     session.add(listing)
@@ -183,11 +185,19 @@ def complete(registration_id: str, body: schemas.SelfRegistrationComplete, reque
     audit(session, "agent", op.id, "self_register.listing", listing.id, revision=listing.revision or 1)
     base = settings.public_base_url.rstrip("/")
     kind_path = "agents" if sr.kind == "agent" else "services"
+    claim = _new_claim(session, op.id, base) if plaintext is None else None
+    first = ("Store api_key in a secret manager; it is shown once. Send it as 'Authorization: Bearer <key>'."
+             if claim is None else
+             "Give key_claim_url to your operator (not in a public place): opening it once shows the API key. It "
+             f"works once, until {claim.key_claim_expires_at}. A new link: POST {base}/v1/self-register/{sr.id}"
+             "/claim-link with the registration_secret, while no key was collected yet.")
     return schemas.SelfRegistrationCompleted(
         registration_id=sr.id, status="completed", operator=operator_out(op), api_key=plaintext,
+        key_claim_url=claim.key_claim_url if claim else None,
+        key_claim_expires_at=claim.key_claim_expires_at if claim else None,
         listing=to_record(listing, op),
         next_steps=[
-            "Store api_key in a secret manager; it is shown once. Send it as 'Authorization: Bearer <key>'.",
+            first,
             f"Remove the challenge token from {sr.host}; it is single-use.",
             f"Update your listing: PATCH {base}/v1/{kind_path}/{listing.id}",
             "Tell your operator that it registered and accepted the ONAA terms "
@@ -197,3 +207,101 @@ def complete(registration_id: str, body: schemas.SelfRegistrationComplete, reque
             f"To withdraw: DELETE {base}/v1/{kind_path}/{listing.id} or DELETE {base}/v1/operators/me.",
             "Optional paid tier: Endpoint Verified via POST /v1/certifications/applications (Founding Cohort free).",
         ])
+
+
+KEY_CLAIM_HOURS = 24
+
+
+def _new_claim(session: Session, operator_id: str, base: str) -> schemas.ClaimLink:
+    """A fresh one-time link; earlier unused links of this operator stop working."""
+    now = utcnow()
+    for old in session.scalars(select(KeyClaim).where(KeyClaim.operator_id == operator_id,
+                                                      KeyClaim.used_at.is_(None))):
+        old.expires_at = now
+    code = "onaa-claim-" + secrets.token_urlsafe(32)
+    claim = KeyClaim(operator_id=operator_id, code_hash=sha256_hex(code),
+                     expires_at=now + dt.timedelta(hours=KEY_CLAIM_HOURS))
+    session.add(claim)
+    session.flush()
+    audit(session, "agent", operator_id, "self_register.key_claim_link", claim.id)
+    return schemas.ClaimLink(key_claim_url=f"{base}/claim-key/{claim.id}?code={code}",
+                             key_claim_expires_at=aware(claim.expires_at).isoformat())
+
+
+@router.post("/{registration_id}/claim-link", response_model=schemas.ClaimLink,
+             dependencies=[Depends(_enabled), Depends(write_limit)],
+             summary="New one-time key link for a completed self-registration whose key was never collected")
+def claim_link(registration_id: str, body: schemas.ClaimLinkRequest, request: Request,
+               session: Session = Depends(get_session)):
+    sr = session.get(SelfRegistration, registration_id[:40])
+    if sr is None or not hmac.compare_digest(sha256_hex(body.registration_secret), sr.secret_hash):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "self-registration not found")
+    if sr.status != "completed" or sr.operator_id is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "complete the self-registration first")
+    if session.scalar(select(ApiKey.id).where(ApiKey.operator_id == sr.operator_id)) is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "the key was already collected; rotate it with the key instead")
+    return _new_claim(session, sr.operator_id, request.app.state.settings.public_base_url.rstrip("/"))
+
+
+def redeem_claim(session: Session, claim_id: str, code: str) -> tuple[str, str]:
+    """Use a one-time link: returns (operator_id, api_key plaintext). Raises 404/410 for a bad or used link."""
+    claim = session.get(KeyClaim, claim_id[:40])
+    if claim is None or not hmac.compare_digest(sha256_hex(code), claim.code_hash):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no such key link")
+    if claim.used_at is not None or aware(claim.expires_at) <= utcnow():
+        raise HTTPException(status.HTTP_410_GONE, "this key link was already used or expired")
+    op = session.get(Operator, claim.operator_id)
+    if op is None or op.status != "active":
+        raise HTTPException(status.HTTP_410_GONE, "operator no longer active")
+    plaintext, digest, prefix = issue_api_key()
+    op.keys.append(ApiKey(key_hash=digest, prefix=prefix))
+    claim.used_at = utcnow()
+    audit(session, "agent", op.id, "self_register.key_claimed", claim.id)
+    return op.id, plaintext
+
+
+claims_router = APIRouter(tags=["self-registration"])
+
+
+@claims_router.post("/v1/key-claims/{claim_id}", response_model=schemas.KeyClaimed,
+                    dependencies=[Depends(write_limit)], summary="Use a one-time key link (JSON)")
+def redeem_json(claim_id: str, body: schemas.KeyClaimRedeem, session: Session = Depends(get_session)):
+    op_id, key = redeem_claim(session, claim_id, body.code)
+    return JSONResponse(schemas.KeyClaimed(operator_id=op_id, api_key=key).model_dump(),
+                        headers={"Cache-Control": "no-store"})
+
+
+@claims_router.get("/claim-key/{claim_id}", response_class=HTMLResponse, include_in_schema=False)
+def claim_page(claim_id: str, code: str = ""):
+    """Opening the link does not use it (link previews and crawlers fetch pages); the button does."""
+    from html import escape
+
+    return HTMLResponse(
+        "<!doctype html><html lang=en><head><meta charset=utf-8><meta name=robots content=noindex>"
+        "<meta name=viewport content='width=device-width,initial-scale=1'><title>ONAA API key</title></head>"
+        "<body style='font:16px/1.5 system-ui,sans-serif;max-width:40rem;margin:2rem auto;padding:0 1rem'>"
+        "<h1>Collect your ONAA API key</h1><p>Your agent registered a listing on the ONAA directory for you. "
+        "This link shows its API key once. Keep the key in a password manager or secret store.</p>"
+        f"<form method=post action='/claim-key/{escape(claim_id[:40])}'>"
+        f"<input type=hidden name=code value='{escape(code[:200])}'><button type=submit>Show the key once</button>"
+        "</form></body></html>", headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+
+
+@claims_router.post("/claim-key/{claim_id}", response_class=HTMLResponse, include_in_schema=False,
+                    dependencies=[Depends(write_limit)])
+async def claim_page_post(claim_id: str, request: Request, session: Session = Depends(get_session)):
+    from html import escape
+    from urllib.parse import parse_qs
+
+    form = parse_qs((await request.body()).decode("utf-8", "replace")[:1000])
+    op_id, key = redeem_claim(session, claim_id, (form.get("code") or [""])[0])
+    session.commit()
+    return HTMLResponse(
+        "<!doctype html><html lang=en><head><meta charset=utf-8><meta name=robots content=noindex>"
+        "<title>ONAA API key</title></head><body style='font:16px/1.5 system-ui,sans-serif;max-width:40rem;"
+        "margin:2rem auto;padding:0 1rem'><h1>Your ONAA API key</h1><p>Shown once; ONAA keeps only a hash.</p>"
+        f"<pre style='background:#f3f3f3;padding:.75rem;overflow:auto'>{escape(key)}</pre>"
+        f"<p>Operator id: <code>{escape(op_id)}</code>. Send the key as "
+        "<code>Authorization: Bearer &lt;key&gt;</code>. "
+        "If it leaks, rotate it with the key itself.</p></body></html>",
+        headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})

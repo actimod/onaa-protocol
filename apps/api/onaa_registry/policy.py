@@ -178,7 +178,7 @@ def _publish_self(session: Session, subject: str | None, p: dict, settings) -> d
                           lifecycle_status="registered", registration_method="system",
                           supported_interfaces=[], regulatory_claims=[])
         session.add(listing)
-    listing.display_name = _text(p.get("display_name") or "ONAA Registry Steward", 200)
+    listing.display_name = _text(p.get("display_name") or "ONAA Directory Steward", 200)
     listing.description = _text(p.get("description"), 2000) or None
     listing.agent_card_url, listing.endpoint_url, listing.endpoint_host = card_url, endpoint, own_host
     listing.documentation_url = _text(p.get("documentation_url"), 2048) or None

@@ -103,6 +103,12 @@ class Settings:
         default_factory=lambda: int(os.environ.get("ONAA_STORE_PROBE_PER_IP_PER_HOUR", "60")))
     store_autodiscovery_enabled: bool = field(
         default_factory=lambda: os.environ.get("ONAA_STORE_AUTODISCOVERY", "1") == "1")
+    # Free-text buying needs (describe_need): days the redacted text is kept (0 = never store text, count themes
+    # only) and requests per caller IP per hour (0 disables the limit). See needs.py.
+    need_text_retention_days: int = field(
+        default_factory=lambda: int(os.environ.get("ONAA_NEED_TEXT_RETENTION_DAYS", "7")))
+    needs_per_ip_per_hour: int = field(
+        default_factory=lambda: int(os.environ.get("ONAA_NEEDS_PER_IP_PER_HOUR", "30")))
 
 
 def _file_or_env(name: str) -> str | None:

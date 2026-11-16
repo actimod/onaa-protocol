@@ -25,6 +25,8 @@ Environment:
     ONAA_ISSUER_ROOT_JWK    Pinned issuer root public JWK (JSON or file path) for the verify_attestations tool.
                             Unset = the tool answers no_pinned_root_key and vouches for nothing.
     ONAA_VERIFY_ALLOW_TEST_ONLY  "1" accepts TEST-ONLY (staging) attestations in verify_attestations.
+    (describe_need)         Always offered: free-text buying requests answered with matching stores; the Registry
+                            removes personal data and keeps the redacted text (ONAA_NEED_TEXT_RETENTION_DAYS, 7).
     ONAA_STEWARD_ENABLED    "1" (default) mounts the Registry Steward A2A agent at /steward (apps/steward) and runs
                             its periodic sweep; "0" turns it off. Without ONAA_STEWARD_TOKEN a random per-process
                             token is generated and shared in-process with the registry's Policy Service.
@@ -303,10 +305,11 @@ def steward_asker(upstream: str, trusted_proxy_hops: int, *, timeout: float = 12
 
 
 def build_hosted_app(registry_app: ASGIApp, registry: OnaaClient, *, hosts: list[str],
-                     remote_client=None, steward=None, steward_ask=None) -> ASGIApp:
+                     remote_client=None, steward=None, steward_ask=None, need_client=None) -> ASGIApp:
     allow_test_only = os.environ.get("ONAA_VERIFY_ALLOW_TEST_ONLY") == "1"
     mcp = build_server(registry, remote_client=remote_client,  # refuses an API key
-                       root_jwk=root_jwk_from_env(), allow_test_only=allow_test_only, steward_ask=steward_ask)
+                       root_jwk=root_jwk_from_env(), allow_test_only=allow_test_only, steward_ask=steward_ask,
+                       need_client=need_client)
     mcp_app = mcp.streamable_http_app(
         streamable_http_path=MCP_PATH,
         stateless_http=True,
@@ -365,4 +368,5 @@ def create_app() -> ASGIApp:
     if steward is not None and os.environ.get("ANTHROPIC_API_KEY") and os.environ.get("ONAA_STEWARD_CHAT", "1") != "0":
         asker = steward_asker(upstream, settings.trusted_proxy_hops)
     return build_hosted_app(registry_app, origin_forwarding(OnaaClient(upstream)), hosts=hosts, remote_client=remote,
-                            steward=steward, steward_ask=asker)
+                            steward=steward, steward_ask=asker,
+                            need_client=forwarding_client_factory(upstream, settings.trusted_proxy_hops))

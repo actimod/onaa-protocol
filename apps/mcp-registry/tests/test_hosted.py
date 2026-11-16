@@ -21,7 +21,7 @@ from onaa_mcp_registry.hosted import allowed_hosts  # noqa: E402
 
 READ_TOOLS = {"search_agents", "search_services", "get_listing", "get_terms", "get_vocabulary", "verify_attestations",
               "find_stores", "can_i_buy_here", "how_to_buy"}
-WRITE_TOOLS = {"self_register_start", "self_register_complete"}
+WRITE_TOOLS = {"self_register_start", "self_register_complete", "describe_need"}
 
 
 def _free_port() -> int:
@@ -107,6 +107,23 @@ async def test_buying_question_tools_end_to_end(hosted):
     assert none["total"] == 0
 
 
+@pytest.mark.anyio
+async def test_describe_need_end_to_end(hosted):
+    base, _ = hosted
+    async with Client(f"{base}/mcp") as client:
+        got = _payload(await client.call_tool("describe_need", {
+            "request": "Kicks sneakers under $120, ship to Texas, pay with shop pay. I'm Jane Doe, jane@example.com"}))
+        miss = _payload(await client.call_tool("describe_need", {"request": "vintage fountain pens"}))
+        long = _payload(await client.call_tool("describe_need", {"request": "x" * 501}))
+    assert got["status"] == "matched" and got["understood"]["ship_to_country"] == "US"
+    assert got["understood"]["payment_methods"] == ["shop_pay"] and got["understood"]["max_price_usd"] == 120
+    m = got["matches"][0]
+    assert "store" not in m and m["untrusted_operator_content"]["name"] == "kicks.example.com"
+    assert got["privacy"]["removed"] == ["email", "name"] and got["privacy"]["retention_days"] == 7
+    assert miss["status"] == "not_found_noted" and miss["matches"] == []
+    assert long["error"] == "invalid_request"
+
+
 def _payload(result) -> dict:
     if getattr(result, "structured_content", None):
         sc = result.structured_content
@@ -132,7 +149,7 @@ async def test_remote_client_lists_tools_and_reads_registry(hosted):
 async def test_trailing_slash_also_works(hosted):
     base, _ = hosted
     async with Client(f"{base}/mcp/") as client:
-        assert len((await client.list_tools()).tools) == 11
+        assert len((await client.list_tools()).tools) == 12
 
 
 def test_registry_api_still_served_and_mcp_rejects_foreign_host(hosted):
@@ -197,14 +214,14 @@ def test_remote_self_registration_is_stateless_and_rate_limited_per_caller_ip(ho
 def test_steward_is_mounted_and_lists_itself(hosted):
     base, _ = hosted
     card = httpx.get(f"{base}/steward/.well-known/agent-card.json").json()
-    assert card["name"] == "ONAA Registry Steward"
+    assert card["name"] == "ONAA Directory Steward"
     assert card["supportedInterfaces"][0]["url"] == "https://api.onaa.example/steward/a2a/v1"
     assert httpx.get(f"{base}/steward/v1/health").json()["status"] == "ok"
     # A2A clients that only know the host find the same card at the root well-known paths.
     for path in ("/.well-known/agent-card.json", "/.well-known/agent.json"):
         assert httpx.get(f"{base}{path}").json() == card
     for _ in range(100):  # the scheduler publishes the steward's own listing shortly after startup
-        items = httpx.get(f"{base}/v1/agents", params={"q": "ONAA Registry Steward"}).json()["items"]
+        items = httpx.get(f"{base}/v1/agents", params={"q": "ONAA Directory Steward"}).json()["items"]
         if items:
             break
         time.sleep(0.05)

@@ -223,3 +223,38 @@ def test_old_no_address_results_unconfirmed_and_store_published_countries(client
 def test_profile_declares_fulfillment(client):
     caps = client.get("/agent/ucp-profile.json").json()["ucp"]["capabilities"]
     assert "dev.ucp.shopping.fulfillment" in caps and "dev.ucp.shopping.checkout" in caps
+
+
+def test_startup_warm_up_builds_the_snapshot_and_cold_requests_wait_for_it(client, monkeypatch):
+    from onaa_registry import stores
+
+    _seed(client)
+    stores.reset_snapshot()
+    monkeypatch.setattr(stores, "FEED_MIN_REFRESH_SECONDS", 3600)
+    builds = []
+    real_build = stores._build
+    monkeypatch.setattr(stores, "_build", lambda *a, **kw: builds.append(1) or real_build(*a, **kw))
+    t = stores.warm_snapshot(client.app.state.sessionmaker, client.app.state.settings.public_base_url.rstrip("/"))
+    assert t is not None
+    _store(client, "late.example")  # listings change while the warm-up runs (the checker writes all the time)
+    t.join(10)
+    assert stores._snap is not None and len(builds) == 1
+    assert client.get("/stores.json").json()["count"] == stores._snap.count  # served from the warm snapshot
+    assert len(builds) <= 2  # at most one background refresh, never a blocking rebuild
+
+
+def test_snapshot_rows_share_country_sets():
+    """~30k stores repeat a few published shipping lists; one shared set per list keeps the snapshot small."""
+    from onaa_registry import stores as st
+
+    def rec(i):
+        return {"id": f"svc_{i}", "domain": f"s{i}.example", "name": f"S{i}",
+                "checkout_probe": {"status": "checkout_ready", "agent_can_pay_alone": False, "protocol": "ucp-mcp",
+                                   "payment_handlers": ["shop_pay"]},
+                "shipping": {"ships_to": ["US"], "currencies_seen": ["USD"], "test_currency": "USD",
+                             "store_published": {"ships_worldwide": False, "countries": ["US", "CA", "DE"]}},
+                "trust": {"claimed": False, "reachability": "unknown"}}
+    pool = {}
+    a, b = st._row(rec(1), pool), st._row(rec(2), pool)
+    assert a.published_to is b.published_to and a.handlers is b.handlers and a.ships_to is b.ships_to
+    assert a.published_to == frozenset({"US", "CA", "DE"})

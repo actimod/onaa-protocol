@@ -49,7 +49,7 @@ def test_store_sections_filter_by_checkout_result(client):
     step = client.get("/", params={"section": "stores-buyer-step"}, headers=HTML).text
     ready = client.get("/", params={"section": "stores-ready"}, headers=HTML).text
     assert "shoes.example.com" in step.split('id="post"')[0].split('class="list-h">Checkout reached')[-1]
-    assert "shoes.example.com" not in ready.split('class="list-h">Checkout ready</h2>')[1]
+    assert "shoes.example.com" not in ready.split('class="list-h">Checkout tested (payment not tested)</h2>')[1]
 
 
 def test_home_sections_and_search_filter(client, op):
