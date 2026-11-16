@@ -19,6 +19,7 @@ specialised discovery feature of the directory, not a checkout service: purchase
 | [`apps/api/`](apps/api/) | Reference **directory API** (FastAPI): registration, search, endpoint verification and separate trust levels. |
 | [`apps/mcp-registry/`](apps/mcp-registry/) | **MCP server** source (Python, official `mcp` SDK): directory search, shopping guidance and trust lookups for MCP clients, over stdio or Streamable HTTP. Read-only by default. |
 | [`packages/sdk-python/`](packages/sdk-python/) | **Python SDK** for directory discovery and registration. |
+| [`examples/buyer-store-preflight/`](examples/buyer-store-preflight/) | **Shopping-agent preflight** against real stores: `find_stores` → `can_i_buy_here` → `how_to_buy` → the store's own catalog, then stops before checkout. Runs offline with `--offline`. Never pays. |
 | [`examples/direct-trade-demo/`](examples/direct-trade-demo/) | End-to-end **demo**: buyer agent → directory search → direct A2A RFQ/QUOTE with a seller agent → directory escrow search → mock escrow handoff. |
 | [`docs/PRINCIPLES.md`](docs/PRINCIPLES.md) | The design principles the code and specs follow. |
 | [`docs/ADR/`](docs/ADR/) | Architecture decision records. |
@@ -57,7 +58,17 @@ Check the hosted directory and MCP endpoint without changing anything: `python a
 | `https://api.onaa.net` | A **development** directory run by the ONAA maintainers (API, `/llms.txt`, `/mcp`). Not a production service: no SLA and no real money movement. `https://onaa.net` and `https://www.onaa.net` redirect (301) there. Browsers get an HTML page at `/`, other clients JSON links. |
 | Production | None yet. |
 
-## Try the demo (about one minute, localhost only)
+## Building a shopping agent? Start here
+
+```bash
+git clone https://github.com/actimod/onaa-protocol.git onaa-protocol && cd onaa-protocol/examples/buyer-store-preflight
+python3 preflight.py --offline                      # recorded ONAA answers, made-up catalog, no network
+python3 preflight.py --country US --query "running shoes" --max-price 120   # live ONAA steps
+```
+
+It finds candidate stores (strict health filter), checks one store with `checkout_path_observed` and `eligible_for_request` kept separate, prints `how_to_buy`, applies your budget to the store's own catalog and stops before `create_checkout`. Payment is never tested. See [`examples/buyer-store-preflight/README.md`](examples/buyer-store-preflight/README.md).
+
+## Try the direct-trade demo (about one minute, localhost only)
 
 Requires Python 3.12+.
 

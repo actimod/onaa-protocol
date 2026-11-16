@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import datetime as dt
+import gc
 import gzip
 import hashlib
 import io
@@ -28,7 +29,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .buying import PAYMENT_EVIDENCE, TESTED_COUNTRIES, VERDICT_NOTE, shipping_view
+from .buying import HEAVY_BUILD_LOCK, PAYMENT_EVIDENCE, TESTED_COUNTRIES, VERDICT_NOTE, shipping_view
 from .logic import PUBLIC_STATUSES, aware, ensure_not_taken, host_of, make_listing_id, set_facets
 from .models import Listing, utcnow
 
@@ -329,6 +330,13 @@ def _public_rows(session: Session, base: str, ids: list[str], pool: dict) -> dic
 
 
 def _build(session: Session, base: str, fp: tuple, prev: Snapshot | None = None) -> Snapshot:
+    with HEAVY_BUILD_LOCK:  # never at the same time as the buying list's full read (see buying.HEAVY_BUILD_LOCK)
+        snap = _build_unlocked(session, base, fp, prev)
+    gc.collect()
+    return snap
+
+
+def _build_unlocked(session: Session, base: str, fp: tuple, prev: Snapshot | None = None) -> Snapshot:
     now = time.monotonic()
     watermark = _watermark(session)
     pool: dict = {}  # tuple or frozenset -> shared frozenset

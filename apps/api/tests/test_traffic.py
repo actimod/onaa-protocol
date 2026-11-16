@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 
 from onaa_registry.models import UsageCounter
 from onaa_registry.traffic import agent_class, mcp_origin, origin_of, path_group, split_origin
@@ -199,3 +200,28 @@ def test_weekly_third_party_report_and_client_names(client):
     assert w["mcp_connections"] == 1 and w["mcp_clients"] == {"openai-mcp": 1}
     assert w["mcp_tool_calls"] == {"find_stores": 1} and w["probe_requests"] == 1
     assert w["cumulative"]["crawler_requests"] == 1 and w["cumulative"]["mcp_tool_calls"] == 1
+
+
+def test_unique_visitors_counted_in_memory_only(client):
+    from onaa_registry.traffic import visitor_category
+
+    assert visitor_category("browser") == "people" and visitor_category("openai_crawler") == "crawler"
+    assert visitor_category("chatgpt_user") == "ai_agent" and visitor_category("mcp_client") == "ai_agent"
+    usage = client.app.state.usage
+    browser = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605.1.15"
+    for ip in ("198.51.100.1", "198.51.100.1", "198.51.100.2"):
+        usage.hit_http("/", browser, client=ip)
+    usage.hit_http("/stores/a.example", "Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)",
+                   client="198.51.100.1")  # same IP, other class: a separate visitor
+    usage.hit_http("/", "onaa-test/1", client="198.51.100.9")  # ours: not counted
+    stats = client.get("/v1/stats/usage").json()
+    today = max(stats["external"]["unique_visitors_by_day"])
+    got = stats["external"]["unique_visitors_by_day"][today]
+    assert got["people"] == 2 and got["crawler"] == 1  # plus the test client itself under "other"
+    assert stats["ours"]["unique_visitors_by_day"] == {}
+    week = client.get("/v1/stats/usage/weekly").json()["series"][-1]
+    assert week["visitor_days"]["people"] == 2 and week["visitor_days"]["crawler"] == 1
+    with client.app.state.sessionmaker() as s:
+        keys = [r.key for r in s.query(UsageCounter).all()]
+    assert not any("198.51.100" in k for k in keys)
+    assert "198.51.100" not in json.dumps(stats)
