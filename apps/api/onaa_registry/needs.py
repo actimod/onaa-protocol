@@ -422,8 +422,14 @@ def constraints_report(c: dict[str, Any]) -> tuple[list[dict], list[dict]]:
         applied.append({"constraint": "payment_methods", "value": c["payment_methods"],
                         "how": "one of them was offered at ONAA's test checkout"})
     if c["pay_alone"]:
-        applied.append({"constraint": "pay_alone", "value": True,
-                        "how": "store offers a one-time Shop Pay link after which an agent may pay (not verified)"})
+        # Only a proxy: ONAA never pays, so no store is known to take payment with no buyer approval at all.
+        applied.append({"constraint": "pay_alone", "value": True, "partial": True,
+                        "how": "narrowed to stores offering a Shop Pay one-time link, which the buyer approves "
+                               "once (payment not tested)"})
+        unapplied.append({"constraint": "no_manual_buyer_approval", "value": True,
+                          "reason": "not verified: ONAA never pays, so it cannot confirm that any store takes "
+                                    "payment with no buyer approval; the buyer still approves the one-time link, "
+                                    "and payment after it was not tested"})
     if c["region"]:
         unapplied.append({"constraint": "region", "value": c["region"],
                           "reason": "delivery is tested per country, not per state or region"})

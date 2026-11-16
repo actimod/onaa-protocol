@@ -313,7 +313,9 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         reachable_only = hide stores whose last 3 health probes failed (reachability unreachable; unknown = not yet
         checked, kept); exclude_unreachable is a clearer name for the same rule; confirmed_reachable_only keeps
         only stores whose last endpoint probe answered. reachability_counts gives how many results are reachable,
-        unknown or unreachable. Endpoint health, not checkout. Each answer separates checkout_path_observed (what
+        unknown or unreachable, counted on the same store list as total (list_as_of says when it was read;
+        totals from calls with different list_as_of can differ as probes come in). Endpoint health, not checkout.
+        Each answer separates checkout_path_observed (what
         ONAA's probe saw, the same whatever you filter on) from eligible_for_request and eligibility_reasons."""
         try:
             return _answers(registry.buying_stores(

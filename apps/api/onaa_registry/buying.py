@@ -410,13 +410,19 @@ HEAVY_BUILD_LOCK = threading.Lock()
 
 
 def _cached_stores(session: Session, statuses: tuple[str, ...] | None) -> list[StoreView]:
+    return _cached_stores_as_of(session, statuses)[0]
+
+
+def _cached_stores_as_of(session: Session, statuses: tuple[str, ...] | None) -> tuple[list[StoreView], str]:
+    """The store list and when it was read (UTC). Totals and reachability_counts in one answer come from one list,
+    so they always reconcile; two answers with different `list_as_of` may differ as new probes come in."""
     if BUYING_CACHE_SECONDS <= 0 or statuses is None:  # include=all (every store) is rare and too big to keep
-        return _stores(session, statuses)
+        return _stores(session, statuses), _now_iso()
     hit = _cache.get(statuses)
     if hit is not None:
         if time.monotonic() - hit[0] >= BUYING_CACHE_SECONDS:
             _refresh_in_background(session, statuses)
-        return hit[1]  # fresh, or stale while a refresh runs
+        return hit[1], hit[4]  # fresh, or stale while a refresh runs
     # Cold: one request builds, concurrent ones wait for it instead of building again, but not forever (see
     # stores.snapshot): they give back their pool connection and get a 503 if the list is not ready in time.
     session.close()
@@ -431,7 +437,11 @@ def _cached_stores(session: Session, statuses: tuple[str, ...] | None) -> list[S
             hit = _cache[statuses] = _load(session, statuses, None)
     finally:
         _cache_lock.release()
-    return hit[1]
+    return hit[1], hit[4]
+
+
+def _now_iso() -> str:
+    return dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _watermark(session: Session):
@@ -449,7 +459,7 @@ def _load_unlocked(session: Session, statuses: tuple[str, ...], prev: tuple | No
     now = time.monotonic()
     watermark = _watermark(session)
     if prev is None or prev[2] is None or watermark is None or now - prev[3] >= FULL_RELOAD_SECONDS:
-        return (now, _stores(session, statuses), watermark, now)
+        return (now, _stores(session, statuses), watermark, now, _now_iso())
     rows = session.execute(select(*_VIEW_COLUMNS).where(
         Listing.service_type == "marketplace", Listing.updated_at >= prev[2]))
     by_id = {v.id: v for v in prev[1]}
@@ -458,7 +468,7 @@ def _load_unlocked(session: Session, statuses: tuple[str, ...], prev: tuple | No
         by_id.pop(view.id, None)
         if view.lifecycle_status in PUBLIC_STATUSES and (view.agent_checkout or {}).get("status") in statuses:
             by_id[view.id] = view
-    return (now, sorted(by_id.values(), key=lambda v: v.id), watermark, prev[3])
+    return (now, sorted(by_id.values(), key=lambda v: v.id), watermark, prev[3], _now_iso())
 
 
 def _refresh_in_background(session: Session, statuses: tuple[str, ...] | None) -> None:
@@ -555,8 +565,9 @@ def find_stores(session: Session, *, country: str | None = None, agent: str | No
     """Stores matching the buyer's conditions, best answers first."""
     wanted = {"buyable": ("yes", "yes_buyer_finishes"), "possible": ("yes", "yes_buyer_finishes", "maybe"),
               "all": tuple(VERDICT_RANK)}[include]
+    stores, list_as_of = _cached_stores_as_of(session, None if include == "all" else POSSIBLE_STATUSES)
     pairs = [(s, assess(s, country=country, agent=agent, payment=payment, pay_alone=pay_alone))
-             for s in _cached_stores(session, None if include == "all" else POSSIBLE_STATUSES)
+             for s in stores
              if _matches_text(s, q) and (not claimed_only or s.claimed)
              and (not reachable_only or s.reachability != "unreachable")
              and (not confirmed_reachable_only or s.reachability == "reachable")]
@@ -568,6 +579,7 @@ def find_stores(session: Session, *, country: str | None = None, agent: str | No
 
     return {"total": len(rows), "offset": offset, "items": rows[offset:offset + limit],
             "reachability_counts": reachability_counts(s.reachability or "unknown" for s, _ in pairs),
+            "list_as_of": list_as_of,
             "conditions": {"country": _country(country), "agent": agent, "payment": normalise_payment(payment),
                            "pay_alone": pay_alone, "query": q, "include": include, "claimed_only": claimed_only,
                            "reachable_only": reachable_only, "confirmed_reachable_only": confirmed_reachable_only},

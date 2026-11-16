@@ -223,3 +223,15 @@ def test_card_and_no_approval_are_read_and_unapplied_constraints_are_listed(clie
     assert unapplied["max_price_usd"]["value"] == 120 and "no prices" in unapplied["max_price_usd"]["reason"]
     assert "region" in unapplied and "product" in unapplied
     assert any("unapplied_constraints" in s for s in body["next_steps"])
+
+
+def test_no_manual_approval_is_partial_not_applied(client):
+    """Live re-verification 2026-11-17 (5th): 'no manual buyer approval' was listed as applied although ONAA
+    never verified payment. The one-time-link proxy is marked partial and the real ask stays unapplied."""
+    _store(client, "trailshoes.example.com", "buyer_step_required", SHOP_PAY)
+    body = client.post("/v1/buying/needs", headers=UA, json={
+        "text": "trail shoes to the US with no manual buyer approval"}).json()
+    applied = {a["constraint"]: a for a in body["applied_constraints"]}
+    unapplied = {u["constraint"]: u for u in body["unapplied_constraints"]}
+    assert applied["pay_alone"]["partial"] is True and "not tested" in applied["pay_alone"]["how"]
+    assert "not verified" in unapplied["no_manual_buyer_approval"]["reason"]
