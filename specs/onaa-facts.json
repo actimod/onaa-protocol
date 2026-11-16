@@ -28,7 +28,10 @@
       "can pay without the buyer",
       "\\bcheckout tested\\b",
       "lets? an agent pay alone",
-      "agent to pay alone"
+      "agent to pay alone",
+      "buys at the store itself",
+      "checks out there",
+      "actually check out"
     ],
     "allowed_exceptions": "Field and parameter names (agent_can_pay_alone, pay_alone, pays_alone) and the quoted titles of already-published posts in growth/ history files."
   },

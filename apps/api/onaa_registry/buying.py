@@ -151,9 +151,16 @@ def how_to_buy(ac: dict | None, *, country: str | None = None) -> dict[str, Any]
     if req.get("agent_profile_required"):
         steps.append('Identify your agent: send the header UCP-Agent: profile="<https URL of your UCP agent '
                      'profile>" (and the same profile in the tool call meta "ucp-agent").')
+    seen = [c for c in (req.get("currencies_seen") or []) if isinstance(c, str)]
+    asked = req.get("currency") if cc == req.get("tested_country") else None
+    # Only suggest the currency the probe asked for when the store's test checkout actually returned it (a store can
+    # answer a USD request in EUR, e.g. beurbanrunning.com on 2026-11-15).
+    use = asked if asked and (not seen or asked in seen) else None
     steps.append(f'Find the product: call search_catalog with your query and context {{"address_country": "{cc}"'
-                 + (f', "currency": "{req["currency"]}"' if req.get("currency") and cc == req.get("tested_country")
-                    else "") + "}.")
+                 + (f', "currency": "{use}"' if use else "") + "}.")
+    if asked and seen and asked not in seen:
+        steps.append(f"Currency: ONAA's test checkout asked for {asked} and the store answered in "
+                     f"{', '.join(seen)}. Show the buyer the currency and total from the store's own quote.")
     steps.append("Create a checkout: create_checkout with the variant id and quantity and the same context. The "
                  "response shows the total, delivery options and any messages.")
     if info:
@@ -318,6 +325,8 @@ def assess(listing: Listing, *, country: str | None = None, agent: str | None = 
         "no_shipping_to": view["no_shipping_to"],
         "shipping_quote": view["quotes"].get(cc) if cc else None,
         "currencies_seen": req.get("currencies_seen") or ([req["currency"]] if req.get("currency") else []),
+        # What the store's test checkout actually returned (may differ from what the probe asked for).
+        "observed_checkout_currency": (req.get("currencies_seen") or [None])[0],
         "accepted_agents": req.get("accepted_agents_hint") or ("any agent that sends a UCP agent profile"
                                                               if status in ("checkout_ready", "buyer_step_required")
                                                               else None),

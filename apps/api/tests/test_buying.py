@@ -268,3 +268,15 @@ def test_checker_records_endpoint_health_and_strict_filter(client):
         ids = [(i.get("store") or i).get("id") for i in strict["items"]]
         assert ok in ids and bad not in ids
         assert set(k for k, v in strict["reachability_counts"].items() if v) == {"reachable"}
+
+
+def test_how_to_buy_uses_the_currency_the_store_actually_returned():
+    # The probe asked for USD; the store's test checkout answered in EUR (beurbanrunning.com, 2026-11-15).
+    req = {"tested_country": "US", "currency": "USD", "currencies_seen": ["EUR"], "agent_profile_required": True}
+    ac = {"status": "checkout_ready", "protocol": "ucp-mcp", "requirements": req}
+    steps = " ".join(buying.how_to_buy(ac, country="US")["steps"])
+    assert '"currency": "USD"' not in steps
+    assert "asked for USD and the store answered in EUR" in steps
+    usd = {**ac, "requirements": {**req, "currencies_seen": ["USD"]}}
+    same = " ".join(buying.how_to_buy(usd, country="US")["steps"])
+    assert '"currency": "USD"' in same and "answered in" not in same
