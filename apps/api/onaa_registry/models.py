@@ -100,7 +100,7 @@ class Listing(Base):
     agent_card_url: Mapped[str | None] = mapped_column(String(2048), nullable=True, index=True)
     endpoint_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     endpoint_host: Mapped[str | None] = mapped_column(String(253), nullable=True, index=True)
-    documentation_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    documentation_url: Mapped[str | None] = mapped_column(String(2048), nullable=True, index=True)
     terms_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     sandbox_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     sandbox_available: Mapped[bool] = mapped_column(Boolean, default=False)

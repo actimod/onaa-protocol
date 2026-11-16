@@ -19,6 +19,13 @@ def make_engine(url: str) -> Engine:
         kwargs["connect_args"] = {"check_same_thread": False}
         if url in ("sqlite://", "sqlite:///:memory:"):
             kwargs["poolclass"] = StaticPool
+    elif url.startswith("postgresql"):
+        # Neon closes idle connections and can pause; without these a dead pooled connection makes a query hang
+        # until the kernel gives up, while the request (and its pool slot) waits. Check connections before use,
+        # recycle them, detect a dead peer with TCP keepalives and cap any single statement.
+        kwargs.update(pool_pre_ping=True, pool_recycle=300, pool_timeout=10, connect_args={
+            "connect_timeout": 10, "keepalives": 1, "keepalives_idle": 30, "keepalives_interval": 10,
+            "keepalives_count": 3, "options": "-c statement_timeout=60000"})
     engine = create_engine(url, **kwargs)
     if url.startswith("sqlite"):
 

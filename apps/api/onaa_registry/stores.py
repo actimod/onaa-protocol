@@ -24,6 +24,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
+from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -199,6 +200,19 @@ def store_record(listing: Listing, base: str, *, country: str | None = None) -> 
 FEED_MIN_REFRESH_SECONDS = float(os.environ.get("ONAA_STORE_FEED_REFRESH_SECONDS", "600"))
 BUILD_CHUNK = 500
 PAGE_SIZE = 1000  # stores per HTML index page
+COLD_WAIT_SECONDS = float(os.environ.get("ONAA_STORE_COLD_WAIT_SECONDS", "25"))
+
+
+REACH_STATES = {"reachable": "reachable", "unknown": "unknown", "unreachable": "unreachable"}  # shared strings
+
+
+def reachability_counts(states) -> dict[str, int]:
+    """How many results are reachable (last health probe answered), unknown (not checked yet) or unreachable
+    (last 3 probes failed). Endpoint health only, independent of the checkout stage."""
+    out = {"reachable": 0, "unknown": 0, "unreachable": 0}
+    for st in states:
+        out[st if st in out else "unknown"] += 1
+    return out
 
 
 @dataclass(frozen=True)
@@ -215,7 +229,10 @@ class StoreRow:
     hay: str
     blob: bytes
     claimed: bool = False
-    reachable: bool = False  # zlib(JSON store record)
+    reachable: bool = False  # reachability != "unreachable"
+    id: str = ""  # listing id, to replace or drop this row when the listing changes
+    sort: str = ""  # display name, for the feed order
+    reach: str = "unknown"  # trust.reachability: reachable, unknown or unreachable
 
     def record(self) -> dict:
         return json.loads(zlib.decompress(self.blob))
@@ -232,6 +249,8 @@ class Snapshot:
     feed_gz: bytes
     rows: list[StoreRow]
     derived: dict[str, bytes] = field(default_factory=dict)  # gzip bytes of csv / llms-full, built on first use
+    watermark: object = None  # max(updated_at) of marketplace listings when the build started
+    full_at: float = 0.0  # when the last full read of every store happened
 
     def records(self, rows: list[StoreRow] | None = None):
         for row in self.rows if rows is None else rows:
@@ -251,11 +270,17 @@ def _fingerprint(session: Session) -> tuple:
 def _shared(values, pool: dict | None) -> frozenset[str]:
     """One frozenset object per distinct set of codes. Most stores publish one of a few shipping lists (~240
     countries each); a separate set per store for ~30k stores took hundreds of MB on the 512 MB machine."""
-    fs = frozenset(sys.intern(v) for v in values)
-    return fs if pool is None else pool.setdefault(fs, fs)
+    if pool is None:
+        return frozenset(sys.intern(v) for v in values)
+    key = tuple(values)  # look the list up before interning ~240 strings again (snapshot build time)
+    fs = pool.get(key)
+    if fs is None:
+        fs = frozenset(sys.intern(v) for v in key)
+        fs = pool[key] = pool.setdefault(fs, fs)
+    return fs
 
 
-def _row(rec: dict, pool: dict | None = None) -> StoreRow:
+def _row(rec: dict, pool: dict | None = None, raw: str | None = None) -> StoreRow:
     cp, sh = rec["checkout_probe"], rec["shipping"]
     pub = sh["store_published"]
     return StoreRow(
@@ -269,55 +294,91 @@ def _row(rec: dict, pool: dict | None = None) -> StoreRow:
         currencies=_shared(sh["currencies_seen"] + ([sh["test_currency"]] if sh["test_currency"] else []), pool),
         hay=f'{rec["name"]} {rec["domain"] or ""}'.lower(),
         claimed=bool(rec["trust"]["claimed"]), reachable=rec["trust"].get("reachability") != "unreachable",
-        blob=zlib.compress(json.dumps(rec, separators=(",", ":"), default=str).encode(), 6))
+        # Level 1: the build compresses ~30k records on a shared CPU; level 6 took most of the build time.
+        blob=zlib.compress((raw or _dump(rec)).encode(), 1),
+        id=rec["id"], sort=rec["name"] or "",
+        reach=REACH_STATES.get(rec["trust"].get("reachability"), "unknown"))
 
 
-def _build(session: Session, base: str, fp: tuple) -> Snapshot:
-    ids = list(session.scalars(select(Listing.id).where(
-        Listing.service_type == "marketplace", Listing.lifecycle_status.in_(PUBLIC_STATUSES))
-        .order_by(Listing.display_name, Listing.id)).all())
+def _dump(rec: dict) -> str:
+    return json.dumps(rec, separators=(",", ":"), default=str)
+
+
+# Only listings changed since the previous build are read again (by updated_at). Reading every store with its
+# probe JSON on each refresh moved ~100 MB per build out of the database and used up the database plan's monthly
+# network transfer (production outage 2026-11-16). A full read still happens once per FULL_REBUILD_SECONDS, and
+# whenever the store count does not add up (e.g. a listing was hard-deleted).
+FULL_REBUILD_SECONDS = float(os.environ.get("ONAA_STORE_FULL_REBUILD_SECONDS", "86400"))
+
+
+def _watermark(session: Session):
+    return session.scalar(select(func.max(Listing.updated_at)).where(Listing.service_type == "marketplace"))
+
+
+def _public_rows(session: Session, base: str, ids: list[str], pool: dict) -> dict[str, StoreRow]:
+    out: dict[str, StoreRow] = {}
+    for start in range(0, len(ids), BUILD_CHUNK):
+        chunk = ids[start:start + BUILD_CHUNK]
+        for listing in session.scalars(select(Listing).where(
+                Listing.id.in_(chunk), Listing.service_type == "marketplace",
+                Listing.lifecycle_status.in_(PUBLIC_STATUSES))).all():
+            out[listing.id] = _row(store_record(listing, base), pool)
+        session.expunge_all()  # keep memory flat: drop the chunk's ORM objects
+    return out
+
+
+def _build(session: Session, base: str, fp: tuple, prev: Snapshot | None = None) -> Snapshot:
+    now = time.monotonic()
+    watermark = _watermark(session)
+    pool: dict = {}  # tuple or frozenset -> shared frozenset
+    incremental = (prev is not None and prev.fp[1] == base and prev.watermark is not None
+                   and watermark is not None and now - prev.full_at < FULL_REBUILD_SECONDS)
+    if incremental:
+        changed = list(session.scalars(select(Listing.id).where(
+            Listing.service_type == "marketplace", Listing.updated_at >= prev.watermark)).all())
+        by_id = {r.id: r for r in prev.rows}
+        for lid in changed:
+            by_id.pop(lid, None)
+        by_id.update(_public_rows(session, base, changed, pool))
+        if len(by_id) != fp[0][0]:  # something left without an updated_at change (hard delete): read everything
+            log.info("store snapshot: %d rows after an incremental refresh, %d expected; reading all",
+                     len(by_id), fp[0][0])
+            incremental = False
+    if not incremental:
+        ids = list(session.scalars(select(Listing.id).where(
+            Listing.service_type == "marketplace", Listing.lifecycle_status.in_(PUBLIC_STATUSES))).all())
+        by_id = _public_rows(session, base, ids, pool)
+    rows = sorted(by_id.values(), key=lambda r: (r.sort, r.id))
     generated_at = aware(utcnow()).isoformat()
     buf = io.BytesIO()
     sha = hashlib.sha256()
     gz = gzip.GzipFile(fileobj=buf, mode="wb", compresslevel=6, mtime=0)
 
-    def write(s: str) -> None:
-        b = s.encode()
+    def write(b: bytes) -> None:
         sha.update(b)
         gz.write(b)
 
-    head = {"schema": FEED_SCHEMA, "generated_at": generated_at, "count": len(ids), "note": FEED_NOTE,
+    head = {"schema": FEED_SCHEMA, "generated_at": generated_at, "count": len(rows), "note": FEED_NOTE,
             "how_to_use": {
                 "filter": f"{base}/v1/stores?ships_to=US&pays_alone=true",
                 "can_i_buy_here": f"{base}/v1/stores/check?url=<any product or store URL>",
                 "mcp": f"{base}/mcp",
                 "csv": f"{base}/stores.csv",
             }}
-    write(json.dumps(head)[:-1] + ', "items": [')
-    rows: list[StoreRow] = []
-    pool: dict[frozenset[str], frozenset[str]] = {}
+    write((json.dumps(head)[:-1] + ', "items": [').encode())
     counts: dict[str, int] = {}
     pays_alone = 0
-    for start in range(0, len(ids), BUILD_CHUNK):
-        chunk = ids[start:start + BUILD_CHUNK]
-        by_id = {x.id: x for x in session.scalars(select(Listing).where(Listing.id.in_(chunk))).all()}
-        for lid in chunk:
-            listing = by_id.get(lid)
-            if listing is None:  # removed while building
-                continue
-            rec = store_record(listing, base)
-            st = rec["checkout_probe"]["status"]
-            counts[st] = counts.get(st, 0) + 1
-            pays_alone += bool(rec["checkout_probe"]["agent_can_pay_alone"])
-            write(("" if not rows else ",") + json.dumps(rec, default=str))
-            rows.append(_row(rec, pool))
-        session.expunge_all()  # keep memory flat: drop the chunk's ORM objects
-    summary = {"by_checkout_status": dict(sorted(counts.items())), "agent_can_pay_alone": pays_alone,
-               "tested_countries": list(TESTED_COUNTRIES)}
-    write('], "summary": ' + json.dumps(summary) + "}")
+    for i, row in enumerate(rows):
+        counts[row.status] = counts.get(row.status, 0) + 1
+        pays_alone += bool(row.pays_alone)
+        write((b"," if i else b"") + zlib.decompress(row.blob))
+    summary = {"by_checkout_status": dict(sorted(counts.items(), key=lambda kv: str(kv[0]))),
+               "agent_can_pay_alone": pays_alone, "tested_countries": list(TESTED_COUNTRIES)}
+    write(('], "summary": ' + json.dumps(summary) + "}").encode())
     gz.close()
-    return Snapshot(fp=fp, built_at=time.monotonic(), generated_at=generated_at, count=len(rows), summary=summary,
-                    etag='"' + sha.hexdigest()[:32] + '"', feed_gz=buf.getvalue(), rows=rows)
+    return Snapshot(fp=fp, built_at=now, generated_at=generated_at, count=len(rows), summary=summary,
+                    etag='"' + sha.hexdigest()[:32] + '"', feed_gz=buf.getvalue(), rows=rows,
+                    watermark=watermark, full_at=prev.full_at if incremental else now)
 
 
 def _rebuild_in_background(session: Session, base: str) -> None:
@@ -329,7 +390,7 @@ def _rebuild_in_background(session: Session, base: str) -> None:
         global _snap
         try:
             with Session(bind=bind) as s:
-                _snap = _build(s, base, (_fingerprint(s), base))
+                _snap = _build(s, base, (_fingerprint(s), base), prev=_snap)
         except Exception:  # noqa: BLE001 - keep serving the old snapshot
             log.warning("store snapshot rebuild failed", exc_info=True)
         finally:
@@ -350,13 +411,22 @@ def snapshot(session: Session, base: str) -> Snapshot:
     if snap is not None and snap.fp[1] == base and FEED_MIN_REFRESH_SECONDS > 0:
         _rebuild_in_background(session, base)
         return snap
-    with _build_lock:  # cold start: wait for a build already running (e.g. the startup warm-up) instead of a 2nd
+    # Cold start: wait for a build already running (e.g. the startup warm-up) instead of starting a 2nd, but not
+    # forever: give the pool connection back while waiting and answer 503 if no snapshot is ready in time, so slow
+    # builds cannot pile up requests until even /v1/health stops answering.
+    session.close()
+    if not _build_lock.acquire(timeout=COLD_WAIT_SECONDS):
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "the store list is being built; retry shortly",
+                            headers={"Retry-After": "30"})
+    try:
         snap = _snap
         if snap is not None and snap.fp[1] == base and (snap.fp == fp or FEED_MIN_REFRESH_SECONDS > 0):
             # A build finished while we waited. Listings changed meanwhile (the checker writes all the time), but
             # rebuilding again here would make this request wait twice; the next refresh picks the change up.
             return snap
         _snap = snap = _build(session, base, fp)
+    finally:
+        _build_lock.release()
     return snap
 
 

@@ -4,7 +4,7 @@
 
 **What ONAA is and is not.** ONAA is a discovery and trust-metadata directory. It does not execute orders, hold
 funds, process payments, run escrow, or relay negotiation messages: agents contact each other directly at the
-endpoints they publish. Store and marketplace lookup (which stores an AI buying agent can buy from, and how) is one
+endpoints they publish. Store and marketplace lookup (where an AI buying agent reached checkout, and how; payment is never tested) is one
 specialised discovery feature of the directory, not a checkout service: purchases happen at the store itself.
 
 > **Status: early draft (ONAA Protocol v0.1.1).** This repository holds the protocol specification, a reference directory API, a Python SDK and a runnable direct-trade demo. A **development** directory runs at https://api.onaa.net (agent instructions: https://api.onaa.net/llms.txt, remote MCP: https://api.onaa.net/mcp). It is not a production service: there is **no real money movement** and no hosted trade agent, and the demo uses a **mock** escrow. ONAA is a working project name; no trademark is claimed.

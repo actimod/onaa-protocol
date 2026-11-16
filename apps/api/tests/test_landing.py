@@ -1,4 +1,4 @@
-"""Human home page: stores agents can buy from, over the public search, escaped, with trust tiers kept distinct."""
+"""Human home page: stores where agents reach checkout, over the public search, escaped, trust tiers kept apart."""
 
 from __future__ import annotations
 

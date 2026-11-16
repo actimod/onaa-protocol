@@ -31,7 +31,7 @@ def _split(values: list[str] | None) -> list[str]:
     return [p.strip() for v in values or [] for p in v.split(",") if p.strip()][:10]
 
 
-@router.get("/stores", summary="Stores an agent can buy from under your conditions (ship-to, payment, pay alone)")
+@router.get("/stores", summary="Stores where an agent can reach checkout under your conditions (ship-to, payment)")
 def stores(request: Request, session: Session = Depends(get_session), country: Country = None, agent: Agent = None,
            payment: Payment = None, pay_alone: PayAlone = False,
            q: Annotated[str | None, Query(max_length=100, description="words in the store name or description; "
@@ -40,12 +40,14 @@ def stores(request: Request, session: Session = Depends(get_session), country: C
                description="buyable = yes answers only; possible (default) adds 'maybe' (e.g. delivery untested); "
                            "all adds no/unknown with reasons")] = "possible",
            limit: Annotated[int, Query(ge=1, le=100)] = 20, offset: Annotated[int, Query(ge=0, le=10_000)] = 0,
-           claimed_only: ClaimedOnly = False, reachable_only: ReachableOnly = False):
+           claimed_only: ClaimedOnly = False, reachable_only: ReachableOnly = False,
+           exclude_unreachable: Annotated[bool, Query(description="clearer name for reachable_only (same rule)")]
+           = False):
     from .stores import count_search
 
     result = buying.find_stores(session, country=country, agent=agent, payment=_split(payment), pay_alone=pay_alone,
                                 q=q, include=include, limit=limit, offset=offset, claimed_only=claimed_only,
-                                reachable_only=reachable_only)
+                                reachable_only=reachable_only or exclude_unreachable)
     if offset == 0:  # count searches, not the pages of one search
         count_search(request, "find_stores", {"country": country, "agent": agent, "payment": _split(payment),
                                               "pays_alone": True if pay_alone else None,
@@ -54,7 +56,7 @@ def stores(request: Request, session: Session = Depends(get_session), country: C
     return result
 
 
-@router.get("/check", summary="Can I buy at these stores, and how? (ids, domains or product URLs, up to 25)")
+@router.get("/check", summary="Can I reach checkout at these stores, and how? (ids, domains or product URLs, up to 25)")
 def check(request: Request,
           store: Annotated[list[str], Query(description="svc_ id, store domain or any URL on the store; repeat or "
                                                         "comma-separate, e.g. the shops in Shop MCP results")],

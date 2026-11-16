@@ -147,7 +147,7 @@ def test_find_stores_candidate_cache_serves_stale_then_refreshes(client, monkeyp
         assert client.get("/v1/buying/stores", params={"include": "possible"}).json()["total"] == before  # cached
         key = buying.POSSIBLE_STATUSES
         stale_at = buying._cache[key][0] - 7200
-        buying._cache[key] = (stale_at, buying._cache[key][1])  # expire it
+        buying._cache[key] = (stale_at, *buying._cache[key][1:])  # expire it (incremental refresh follows)
         client.get("/v1/buying/stores", params={"include": "possible"})  # stale served, refresh started
         for _ in range(200):  # wait for the background rebuild itself, not a proxy for it
             if buying._cache[key][0] > stale_at and key not in buying._refreshing:
@@ -177,3 +177,38 @@ def test_find_stores_trust_filters(client):
         assert client.get(path, params={"reachable_only": "true"}).json()["total"] == everything
     item = client.get("/v1/stores").json()["items"][0]
     assert item["trust"]["claimed"] is False and item["trust"]["reachability"] == "unknown"
+
+
+def test_services_agent_checkout_carries_payment_flags(client):
+    """/v1/services shows the same 'payment never tested' facts as /v1/stores and find_stores."""
+    sid = _store(client, "flags.example.com", "checkout_ready", CARD_ONLY)
+    ac = client.get(f"/v1/services/{sid}").json()["agent_checkout"]
+    assert ac["status"] == "checkout_ready"
+    assert ac["payment_tested"] is False and ac["payment_success_verified"] is False
+    assert ac["post_link_autonomy_verified"] is False
+    hit = next(i for i in client.get("/v1/services", params={"q": "flags"}).json()["items"] if i["id"] == sid)
+    assert hit["agent_checkout"]["payment_tested"] is False
+
+
+def test_exclude_unreachable_alias_and_reachability_counts(client):
+    """exclude_unreachable is the same rule as reachable_only; answers count reachable/unknown/unreachable.
+    The 1-2 failures stay reachable, 3 make it unreachable, recovery rule is covered in test_health.py."""
+    from onaa_registry.models import utcnow
+
+    ids = _seed(client)
+    with client.app.state.sessionmaker() as s:
+        s.get(Listing, ids["cards"]).reachability = "unreachable"
+        s.get(Listing, ids["shoes"]).reachability = "reachable"
+        for key in ("cards", "shoes"):
+            s.get(Listing, ids[key]).updated_at = utcnow()
+        s.commit()
+    buying.reset_cache()
+    for path in ("/v1/buying/stores", "/v1/stores"):
+        page = client.get(path, params={"include": "all"} if "buying" in path else {}).json()
+        counts = page["reachability_counts"]
+        assert counts["unreachable"] == 1 and counts["reachable"] == 1 and sum(counts.values()) == page["total"]
+        for flag in ("reachable_only", "exclude_unreachable"):
+            params = {flag: "true", **({"include": "all"} if "buying" in path else {})}
+            filtered = client.get(path, params=params).json()
+            assert filtered["total"] == page["total"] - 1 and filtered["reachability_counts"]["unreachable"] == 0
+            assert ids["cards"] not in [(i.get("store") or i).get("id") for i in filtered["items"]]

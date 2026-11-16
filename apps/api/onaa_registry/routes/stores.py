@@ -22,6 +22,7 @@ from ..stores import (
     csv_lines,
     derived,
     find_store,
+    reachability_counts,
     snapshot,
     store_record,
 )
@@ -67,7 +68,7 @@ def _feed_response(request: Request, session: Session) -> Response:
     return gzip_response(request, snap.feed_gz, "application/json", headers)
 
 
-@router.get("/stores.json", summary="All stores AI buying agents can buy from, with checkout requirements (one file)")
+@router.get("/stores.json", summary="All stores probed for AI agent checkout, with checkout requirements (one file)")
 def stores_feed(request: Request, session: Session = Depends(get_session)):
     """The full store feed: every listed store with ONAA's last checkout probe (protocol, payment handlers,
     whether an agent can pay alone, buyer info required, tested shipping countries) and links. Supports
@@ -87,7 +88,7 @@ def stores_csv(request: Request, session: Session = Depends(get_session)):
                          {"Cache-Control": CACHE, "Content-Disposition": 'inline; filename="onaa-stores.csv"'})
 
 
-@router.get("/v1/stores", summary="Find stores an AI agent can buy from (filter by shipping country, pay-alone, ...)")
+@router.get("/v1/stores", summary="Find stores where an AI agent can reach checkout (filter: ship-to, pay-alone, ...)")
 def list_stores(
     request: Request,
     ships_to: Annotated[list[str] | None, Query(description="ISO country where ONAA's test checkout (one test "
@@ -113,6 +114,8 @@ def list_stores(
                                                       "(reachability=unreachable); not-yet-checked (unknown) stay. "
                                                       "Same as on /v1/services. Endpoint health, not checkout "
                                                       "status")] = False,
+    exclude_unreachable: Annotated[bool, Query(description="clearer name for reachable_only (same rule): drop "
+                                                           "only stores whose last 3 health probes failed")] = False,
     limit: Annotated[int, Query(ge=1, le=500)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     session: Session = Depends(get_session),
@@ -127,6 +130,7 @@ def list_stores(
     handlers = _csv_param(payment_handler)
     currencies = _csv_param(currency, upper=True)
     terms = [t for t in (q or "").lower().split() if t][:8]
+    reachable_only = reachable_only or exclude_unreachable
     snap = snapshot(session, _base(request))
     want_ships, want_handlers, want_currencies = set(ships), set(handlers), set(currencies)
     matched = []
@@ -157,7 +161,7 @@ def list_stores(
     items = list(snap.records(matched[offset:offset + limit]))
     untested = sorted(set(ships) - set(TESTED_COUNTRIES))
     out = {"total": len(matched), "limit": limit, "offset": offset, "items": items,
-           "note": FEED_NOTE}
+           "reachability_counts": reachability_counts(r.reach for r in matched), "note": FEED_NOTE}
     if untested:
         out["untested_countries"] = untested
         out["untested_note"] = (f"ONAA's checker tests delivery to {', '.join(TESTED_COUNTRIES)} only, so no store "
@@ -205,7 +209,7 @@ def _split(values: list[str] | None) -> list[str]:
     return [p.strip() for v in values or [] for p in v.split(",") if p.strip()]
 
 
-@router.get("/v1/stores/check", summary="Can an AI agent buy here? Any product URL, store domain or svc_ id")
+@router.get("/v1/stores/check", summary="Can an AI agent reach checkout here? Any product URL, store domain or svc_ id")
 def check_get(
     request: Request,
     url: Annotated[list[str] | None, Query(description="product or store URL, domain or svc_ id; repeat or "
@@ -357,13 +361,13 @@ def store_page(store: str, request: Request, session: Session = Depends(get_sess
     how = "".join(f"<li>{_e(step)}</li>" for step in steps)
     store_link = (f'<a href="{_e(it["store_url"])}" rel="nofollow noopener ugc">{_e(it["store_url"])}</a>'
                   if it["store_url"] else "")
-    body = (f'<section class="hero"><h1>Can an AI agent buy from {_e(it["name"])}?</h1>'
+    body = (f'<section class="hero"><h1>Can an AI agent check out at {_e(it["name"])}?</h1>'
             f'<p>{_e(verdict.get("summary") or STATUS_TEXT.get(cp["status"], ""))}</p>'
             f'<p>{store_link}</p></section>'
             f'<div class="item"><ul>{table}</ul></div>'
             + (f'<h2 class="list-h">How an agent buys here</h2><ol>{how}</ol>' if how else "")
             + f'<p class="list-sub">Machine-readable: <a href="{_e(it["links"]["json"])}">JSON</a> · '
               f'<a href="{_e(it["links"]["history"])}">check history</a></p>')
-    return HTMLResponse(_page(f"Can an AI agent buy from {it['name']}? | ONAA",
+    return HTMLResponse(_page(f"Can an AI agent check out at {it['name']}? | ONAA",
                               f"Tested agent checkout for {it['name']}: {STATUS_TEXT.get(cp['status'], '')}.",
                               body, it["links"]["json"]), headers={"Cache-Control": CACHE})

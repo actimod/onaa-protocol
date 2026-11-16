@@ -18,6 +18,8 @@ from .netsafety import Fetcher, FetchError, UnsafeURLError, validate_public_url
 from .terms import Terms, load_terms
 
 # Statuses visible in public search/get. Deleted is never visible; suspended only on direct GET.
+# ONAA never pays: every checkout observation carries these explicit facts (founder decision P1-01).
+PAYMENT_EVIDENCE = {"payment_tested": False, "payment_success_verified": False, "post_link_autonomy_verified": False}
 PUBLIC_STATUSES = ("discovered", "claim_pending", "registered", "endpoint_verified", "certified")
 FACET_FIELDS = {
     "role": "roles",
@@ -351,7 +353,7 @@ def to_record(listing: Listing, operator: Operator | None = None) -> schemas.Reg
         ),
         agent_card=card,
         provenance=provenance,
-        agent_checkout=listing.agent_checkout,
+        agent_checkout={**listing.agent_checkout, **PAYMENT_EVIDENCE} if listing.agent_checkout else None,
         last_checked_at=aware(listing.last_checked_at),
         status=status_,
         created_at=aware(listing.created_at),

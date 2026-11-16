@@ -664,7 +664,8 @@ class RegistryRecord(BaseModel):
         default=None, description="Buying channels: ONAA's last probe of whether an outside agent can search and "
                                   "reach checkout (stops before payment). status checkout_ready, buyer_step_required, "
                                   "auth_required, no_checkout or failed, with checked_at. An observation, not a "
-                                  "verification or endorsement.")
+                                  "verification or endorsement. payment_tested, payment_success_verified and "
+                                  "post_link_autonomy_verified are always false: ONAA never pays.")
     last_checked_at: dt.datetime | None
     status: LifecycleStatus
     created_at: dt.datetime

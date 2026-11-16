@@ -263,8 +263,9 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         stage; at_setup, in_advance, per_payment, at_release; human_per_payment=none/pre_authorized/per_transaction;
         escrow_release=automatic/evaluator/human). These are self-declared or ONAA-observed, never verified.
         service_type=marketplace finds buying channels: marketplaces and catalogs whose own public MCP/UCP endpoint
-        lets an agent search and buy (capability=catalog_search, cart, checkout, search_only). ONAA lists only the
-        channel and links to it; buy there directly under that platform's terms. ONAA holds no product data.
+        lets an agent search and reach checkout (capability=catalog_search, cart, checkout, search_only). ONAA
+        lists only the channel and links to it; buy there directly under that platform's terms.
+        ONAA holds no product data.
         agent_checkout filters by ONAA's last checkout probe (checkout_ready, buyer_step_required = buyer finishes
         at the store's continue_url, auth_required = partner agents only); each record's agent_checkout block
         says how to buy there (protocol, payment handlers, buyer info required). Observed, not verified.
@@ -295,8 +296,9 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         offset: int = 0,
         claimed_only: bool = False,
         reachable_only: bool = False,
+        exclude_unreachable: bool = False,
     ) -> dict[str, Any]:
-        """Which stores can I (an AI buying agent) buy from? E.g. "stores that ship to Korea where I can pay on my
+        """Where can I (an AI buying agent) reach checkout? E.g. "stores that ship to Korea where I can pay on my
         own": ship_to_country=KR, pay_alone=true. payment_methods: what you or your buyer can use (shop_pay, card,
         google_pay). agent: your agent/platform (gemini, chatgpt, claude, ...), to rule out stores that serve only
         some agents. store_text matches the store name/description only: ONAA holds no product data, so to find
@@ -306,12 +308,13 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         checker (stops before payment), not verified. Trust filters mean the same as on search_services:
         claimed_only = posted by the store's operator (most stores are unclaimed, found on the public web by ONAA);
         reachable_only = hide stores whose last 3 health probes failed (reachability unreachable; unknown = not yet
-        checked, kept). Endpoint health, not checkout."""
+        checked, kept); exclude_unreachable is a clearer name for the same rule. reachability_counts gives how
+        many results are reachable, unknown or unreachable. Endpoint health, not checkout."""
         try:
             return _answers(registry.buying_stores(
                 country=ship_to_country, pay_alone=pay_alone, payment=payment_methods, agent=agent, q=store_text,
                 include=include, limit=max(1, min(limit, MAX_LIMIT)), offset=max(0, offset),
-                claimed_only=claimed_only, reachable_only=reachable_only))
+                claimed_only=claimed_only, reachable_only=reachable_only or exclude_unreachable))
         except OnaaError as exc:
             return _err(exc)
 
@@ -323,7 +326,8 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         payment_methods: list[str] | None = None,
         pay_alone: bool = False,
     ) -> dict[str, Any]:
-        """Can I (this agent) buy at this store? stores: 1-25 store domains, URLs (e.g. product URLs from Shopify
+        """Can I (this agent) reach checkout at this store? Checkout-path guidance, not payment verification:
+        ONAA never pays. stores: 1-25 store domains, URLs (e.g. product URLs from Shopify
         Shop MCP results) or svc_ ids. Answers per store: verdict yes / yes_buyer_finishes (buyer confirms or pays
         at the store's continue_url) / maybe / no / unknown, with reasons (refuses anonymous agents, no delivery
         to your country, none of your payment methods offered, no way to pay alone), what the buyer must provide
