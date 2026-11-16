@@ -24,8 +24,14 @@ REPORT_NAME = "ONAA Agent Checkout Report"
 CACHE = {"Cache-Control": "public, max-age=3600"}
 EXTRA_CSS = ("<style>.report img{max-width:100%;height:auto;border-radius:8px;border:1px solid var(--line)}"
              ".report pre{overflow-x:auto;padding:12px;background:var(--card);border:1px solid var(--line);"
-             "border-radius:8px}.report h1{line-height:1.25}</style>")
-ASSET = re.compile(r"^(funnel|outcomes|approval)\.(svg|png)$")
+             "border-radius:8px}.report h1{line-height:1.25}"
+             ".report .chart-note{font-size:.85em;color:var(--muted);margin-top:-.5em}"
+             ".report .table-wrap{overflow-x:auto}"
+             ".report table{border-collapse:collapse;font-size:.9em;min-width:520px}"
+             ".report th,.report td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;"
+             "vertical-align:top}"
+             "</style>")
+ASSET = re.compile(r"^(?:(funnel|outcomes|approval)\.(svg|png)|data\.json)$")
 
 
 def _file(name: str) -> bytes:
@@ -72,7 +78,7 @@ def report_asset(n: int, asset: str):
     m = ASSET.match(asset)
     if not m:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "no such file")
-    media = "image/svg+xml" if m[2] == "svg" else "image/png"
+    media = "application/json" if asset == "data.json" else "image/svg+xml" if m[2] == "svg" else "image/png"
     return Response(_file(f"{n}-{asset}"), media_type=media,
                     headers={**CACHE, "X-Content-Type-Options": "nosniff",
                              "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})

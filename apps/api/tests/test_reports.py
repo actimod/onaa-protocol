@@ -36,3 +36,14 @@ def test_report_views_counted_by_page_and_referrer_domain(client):
     assert views["by_referrer"] == {"github.com": 1, "dev.to": 1, "(direct)": 1}
     assert "secret" not in str(ext) and "a2aproject" not in str(ext)
     assert ext["by_path"]["/reports/1"] == 3 and ext["by_path"]["/reports/asset"] == 1
+
+
+def test_report_method_and_payment_labels(client):
+    page = client.get("/reports/1").text
+    assert "Data dictionary and method" in page and "Why 49% and not 90%?" in page
+    assert page.count("Payment never attempted") >= 3  # one note under every chart
+    assert "probe_attempted" in page and "payment_attempted" in page
+    r = client.get("/reports/1/data.json")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("application/json")
+    snap = r.json()["snapshot"]
+    assert snap["tested"] == 14991 and sum(v for k, v in snap["status"].items() if k != "not_checked_yet") == 14991

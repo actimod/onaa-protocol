@@ -91,6 +91,9 @@ def test_url_scope_before_listing_blocks_import_while_pending(client, fetcher):
 
 
 def test_pending_requests_per_host_are_capped(client):
+    from onaa_registry.security import RateLimiter
+
+    client.app.state.opt_out_limiter = RateLimiter(0)
     for _ in range(3):
         assert client.post("/v1/discovered/opt-out", json={"url": "https://cap.example.org/"}).status_code == 200
     assert client.post("/v1/discovered/opt-out", json={"url": "https://cap.example.org/"}).status_code == 429
@@ -113,3 +116,74 @@ def test_opt_out_validation_and_page(client):
     wk = client.get("/.well-known/onaa-registry.json").json()
     assert "/v1/discovered/opt-out" in wk["onboarding"]["discovered_opt_out"]
     assert "/v1/discovered/opt-out" in client.get("/llms.txt").text
+
+
+def _expire(client, request_id, days_ago=0):
+    import datetime as dt
+
+    from onaa_registry.models import OptOutClaim
+    from onaa_registry.routes.optout import expire_opt_outs
+
+    with client.app.state.sessionmaker() as sess:
+        claim = sess.get(OptOutClaim, request_id)
+        claim.expires_at = claim.expires_at - dt.timedelta(days=8)
+        sess.commit()
+        expire_opt_outs(sess)
+        if days_ago:
+            claim = sess.get(OptOutClaim, request_id)
+            claim.resolved_at = claim.resolved_at - dt.timedelta(days=days_ago)
+        sess.commit()
+
+
+def test_unproven_hide_is_not_renewable_but_proof_still_works(client, fetcher):
+    """P1-02: one unproven hide per host per 30 days; repeats never extend it; the owner can still prove."""
+    from onaa_registry.security import RateLimiter
+
+    client.app.state.opt_out_limiter = RateLimiter(0)  # this test is about the host rule, not the IP limit
+    s, _ = _import(client)
+    url = {"url": "https://docs.escrow.example.net/"}
+    first = client.post("/v1/discovered/opt-out", json=url).json()
+    assert first["status"] == "hidden"
+    # A repeat while the first runs hides nothing new and does not extend the window.
+    repeat = client.post("/v1/discovered/opt-out", json=url).json()
+    assert repeat["status"] == "proof_required" and repeat["removed_listing_ids"] == []
+    _expire(client, first["request_id"])
+    assert client.get(f"/v1/services/{s['id']}").status_code == 200  # listed again; the repeat did not keep it hidden
+    # Within 30 days of the unproven expiry: no new hide, but a token that still erases with proof.
+    again = client.post("/v1/discovered/opt-out", json=url).json()
+    assert again["status"] == "proof_required" and "nothing was hidden" in again["note"]
+    assert client.get(f"/v1/services/{s['id']}").status_code == 200
+    _prove(fetcher, again)
+    c = client.post(f"/v1/discovered/opt-out/{again['request_id']}/confirm", json={"method": "well_known"})
+    assert c.status_code == 200 and c.json()["removed_listing_ids"] == [s["id"]]
+    assert client.get(f"/v1/services/{s['id']}").status_code == 410
+
+
+def test_hide_allowed_again_after_cooldown(client):
+    from onaa_registry.security import RateLimiter
+
+    client.app.state.opt_out_limiter = RateLimiter(0)
+    s, _ = _import(client)
+    first = client.post("/v1/discovered/opt-out", json={"url": "https://docs.escrow.example.net/"}).json()
+    _expire(client, first["request_id"], days_ago=31)
+    later = client.post("/v1/discovered/opt-out", json={"url": "https://docs.escrow.example.net/"}).json()
+    assert later["status"] == "hidden" and later["removed_listing_ids"] == [s["id"]]
+
+
+def test_opt_out_requests_are_limited_per_ip(client):
+    for host in ("a.example.org", "b.example.org"):
+        assert client.post("/v1/discovered/opt-out", json={"url": f"https://{host}/"}).status_code == 200
+    assert client.post("/v1/discovered/opt-out", json={"url": "https://c.example.org/"}).status_code == 429
+
+
+def test_admin_can_restore_an_unproven_hide(client):
+    s, _ = _import(client)
+    r = client.post("/v1/discovered/opt-out", json={"url": "https://docs.escrow.example.net/"}).json()
+    path = f"/v1/admin/opt-out/{r['request_id']}/restore"
+    assert client.post(path).status_code in (401, 403)
+    res = client.post(path, headers=admin_headers())
+    assert res.status_code == 200 and res.json() == {"request_id": r["request_id"], "state": "restored",
+                                                     "restored": 1}
+    assert client.get(f"/v1/services/{s['id']}").status_code == 200
+    late = client.post(f"/v1/discovered/opt-out/{r['request_id']}/confirm", json={"method": "well_known"})
+    assert late.status_code == 410

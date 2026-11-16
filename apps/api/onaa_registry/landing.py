@@ -1,4 +1,4 @@
-"""Human-facing home page: ONAA as the place to find stores AI buying agents can actually buy from.
+"""Human-facing home page: ONAA as the place to find stores where AI buying agents reach checkout.
 
 The page is a read-only view over the same public search the API serves. Every listing field shown here is
 untrusted, operator-written text and is HTML-escaped. Trust tiers stay distinct (design principle 8):
@@ -17,7 +17,7 @@ from .logic import PUBLIC_STATUSES
 from .models import Listing
 
 BRAND = "ONAA"
-TAGLINE = ("Find stores and marketplaces AI buying agents can actually buy from, with each store's tested checkout "
+TAGLINE = ("Find stores and marketplaces where AI buying agents reach checkout, with each store's tested checkout "
            "requirements (UCP, Shop MCP). Links only.")
 CHECKOUT_LABELS = {
     "checkout_ready": "Checkout tested (payment not tested)",
@@ -276,7 +276,7 @@ def render_home(session: Session, base: str, links: dict[str, str], *, q: str | 
         '<a href="/reports">Data report</a></nav>'
         '<a class="btn" href="#post">List your store</a></div></header>'
         '<main class="wrap">'
-        '<section class="hero"><h1>Stores your AI agent can actually buy from.</h1>'
+        '<section class="hero"><h1>Stores where your AI agent can reach checkout.</h1>'
         f'<p>{_e(TAGLINE)}</p>'
         '<form class="search" action="/" method="get" role="search">'
         + (f'<input type="hidden" name="section" value="{_e(section)}">' if section else "")

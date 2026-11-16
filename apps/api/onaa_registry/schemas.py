@@ -906,7 +906,9 @@ class OptOutRequest(StrictModel):
 
 
 class OptOutResult(BaseModel):
-    status: Literal["hidden", "pending"]
+    status: Literal["hidden", "pending", "proof_required"] = Field(
+        description="hidden = entries hidden now; pending = nothing matched yet; proof_required = this host had an "
+                    "unproven hide running or within the last 30 days, so nothing is hidden until you prove control")
     removed_listing_ids: list[str] = Field(description="Discovered entries hidden now (not yet erased)")
     request_id: str
     token: str = Field(description="Publish this at well_known_url (HTTP 200, body = token, no redirect) or as a "

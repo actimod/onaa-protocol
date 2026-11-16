@@ -27,7 +27,7 @@ from urllib.parse import urlsplit
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .buying import TESTED_COUNTRIES, shipping_view
+from .buying import PAYMENT_EVIDENCE, TESTED_COUNTRIES, VERDICT_NOTE, shipping_view
 from .logic import PUBLIC_STATUSES, aware, ensure_not_taken, host_of, make_listing_id, set_facets
 from .models import Listing, utcnow
 
@@ -66,8 +66,8 @@ def store_source(listing: Listing) -> str:
 
 
 VERDICT_TEXT = {
-    "yes": "An outside agent can buy here",
-    "yes_buyer_finishes": "An agent can build the order here; the buyer finishes the purchase",
+    "yes": "Agent checkout path observed (payment not tested)",
+    "yes_buyer_finishes": "An agent can build the order here; the buyer finishes the purchase (payment not tested)",
     "maybe": "Possibly",
     "no": "Not for an outside agent today",
     "unknown": "Unknown",
@@ -79,10 +79,19 @@ def _assess(listing: Listing, country: str | None = None) -> dict:
 
     a = assess(listing, country=country)
     why = a["reasons"] or a["cautions"]
-    return {"verdict": a["verdict"],
+    return {"verdict": a["verdict"], "verdict_note": VERDICT_NOTE, **PAYMENT_EVIDENCE,
             "summary": VERDICT_TEXT[a["verdict"]] + (": " + "; ".join(why) if why else "") + ".",
             "reasons": a["reasons"], "cautions": a["cautions"], "country": a["country"],
             "accepted_agents": a["accepted_agents"], "how_to_buy": a["how_to_buy"]["steps"]}
+
+
+def _country_results(ships: list[str], no_ship: list[str], unconfirmed: list[str]) -> dict[str, str]:
+    """One explicit state per country ONAA tests, so a missing country never reads as "no"."""
+    out = {cc: "untested" for cc in TESTED_COUNTRIES}
+    out.update({cc: "unconfirmed" for cc in unconfirmed})
+    out.update({cc: "no_shipping" for cc in no_ship})
+    out.update({cc: "ships" for cc in ships})
+    return out
 
 
 def store_record(listing: Listing, base: str, *, country: str | None = None) -> dict:
@@ -122,9 +131,24 @@ def store_record(listing: Listing, base: str, *, country: str | None = None) -> 
             "manifest_payment_handlers": req.get("manifest_payment_handlers") or [],
             "buyer_info_required": req.get("buyer_info_required") or [],
             "buyer_confirmation_required": req.get("buyer_confirmation_required"),
+            **PAYMENT_EVIDENCE,
+        },
+        "stages": {
+            "listed": True,
+            "probe_attempted": ac.get("status") is not None,
+            "checkout_reached": "checkout" in (ac.get("steps") or []),
+            "shipping_confirmed": bool(ships),
+            "payment_attempted": False,  # ONAA's checker always stops before payment
         },
         "shipping": {
             "tested_countries": tested,
+            "tested_countries_count": len(tested),
+            "tested_at": ac.get("checked_at") if tested or view["unconfirmed"] else None,
+            "delivery_quote_obtained": bool(view["quotes"]),
+            "country_results": _country_results(ships, no_ship, view["unconfirmed"]),
+            "country_results_note": "ships = ONAA's test checkout got a delivery option; no_shipping = the store "
+                                    "said no delivery to the public test address; unconfirmed = probed before "
+                                    "addresses were sent, so not evidence; untested = not tried for this store.",
             "ships_to": ships,
             "no_shipping_to": no_ship,
             "untested_countries": "unknown" if tested else "all",
@@ -150,6 +174,7 @@ def store_record(listing: Listing, base: str, *, country: str | None = None) -> 
             "registration_status": listing.lifecycle_status,
             "claimed": listing.operator_id is not None and listing.lifecycle_status != "discovered",
             "reachability": listing.reachability or "unknown",
+            "last_health_check_at": aware(listing.last_checked_at).isoformat() if listing.last_checked_at else None,
             "affiliated_with_onaa": False,
         },
         "first_seen": aware(listing.discovered_at or listing.created_at).isoformat()
@@ -243,7 +268,7 @@ def _row(rec: dict, pool: dict | None = None) -> StoreRow:
         handlers=_shared((h.lower() for h in cp["payment_handlers"]), pool),
         currencies=_shared(sh["currencies_seen"] + ([sh["test_currency"]] if sh["test_currency"] else []), pool),
         hay=f'{rec["name"]} {rec["domain"] or ""}'.lower(),
-        claimed=bool(rec["trust"]["claimed"]), reachable=rec["trust"].get("reachability") == "reachable",
+        claimed=bool(rec["trust"]["claimed"]), reachable=rec["trust"].get("reachability") != "unreachable",
         blob=zlib.compress(json.dumps(rec, separators=(",", ":"), default=str).encode(), 6))
 
 

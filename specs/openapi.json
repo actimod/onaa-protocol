@@ -2615,9 +2615,11 @@
             "type": "string"
           },
           "status": {
+            "description": "hidden = entries hidden now; pending = nothing matched yet; proof_required = this host had an unproven hide running or within the last 30 days, so nothing is hidden until you prove control",
             "enum": [
               "hidden",
-              "pending"
+              "pending",
+              "proof_required"
             ],
             "title": "Status",
             "type": "string"
@@ -5017,7 +5019,7 @@
     }
   },
   "info": {
-    "description": "Find stores and marketplaces AI buying agents can actually buy from, with each store's tested checkout requirements (UCP, Shop MCP); links only. Also lists payment and other providers and buyer and seller agents. This directory API holds listings and trust metadata only; it never relays buyer/seller transactions, holds funds, or hosts seller data.",
+    "description": "Find stores and marketplaces where AI buying agents reach checkout, with each store's tested checkout requirements (UCP, Shop MCP); links only. Also lists payment and other providers and buyer and seller agents. This directory API holds listings and trust metadata only; it never relays buyer/seller transactions, holds funds, or hosts seller data.",
     "title": "ONAA API (Open Network for AI Agents)",
     "version": "0.1.0"
   },
@@ -5158,6 +5160,26 @@
         "summary": "All stores AI buying agents can buy from, with checkout requirements (one file)",
         "tags": [
           "stores"
+        ]
+      }
+    },
+    "/v1": {
+      "get": {
+        "description": "API index: where each part of the v1 API starts (the homepage \"api\" link points here).",
+        "operationId": "api_index_v1_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Index",
+        "tags": [
+          "meta"
         ]
       }
     },
@@ -5825,6 +5847,52 @@
         "summary": "Grant or revoke Founding Cohort membership (cap: ONAA_FOUNDING_COHORT_SIZE)",
         "tags": [
           "certifications",
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/opt-out/{request_id}/restore": {
+      "post": {
+        "operationId": "restore_opt_out_v1_admin_opt_out__request_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "title": "Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Admin: list again the entries an unproven removal request hid (suspected abuse)",
+        "tags": [
+          "opt-out",
           "admin"
         ]
       }
@@ -7757,13 +7825,13 @@
             }
           },
           {
-            "description": "only stores whose endpoint passed ONAA's last health check (reachability=reachable; endpoint health, not checkout status)",
+            "description": "hide stores whose last 3 health probes failed (reachability=unreachable); not-yet-checked (unknown) stay. Same as on /v1/services. Endpoint health, not checkout status",
             "in": "query",
             "name": "reachable_only",
             "required": false,
             "schema": {
               "default": false,
-              "description": "only stores whose endpoint passed ONAA's last health check (reachability=reachable; endpoint health, not checkout status)",
+              "description": "hide stores whose last 3 health probes failed (reachability=unreachable); not-yet-checked (unknown) stay. Same as on /v1/services. Endpoint health, not checkout status",
               "title": "Reachable Only",
               "type": "boolean"
             }
@@ -9832,6 +9900,92 @@
         ]
       }
     },
+    "/v1/stats/usage/hourly": {
+      "get": {
+        "operationId": "usage_hourly_v1_stats_usage_hourly_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "hours",
+            "required": false,
+            "schema": {
+              "default": 48,
+              "maximum": 720,
+              "minimum": 1,
+              "title": "Hours",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "The same anonymous counts per UTC hour (last 30 days at most)",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/v1/stats/usage/weekly": {
+      "get": {
+        "operationId": "usage_weekly_v1_stats_usage_weekly_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "weeks",
+            "required": false,
+            "schema": {
+              "default": 12,
+              "maximum": 104,
+              "minimum": 1,
+              "title": "Weeks",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Third-party use per week with running totals: crawlers, store data fetched, MCP use",
+        "tags": [
+          "meta"
+        ]
+      }
+    },
     "/v1/stores": {
       "get": {
         "description": "Stores ONAA lists, filtered on ONAA's last checkout probe. ONAA has no product data: to find a product,\nuse the store's own catalog search (its MCP endpoint) or Shop MCP, then check the store here or with\n/v1/stores/check. For the whole list in one request use /stores.json.",
@@ -10013,13 +10167,13 @@
             }
           },
           {
-            "description": "only stores whose endpoint passed ONAA's last health check (endpoint health, not checkout status)",
+            "description": "hide stores whose last 3 health probes failed (reachability=unreachable); not-yet-checked (unknown) stay. Same as on /v1/services. Endpoint health, not checkout status",
             "in": "query",
             "name": "reachable_only",
             "required": false,
             "schema": {
               "default": false,
-              "description": "only stores whose endpoint passed ONAA's last health check (endpoint health, not checkout status)",
+              "description": "hide stores whose last 3 health probes failed (reachability=unreachable); not-yet-checked (unknown) stay. Same as on /v1/services. Endpoint health, not checkout status",
               "title": "Reachable Only",
               "type": "boolean"
             }

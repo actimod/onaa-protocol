@@ -20,6 +20,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy import true as sa_true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -271,11 +272,14 @@ class OptOutClaim(Base):
     key_hashes: Mapped[list] = mapped_column(JSON, default=list)  # suppression keys made permanent on proof
     listing_ids: Mapped[list] = mapped_column(JSON, default=list)  # discovered listings hidden by this claim
     nonce_hash: Mapped[str] = mapped_column(String(64))
-    state: Mapped[str] = mapped_column(String(12), default="pending", index=True)  # pending|confirmed|expired
+    state: Mapped[str] = mapped_column(String(12), default="pending", index=True)  # pending|confirmed|expired|restored
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), index=True)
     resolved_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # False when the request only offers proof: the host already had an unproven hide recently (or one is still
+    # running), so this request hides nothing and does not block re-import until it is proven.
+    hides: Mapped[bool] = mapped_column(Boolean, default=True, server_default=sa_true())
 
 
 class VocabularyProposal(Base):
@@ -460,6 +464,20 @@ class UsageCounter(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     day: Mapped[str] = mapped_column(String(10), index=True)  # ISO date (UTC)
+    kind: Mapped[str] = mapped_column(String(20))
+    key: Mapped[str] = mapped_column(String(160))
+    count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class UsageCounterHourly(Base):
+    """The same anonymous counts as `usage_counters`, per UTC hour ("2026-11-16T04"), kept for 30 days only
+    (older hourly rows are deleted; the daily rows stay)."""
+
+    __tablename__ = "usage_counters_hourly"
+    __table_args__ = (UniqueConstraint("hour", "kind", "key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    hour: Mapped[str] = mapped_column(String(13), index=True)  # ISO date + "T" + hour (UTC)
     kind: Mapped[str] = mapped_column(String(20))
     key: Mapped[str] = mapped_column(String(160))
     count: Mapped[int] = mapped_column(Integer, default=0)

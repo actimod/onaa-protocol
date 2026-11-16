@@ -148,3 +148,54 @@ def test_search_with_no_results_is_counted(client):
     sc = client.get("/v1/stats/usage").json()["external"]["search_conditions"]
     assert sc["list"]["_totals"] == {"no_results": 1, "searches": 1}
     assert client.get("/v1/stats/usage").json()["external"]["search_combinations"]["list"] == {"country=BR": 1}
+
+
+def test_hourly_counts_and_30_day_pruning(client):
+    from onaa_registry import traffic
+    from onaa_registry.models import UsageCounterHourly
+
+    ua = "Mozilla/5.0 (compatible; ChatGPT-User/1.0; +https://openai.com/bot)"
+    client.get("/llms.txt", headers={"User-Agent": ua})
+    usage = client.app.state.usage
+    usage.hit("mcp_tool", "find_stores")
+    old = (dt.datetime.now(dt.UTC) - dt.timedelta(days=31)).strftime("%Y-%m-%dT%H")
+    with client.app.state.sessionmaker() as s:
+        s.add(UsageCounterHourly(hour=old, kind="mcp_tool", key="find_stores|external", count=5))
+        s.add(UsageCounter(day=old[:10], kind="mcp_tool", key="find_stores|external", count=5))
+        s.commit()
+    usage._pruned_at = None
+    got = client.get("/v1/stats/usage/hourly", params={"hours": 720}).json()
+    assert got["hours"] == 720 and got["keep_days"] == 30
+    hour = traffic._this_hour()
+    ext = got["by_hour"][hour]["external"]
+    assert ext["by_agent_class"]["chatgpt_user"] == 1 and ext["mcp_tools"] == {"find_stores": 1}
+    assert old not in got["by_hour"]
+    with client.app.state.sessionmaker() as s:
+        assert s.query(UsageCounterHourly).filter(UsageCounterHourly.hour == old).count() == 0  # pruned
+        assert s.query(UsageCounter).filter(UsageCounter.day == old[:10]).count() == 1  # daily rows stay
+        keys = [r.key for r in s.query(UsageCounterHourly).all()]
+    assert not any("Mozilla" in k or "testclient" in k for k in keys)
+
+
+def test_weekly_third_party_report_and_client_names(client):
+    from onaa_registry.traffic import mcp_client_name
+
+    assert mcp_client_name("OpenAI MCP") == "openai-mcp"
+    assert mcp_client_name("<script>alert(1)</script>") == "script-alert-1-script"
+    assert mcp_client_name(None) == "(none)" and len(mcp_client_name("x" * 99)) == 40
+    usage = client.app.state.usage
+    usage.hit_http("/v1/stores/shop.example", "Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)")
+    usage.hit_http("/stores/shop.example", "Mozilla/5.0 (compatible; ChatGPT-User/1.0; +https://openai.com/bot)")
+    usage.hit_http("/mcp", "mcpcheckup/1.0")  # a directory checker: probes, not third-party use
+    usage.hit_http("/stores.json", "onaa-test/1")  # ours: excluded
+    usage.hit("mcp_method", "initialize", origin="external")
+    usage.hit("mcp_client", "openai-mcp", origin="external")
+    usage.hit("mcp_tool", "find_stores", origin="external")
+    got = client.get("/v1/stats/usage/weekly").json()
+    w = got["series"][-1]
+    assert w["crawler_requests"] == {"openai_crawler": 1}
+    assert w["user_triggered_agent_requests"] == {"chatgpt_user": 1}
+    assert w["store_data_fetches"]["total"] == 2 and "/stores.json" not in w["store_data_fetches"]["by_path"]
+    assert w["mcp_connections"] == 1 and w["mcp_clients"] == {"openai-mcp": 1}
+    assert w["mcp_tool_calls"] == {"find_stores": 1} and w["probe_requests"] == 1
+    assert w["cumulative"]["crawler_requests"] == 1 and w["cumulative"]["mcp_tool_calls"] == 1

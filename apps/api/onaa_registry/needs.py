@@ -80,11 +80,26 @@ _NAME_WORD = r"[A-Z][a-z'\-]+"
 # (label, pattern, replacement). Order matters: links and emails before numbers, numbers before short digit runs.
 _REDACTIONS: tuple[tuple[str, re.Pattern[str], str], ...] = (
     ("email", re.compile(r"[\w.+\-]+@[\w\-]+(?:\.[\w\-]+)+", re.I), "[email]"),
+    # Obfuscated: "jane at gmail dot com", "jane [at] gmail [dot] com", "jane(at)gmail.com", "jane 골뱅이 naver.com"
+    ("email", re.compile(r"[\w.+\-]+\s*(?:[\[({]\s*at\s*[\])}]|\s+at\s+|\s*골뱅이\s*)\s*[\w\-]+"
+                         r"(?:\s*(?:[\[({]\s*dot\s*[\])}]|\s+dot\s+|\.)\s*[a-z]{2,10})+", re.I), "[email]"),
+    # Known credential shapes, any length: sk-..., ghp_..., xoxb-..., AKIA..., Bearer ..., password: ...
+    ("secret", re.compile(r"\b(?:sk|pk|rk)[-_](?:live|test|proj|ant)?[-_]?[A-Za-z0-9_\-]{8,}|"
+                          r"\b(?:ghp|gho|ghs|github_pat|xox[abprs]|glpat|AKIA|ASIA|AIza)[A-Za-z0-9_\-]{8,}|"
+                          r"\bbearer\s+[A-Za-z0-9._~+/\-]{8,}=*|"
+                          r"\b(?:password|passwd|pwd|pin|otp|api[_ ]?key|token|secret|비밀번호|암호)\s*[:=]\s*\S+",
+                          re.I),
+     "[secret]"),
     ("secret", re.compile(r"\b(?=[A-Za-z0-9_\-]*\d)(?=[A-Za-z0-9_\-]*[A-Za-z])[A-Za-z0-9_\-]{24,}\b"), "[secret]"),
+    # Shorter random-looking strings: 16+ chars mixing upper, lower and digits (order ids, coupon-like keys).
+    ("secret", re.compile(r"\b(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[a-z])(?=[A-Za-z0-9]*[A-Z])[A-Za-z0-9]{16,}\b"),
+     "[secret]"),
     ("ssn", re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), "[ssn]"),
     ("card_or_account", re.compile(r"\b(?:\d[ \-]?){12,18}\d\b"), "[number]"),
     ("phone", re.compile(r"(?<![\w$])(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}\b"), "[phone]"),
     ("phone", re.compile(r"(?<![\w$])\+\d[\d\s.\-]{7,16}\d\b"), "[phone]"),
+    # Other countries: 010-1234-5678 (KR), 020 7946 0958 (UK), 03-1234-5678 (JP)
+    ("phone", re.compile(r"(?<![\w$])\(?0\d{1,3}\)?[\s.\-]\d{3,4}[\s.\-]\d{4}\b"), "[phone]"),
     ("long_number", re.compile(r"(?<![\w$.])\d{9,}\b"), "[number]"),
     ("ip_address", re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"), "[ip]"),
     ("date_of_birth", re.compile(r"\b(?:dob|d\.o\.b\.?|born(?: on)?|birthday|date of birth)\s*[:\-]?\s*"
@@ -95,7 +110,14 @@ _REDACTIONS: tuple[tuple[str, re.Pattern[str], str], ...] = (
     ("street_address", re.compile(r"\bp\.?\s?o\.?\s?box\s+\d+\b", re.I), "[address]"),
     ("zip_code", re.compile(r"\b\d{5}-\d{4}\b"), "[zip]"),
     ("zip_code", re.compile(rf"\b({_STATE_ALT}),?\s+\d{{5}}\b"), r"\1 [zip]"),
-    ("zip_code", re.compile(r"\b(?:zip|zip code|zipcode|postal code)\s*[:#]?\s*\d{5}\b", re.I), "[zip]"),
+    ("zip_code", re.compile(r"\b(?:zip|zip code|zipcode|postal code|우편번호)\s*[:#]?\s*\d{5}\b", re.I), "[zip]"),
+    ("zip_code", re.compile(r"〒\s?\d{3}-?\d{4}|\b\d{3}-\d{4}\b"), "[zip]"),  # JP postal code
+    ("zip_code", re.compile(r"\b[A-Z]{1,2}\d[A-Z\d]?\s+\d[A-Z]{2}\b"), "[zip]"),  # UK postcode
+    # Korean addresses: "테헤란로 123", "역삼동 45-6", "101동 1203호"
+    ("street_address", re.compile(r"[가-힣0-9]+(?:로|길|대로)\s*\d+(?:-\d+)?(?:번길)?|"
+                                  r"[가-힣]+동\s*\d+(?:-\d+)?(?:번지)?|\d+\s*동\s*\d+\s*호"), "[address]"),
+    # Korean name introductions: "제 이름은 홍길동", "저는 김철수입니다", "받는 사람: 이영희"
+    ("korean_name", re.compile(r"(?:제\s*이름은|이름은|이름:|저는|받는\s*사람:?|수령인:?)\s*[가-힣]{2,4}"), "[name]"),
     ("name", re.compile(r"\b(?i:my name is|my name's|name is|name:|i am|i'm|this is|call me|signed|regards,?|"
                         r"thanks,?|thank you,?|ship(?:ping)? to|deliver(?:y)? to|send (?:it )?to|recipient:?|"
                         r"for my (?:wife|husband|son|daughter|mom|dad|mother|father|friend|boss|partner))\s+"
@@ -340,9 +362,17 @@ def match_stores(session: Session, conditions: dict[str, Any], agent: str | None
 
 # ---------------------------------------------------------------- storage
 
-def _purge(session: Session, retention_days: int) -> None:
+def _purge(session: Session, retention_days: int) -> int:
     cutoff = utcnow() - dt.timedelta(days=max(0, retention_days))
-    session.execute(delete(BuyerNeed).where(BuyerNeed.created_at < cutoff))
+    return session.execute(delete(BuyerNeed).where(BuyerNeed.created_at < cutoff)).rowcount or 0
+
+
+def purge_expired_needs(session: Session, retention_days: int) -> int:
+    """Delete need texts older than the retention window, even when nobody writes or reads (runs from the
+    once-a-minute sweep). This is what removes rows kept under the earlier 30-day setting."""
+    if retention_days <= 0:
+        return session.execute(delete(BuyerNeed)).rowcount or 0
+    return _purge(session, retention_days)
 
 
 def record(session: Session, redacted: str, conditions: dict[str, Any], *, matched: int, origin: str,

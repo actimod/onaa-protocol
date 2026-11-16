@@ -173,6 +173,7 @@ def test_find_stores_trust_filters(client):
         assert everything > 0
         # Every seeded store was found on the web (unclaimed) and never health-checked.
         assert client.get(path, params={"claimed_only": "true"}).json()["total"] == 0
-        assert client.get(path, params={"reachable_only": "true"}).json()["total"] == 0
+        # reachable_only hides only "unreachable" (same as /v1/services); unknown stays.
+        assert client.get(path, params={"reachable_only": "true"}).json()["total"] == everything
     item = client.get("/v1/stores").json()["items"][0]
     assert item["trust"]["claimed"] is False and item["trust"]["reachability"] == "unknown"

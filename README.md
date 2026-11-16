@@ -60,7 +60,7 @@ Check the hosted directory and MCP endpoint without changing anything: `python a
 Requires Python 3.12+.
 
 ```bash
-git clone <this repository> onaa-protocol && cd onaa-protocol/examples/direct-trade-demo
+git clone https://github.com/actimod/onaa-protocol.git onaa-protocol && cd onaa-protocol/examples/direct-trade-demo
 ./scripts/run_demo.sh
 ```
 

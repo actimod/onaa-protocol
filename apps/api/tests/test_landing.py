@@ -29,7 +29,7 @@ def test_home_leads_with_stores_agents_can_buy_from(client, op):
     assert client.post("/v1/services", headers=headers, json=SERVICE).status_code == 201
     _store(client)
     page = client.get("/", headers=HTML).text
-    assert "Stores your AI agent can actually buy from" in page and "tested checkout requirements" in page
+    assert "Stores where your AI agent can reach checkout" in page and "tested checkout requirements" in page
     assert "Classifieds" not in page and "classifieds" not in page
     assert "shoes.example.com" in page and "Checkout reached, buyer step needed" in page
     assert "How to buy here" in page and "Store manifest" in page
@@ -89,7 +89,35 @@ def test_discovered_listing_is_marked_unclaimed(client):
 
 def test_root_json_keeps_machine_contract(client):
     data = client.get("/", headers={"accept": "application/json"}).json()
-    assert data["name"] == "ONAA (Open Network for AI Agents)" and "buy from" in data["description"]
+    assert data["name"] == "ONAA (Open Network for AI Agents)" and "reach checkout" in data["description"]
     assert data["links"]["mcp"].endswith("/mcp")
     wk = client.get("/.well-known/onaa-registry.json").json()
     assert wk["search"]["agents"].endswith("/v1/agents") and "status" not in wk
+
+
+def test_every_internal_homepage_link_resolves(client, op):
+    """No link on the homepage (nav, footer, developer list) points at a missing page, e.g. the old /v1 404."""
+    import re
+    from urllib.parse import urlsplit
+
+    _store(client, "checkout_ready")
+    base = client.app.state.settings.public_base_url.rstrip("/")
+    page = client.get("/", headers=HTML).text
+    hrefs = {h.replace("&amp;", "&") for h in re.findall(r'href="([^"#]+)', page)}
+    internal = sorted({h[len(base):] or "/" for h in hrefs if h.startswith(base)}
+                      | {h for h in hrefs if h.startswith("/")})
+    assert "/v1" in internal and len(internal) > 5
+    for path in internal:
+        if urlsplit(path).path in ("/mcp", "/.well-known/agent-card.json"):
+            continue  # served by the hosted wrapper (apps/mcp-registry), not this app; smoke_readonly.py covers them
+        r = client.get(path, headers=HTML)
+        assert r.status_code < 400, (path, r.status_code)
+    assert client.get("/v1").json()["links"]["openapi"].endswith("/openapi.json")
+
+
+def test_policy_pages_ask_caches_to_revalidate(client):
+    """Opt-out, privacy and onboarding text must not be served stale by a proxy or crawler cache."""
+    for path in ("/opt-out", "/privacy", "/llms.txt", "/v1/terms", "/openapi.json", "/v1"):
+        r = client.get(path)
+        assert r.status_code == 200 and r.headers.get("cache-control") == "no-cache", path
+    assert client.get("/stores.json").headers["cache-control"] != "no-cache"  # feeds keep their own caching

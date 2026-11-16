@@ -10,6 +10,12 @@ send it), removal is in two steps:
    hashes of the URL/host are kept so the entry is not re-imported. Without proof, the entries come back when the
    window ends.
 
+Abuse limits (founder decision 2026-11-16, live re-verification P1-02): an unproven hide is not renewable. While a
+hiding request for a host is running, or for REHIDE_COOLDOWN_DAYS after one expired unproven or was restored by an
+admin, a new request for that host hides nothing; it still returns a token so the real owner can prove control and
+have the entries erased. Repeat requests never extend a running window. Requests are limited per client IP per day,
+and an admin can restore a hide that looks abusive (POST /v1/admin/opt-out/{id}/restore).
+
 Registered listings are never touched by this route. The optional reason text is never stored. Every step is
 written to the audit log (counts and ids only).
 """
@@ -28,7 +34,7 @@ from .. import schemas
 from ..db import get_session
 from ..logic import audit, aware, host_of, normalise_url, set_facet_kind, utcnow
 from ..models import Listing, OptOutClaim, Suppression
-from ..security import sha256_hex, write_limit
+from ..security import client_ip, require_admin, sha256_hex, write_limit
 from ..verification import CHALLENGE_PATH, check_host_proof, dns_record_name
 
 router = APIRouter(tags=["opt-out"])
@@ -37,6 +43,10 @@ OPT_OUT_PROOF_DAYS = 7
 PENDING_PER_HOST = 3
 MAX_PROOF_ATTEMPTS = 20
 HIDDEN_REASON = "opt_out_pending"
+REHIDE_COOLDOWN_DAYS = 30
+PROOF_ONLY_NOTE = ("This host already had a removal request without proof that is still running or ended in the last "
+                   f"{REHIDE_COOLDOWN_DAYS} days, so nothing was hidden now. Prove control of the host before "
+                   "expires_at and POST confirm_url; the matched discovered entries are then erased for good.")
 
 
 def suppression_keys(url: str | None = None, host: str | None = None) -> list[str]:
@@ -58,7 +68,8 @@ def is_suppressed(session: Session, *, url: str | None, host: str | None) -> boo
     if not host:
         return False
     now = utcnow()
-    for claim in session.scalars(select(OptOutClaim).where(OptOutClaim.host == host, OptOutClaim.state == "pending")):
+    for claim in session.scalars(select(OptOutClaim).where(OptOutClaim.host == host, OptOutClaim.state == "pending",
+                                                           OptOutClaim.hides.is_(True))):
         if aware(claim.expires_at) > now and set(keys) & set(claim.key_hashes or []):
             return True
     return False
@@ -85,17 +96,43 @@ def _hidden(session: Session, claim: OptOutClaim) -> list[Listing]:
                                                       Listing.status_reason == HIDDEN_REASON)))
 
 
+def _matching(session: Session, claim: OptOutClaim) -> list[Listing]:
+    """The entries a proof-only request matched (it hid nothing, so they are still listed)."""
+    ids = claim.listing_ids or []
+    if not ids:
+        return []
+    return list(session.scalars(select(Listing).where(Listing.id.in_(ids), Listing.operator_id.is_(None),
+                                                      Listing.lifecycle_status == "discovered")))
+
+
+def may_hide(session: Session, host: str) -> bool:
+    """False while a hiding request for this host runs, or within REHIDE_COOLDOWN_DAYS after one ended unproven."""
+    since = utcnow() - dt.timedelta(days=REHIDE_COOLDOWN_DAYS)
+    running = select(OptOutClaim.id).where(OptOutClaim.host == host, OptOutClaim.state == "pending",
+                                           OptOutClaim.hides.is_(True))
+    recent = select(OptOutClaim.id).where(OptOutClaim.host == host, OptOutClaim.hides.is_(True),
+                                          OptOutClaim.state.in_(("expired", "restored")),
+                                          OptOutClaim.resolved_at >= since)
+    return session.scalar(running.limit(1)) is None and session.scalar(recent.limit(1)) is None
+
+
+def _restore(session: Session, claim: OptOutClaim, state: str) -> int:
+    now = utcnow()
+    restored = 0
+    for listing in _hidden(session, claim):
+        listing.lifecycle_status, listing.status_reason, listing.updated_at = "discovered", None, now
+        restored += 1
+    claim.state, claim.resolved_at = state, now
+    return restored
+
+
 def expire_opt_outs(session: Session) -> int:
     """Restore the entries of requests whose proof window ended without proof. Returns how many requests."""
     now = utcnow()
     claims = [c for c in session.scalars(select(OptOutClaim).where(OptOutClaim.state == "pending",
                                                                     OptOutClaim.expires_at <= now))]
     for claim in claims:
-        restored = 0
-        for listing in _hidden(session, claim):
-            listing.lifecycle_status, listing.status_reason, listing.updated_at = "discovered", None, now
-            restored += 1
-        claim.state, claim.resolved_at = "expired", now
+        restored = _restore(session, claim, "expired")
         audit(session, "system", None, "discovered.opt_out_expired", claim.id, restored=restored)
     return len(claims)
 
@@ -108,6 +145,7 @@ def opt_out(body: schemas.OptOutRequest, request: Request, session: Session = De
     host = host_of(url)
     if not host:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "url must include a host")
+    request.app.state.opt_out_limiter.check(f"optout:{client_ip(request)}")
     expire_opt_outs(session)
     pending = session.scalars(select(OptOutClaim.id).where(OptOutClaim.host == host,
                                                            OptOutClaim.state == "pending")).all()
@@ -117,27 +155,33 @@ def opt_out(body: schemas.OptOutRequest, request: Request, session: Session = De
                             "host with one of them, or wait until they expire")
     match = (or_(Listing.agent_card_url == url, Listing.documentation_url == url, Listing.endpoint_url == url)
              if body.scope == "url" else Listing.endpoint_host == host)
+    hides = may_hide(session, host)
+    matched = list(session.scalars(select(Listing).where(match, Listing.operator_id.is_(None),
+                                                         Listing.lifecycle_status == "discovered")))
     hidden = []
-    for listing in session.scalars(select(Listing).where(match, Listing.operator_id.is_(None),
-                                                         Listing.lifecycle_status == "discovered")):
-        listing.lifecycle_status, listing.status_reason, listing.updated_at = "suspended", HIDDEN_REASON, utcnow()
-        hidden.append(listing.id)
+    if hides:
+        for listing in matched:
+            listing.lifecycle_status, listing.status_reason, listing.updated_at = "suspended", HIDDEN_REASON, utcnow()
+            hidden.append(listing.id)
     token = "onaa-optout-" + secrets.token_urlsafe(32)
-    claim = OptOutClaim(host=host, scope=body.scope, nonce_hash=sha256_hex(token), listing_ids=hidden,
+    claim = OptOutClaim(host=host, scope=body.scope, nonce_hash=sha256_hex(token),
+                        listing_ids=hidden if hides else [m.id for m in matched],
                         key_hashes=suppression_keys(url if body.scope == "url" else None,
                                                     host if body.scope == "host" else None),
-                        expires_at=utcnow() + dt.timedelta(days=OPT_OUT_PROOF_DAYS))
+                        expires_at=utcnow() + dt.timedelta(days=OPT_OUT_PROOF_DAYS), hides=hides)
     session.add(claim)
     session.flush()
     # The reason text is not stored: it may contain personal data. Only counts and ids are audited.
     audit(session, "anonymous", None, "discovered.opt_out_requested", claim.id, scope=body.scope,
-          hidden=len(hidden))
+          hidden=len(hidden), hides=hides)
     base = request.app.state.settings.public_base_url.rstrip("/")
     return schemas.OptOutResult(
-        status="hidden" if hidden else "pending", removed_listing_ids=hidden, request_id=claim.id, token=token,
+        status="hidden" if hidden else ("pending" if hides else "proof_required"), removed_listing_ids=hidden,
+        request_id=claim.id, token=token,
         expires_at=aware(claim.expires_at).isoformat(),
         well_known_url=f"https://{host}" + CHALLENGE_PATH.format(cid=claim.id), dns_record_name=dns_record_name(host),
-        confirm_url=f"{base}/v1/discovered/opt-out/{claim.id}/confirm")
+        confirm_url=f"{base}/v1/discovered/opt-out/{claim.id}/confirm",
+        **({} if hides else {"note": PROOF_ONLY_NOTE}))
 
 
 @router.post("/v1/discovered/opt-out/{request_id}/confirm", response_model=schemas.OptOutConfirmResult,
@@ -164,7 +208,8 @@ def confirm_opt_out(request_id: str, body: schemas.OptOutConfirm, request: Reque
         session.commit()
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"proof not found: {error}")
     erased = []
-    for listing in _hidden(session, claim):
+    targets = _hidden(session, claim) if claim.hides else _matching(session, claim)
+    for listing in targets:
         _erase(listing)
         erased.append(listing.id)
     for key in claim.key_hashes or []:
@@ -174,6 +219,21 @@ def confirm_opt_out(request_id: str, body: schemas.OptOutConfirm, request: Reque
     audit(session, "anonymous", None, "discovered.opt_out_confirmed", claim.id, method=body.method,
           removed=len(erased))
     return schemas.OptOutConfirmResult(status="removed", removed_listing_ids=erased)
+
+
+@router.post("/v1/admin/opt-out/{request_id}/restore", tags=["admin"],
+             summary="Admin: list again the entries an unproven removal request hid (suspected abuse)")
+def restore_opt_out(request_id: str, admin: str = Depends(require_admin), session: Session = Depends(get_session)):
+    claim = session.get(OptOutClaim, request_id)
+    if claim is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no such removal request")
+    if claim.state == "confirmed":
+        raise HTTPException(status.HTTP_409_CONFLICT, "the host proved control; the entries were erased")
+    if claim.state != "pending":
+        return {"request_id": claim.id, "state": claim.state, "restored": 0}
+    restored = _restore(session, claim, "restored")
+    audit(session, admin, None, "discovered.opt_out_restored", claim.id, restored=restored)
+    return {"request_id": claim.id, "state": "restored", "restored": restored}
 
 
 @router.get("/opt-out", response_class=HTMLResponse, include_in_schema=False)
@@ -197,6 +257,10 @@ request alone does not show who sent it, removal has two steps:</p>
 <code>well_known_url</code> in the answer, or a DNS TXT record at <code>dns_record_name</code>) and call the
 <code>confirm_url</code>. The content is then erased and we keep only a one-way hash of the URL or host so it is
 not added again. Without proof, the entries are listed again after 7 days.</li></ol>
+<p>To prevent abuse, a host can be hidden without proof only once in 30 days: a new request during a running
+request, or within 30 days after one ended without proof, hides nothing but still returns a token, so the real
+owner can prove control and have the entries erased. Requests are limited per sender per day, and ONAA may list
+entries again if a request looks abusive.</p>
 <h2>How to remove it</h2>
 <p>Send the URL of your Agent Card, documentation or website:</p>
 <pre>curl -X POST {base}/v1/discovered/opt-out \\
