@@ -28,13 +28,12 @@ from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from .checkout_checker import SHIP_TEST
-from .logic import PUBLIC_STATUSES, aware
+from .logic import PAYMENT_EVIDENCE, PUBLIC_STATUSES, aware
 from .models import Listing, ListingFacet, utcnow
 
 Verdict = Literal["yes", "yes_buyer_finishes", "maybe", "no", "unknown"]
 # ONAA's checker always stops before payment. Every answer and store record says so in fields, so "yes" is never
 # read as a tested purchase: yes = an agent checkout path was observed (payment not tested).
-PAYMENT_EVIDENCE = {"payment_tested": False, "payment_success_verified": False, "post_link_autonomy_verified": False}
 VERDICT_NOTE = ("verdict yes = agent checkout path observed (payment not tested); yes_buyer_finishes = an agent can "
                 "build the order, the buyer finishes it. ONAA never pays, so no payment outcome is verified.")
 VERDICT_RANK = {"yes": 0, "yes_buyer_finishes": 1, "maybe": 2, "unknown": 3, "no": 4}
@@ -133,7 +132,7 @@ def how_to_buy(ac: dict | None, *, country: str | None = None) -> dict[str, Any]
                      "protocol and are untested.")
     if status == "auth_required":
         steps.append("This endpoint refused an anonymous agent. Only " + (req.get("accepted_agents_hint")
-                     or "authenticated or partner agents") + " can buy here; others cannot reach checkout.")
+                     or "authenticated or partner agents") + " can reach checkout here; others cannot.")
     if status == "no_checkout":
         steps.append("The probe found no usable catalog search or checkout tool; an agent cannot buy here today.")
     steps.append("Connect: " + _protocol_text(req) + ".")
@@ -192,7 +191,7 @@ def published_ships(view: dict, cc: str) -> bool | None:
 def assess(listing: Listing, *, country: str | None = None, agent: str | None = None,
            payment: list[str] | None = None, pay_alone: bool = False,
            now: dt.datetime | None = None) -> dict[str, Any]:
-    """Answer "can this agent buy here (shipping to `country`, paying with `payment`)?" from the last probe."""
+    """Answer "can this agent reach checkout here (shipping to `country`, paying with `payment`)?" from the probe."""
     ac = listing.agent_checkout or {}
     req = ac.get("requirements") or {}
     status = ac.get("status")
@@ -371,9 +370,13 @@ def _compact(value: Any) -> Any:
 # BUYING_CACHE_SECONDS and refreshed in the background while the previous list keeps being served. Probe results
 # change at most every few minutes (the checker), so answers stay as fresh as the store feed. 0 = no cache (tests).
 BUYING_CACHE_SECONDS = float(os.environ.get("ONAA_BUYING_CACHE_SECONDS", "0"))
-_cache: dict[tuple[str, ...] | None, tuple[float, list[StoreView]]] = {}
+# Refreshes read only the stores changed since the last read (by updated_at; see stores._build for why), with a
+# full read once per FULL_RELOAD_SECONDS. Value: (loaded_at, stores, watermark, full_at).
+FULL_RELOAD_SECONDS = float(os.environ.get("ONAA_STORE_FULL_REBUILD_SECONDS", "86400"))
+_cache: dict[tuple[str, ...] | None, tuple] = {}
 _cache_lock = threading.Lock()
 _refreshing: set[tuple[str, ...] | None] = set()
+COLD_WAIT_SECONDS = float(os.environ.get("ONAA_STORE_COLD_WAIT_SECONDS", "25"))
 log = logging.getLogger("onaa.buying")
 
 
@@ -385,11 +388,41 @@ def _cached_stores(session: Session, statuses: tuple[str, ...] | None) -> list[S
         if time.monotonic() - hit[0] >= BUYING_CACHE_SECONDS:
             _refresh_in_background(session, statuses)
         return hit[1]  # fresh, or stale while a refresh runs
-    with _cache_lock:  # cold: one request builds, concurrent ones wait for it instead of building again
+    # Cold: one request builds, concurrent ones wait for it instead of building again, but not forever (see
+    # stores.snapshot): they give back their pool connection and get a 503 if the list is not ready in time.
+    session.close()
+    if not _cache_lock.acquire(timeout=COLD_WAIT_SECONDS):
+        from fastapi import HTTPException, status
+
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "the store list is being loaded; retry shortly",
+                            headers={"Retry-After": "30"})
+    try:
         hit = _cache.get(statuses)
         if hit is None:
-            hit = _cache[statuses] = (time.monotonic(), _stores(session, statuses))
+            hit = _cache[statuses] = _load(session, statuses, None)
+    finally:
+        _cache_lock.release()
     return hit[1]
+
+
+def _watermark(session: Session):
+    return session.scalar(select(func.max(Listing.updated_at)).where(Listing.service_type == "marketplace"))
+
+
+def _load(session: Session, statuses: tuple[str, ...], prev: tuple | None) -> tuple:
+    now = time.monotonic()
+    watermark = _watermark(session)
+    if prev is None or prev[2] is None or watermark is None or now - prev[3] >= FULL_RELOAD_SECONDS:
+        return (now, _stores(session, statuses), watermark, now)
+    rows = session.execute(select(*_VIEW_COLUMNS).where(
+        Listing.service_type == "marketplace", Listing.updated_at >= prev[2]))
+    by_id = {v.id: v for v in prev[1]}
+    for row in rows:
+        view = StoreView(*row[:6], _compact(row[6]), *row[7:])
+        by_id.pop(view.id, None)
+        if view.lifecycle_status in PUBLIC_STATUSES and (view.agent_checkout or {}).get("status") in statuses:
+            by_id[view.id] = view
+    return (now, sorted(by_id.values(), key=lambda v: v.id), watermark, prev[3])
 
 
 def _refresh_in_background(session: Session, statuses: tuple[str, ...] | None) -> None:
@@ -402,7 +435,7 @@ def _refresh_in_background(session: Session, statuses: tuple[str, ...] | None) -
     def run() -> None:
         try:
             with Session(bind=bind) as s:
-                _cache[statuses] = (time.monotonic(), _stores(s, statuses))
+                _cache[statuses] = _load(s, statuses, _cache.get(statuses))
         except Exception:  # noqa: BLE001 - keep serving the previous list
             log.warning("buying store list refresh failed", exc_info=True)
         finally:
@@ -482,14 +515,18 @@ def find_stores(session: Session, *, country: str | None = None, agent: str | No
     """Stores matching the buyer's conditions, best answers first."""
     wanted = {"buyable": ("yes", "yes_buyer_finishes"), "possible": ("yes", "yes_buyer_finishes", "maybe"),
               "all": tuple(VERDICT_RANK)}[include]
-    rows = [assess(s, country=country, agent=agent, payment=payment, pay_alone=pay_alone)
-            for s in _cached_stores(session, None if include == "all" else POSSIBLE_STATUSES)
-            if _matches_text(s, q) and (not claimed_only or s.claimed)
-            and (not reachable_only or s.reachability != "unreachable")]
-    rows = [r for r in rows if r["verdict"] in wanted]
+    pairs = [(s, assess(s, country=country, agent=agent, payment=payment, pay_alone=pay_alone))
+             for s in _cached_stores(session, None if include == "all" else POSSIBLE_STATUSES)
+             if _matches_text(s, q) and (not claimed_only or s.claimed)
+             and (not reachable_only or s.reachability != "unreachable")]
+    pairs = [(s, r) for s, r in pairs if r["verdict"] in wanted]
+    rows = [r for _, r in pairs]
     rows.sort(key=lambda r: (VERDICT_RANK[r["verdict"]], r["pay_alone"] != "after_one_time_link",
                              r["ships_to_country"] is not True, (r["store"]["name"] or "").lower()))
+    from .stores import reachability_counts  # stores imports this module
+
     return {"total": len(rows), "offset": offset, "items": rows[offset:offset + limit],
+            "reachability_counts": reachability_counts(s.reachability or "unknown" for s, _ in pairs),
             "conditions": {"country": _country(country), "agent": agent, "payment": normalise_payment(payment),
                            "pay_alone": pay_alone, "query": q, "include": include, "claimed_only": claimed_only,
                            "reachable_only": reachable_only},

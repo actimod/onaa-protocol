@@ -78,7 +78,7 @@ def test_store_pages_are_crawlable_and_escaped(client):
     index = client.get("/stores")
     assert index.status_code == 200 and 'href="/stores/alpha.example"' in index.text
     page = client.get("/stores/alpha.example")
-    assert page.status_code == 200 and "Can an AI agent buy from alpha.example?" in page.text
+    assert page.status_code == 200 and "Can an AI agent check out at alpha.example?" in page.text
     assert 'type="application/json"' in page.text
     assert client.get("/stores/<script>").status_code == 404
 
@@ -294,3 +294,59 @@ def test_payment_is_never_claimed_as_tested(client):
     page = client.get("/stores/ready.example").text
     assert "can buy here" not in page and "Payment tested" in page and "payment not tested" in page
     assert "can actually buy" not in client.get("/", headers={"accept": "text/html"}).text
+
+
+def test_cold_store_request_gives_up_with_503_instead_of_piling_up(client, monkeypatch):
+    """While a first build holds the lock (slow DB), requests answer 503 after a bounded wait, not hang forever."""
+    from onaa_registry import buying, stores
+
+    _seed(client)
+    stores.reset_snapshot()
+    buying.reset_cache()
+    monkeypatch.setattr(stores, "COLD_WAIT_SECONDS", 0.2)
+    monkeypatch.setattr(buying, "COLD_WAIT_SECONDS", 0.2)
+    monkeypatch.setattr(buying, "BUYING_CACHE_SECONDS", 300)
+    assert stores._build_lock.acquire(timeout=5) and buying._cache_lock.acquire(timeout=5)
+    try:
+        r = client.get("/v1/stores")
+        assert r.status_code == 503 and r.headers["retry-after"] == "30"
+        assert client.get("/v1/buying/stores", params={"country": "US"}).status_code == 503
+        assert client.get("/v1/health").status_code == 200
+    finally:
+        stores._build_lock.release()
+        buying._cache_lock.release()
+    assert client.get("/v1/stores").status_code == 200
+    assert client.get("/v1/buying/stores", params={"country": "US"}).status_code == 200
+
+
+def test_snapshot_refresh_reads_only_changed_stores(client, monkeypatch):
+    """Refreshes must not read every store again (that used up the database's monthly network transfer)."""
+    from onaa_registry import stores
+
+    _seed(client)
+    base = client.app.state.settings.public_base_url.rstrip("/")
+    with client.app.state.sessionmaker() as s:
+        first = stores._build(s, base, (stores._fingerprint(s), base))
+    _store(client, "late.example", "checkout_ready", ships_to=["US"], delivery_test="address")
+    read = []
+    real = stores._public_rows
+    monkeypatch.setattr(stores, "_public_rows", lambda s, b, ids, p: read.append(len(ids)) or real(s, b, ids, p))
+    with client.app.state.sessionmaker() as s:
+        second = stores._build(s, base, (stores._fingerprint(s), base), prev=first)
+    assert len(read) == 1 and read[0] <= 2  # the new store (and any written in the same instant), not all
+    assert second.count == first.count + 1 and second.full_at == first.full_at
+    assert "late.example" in {r.key for r in second.rows}
+    # A store that leaves the public list is dropped; a full read happens when the window has passed.
+    with client.app.state.sessionmaker() as s:
+        from onaa_registry.models import Listing
+
+        s.query(Listing).filter(Listing.display_name == "late.example").update({"lifecycle_status": "suspended",
+                                                                                "updated_at": stores.utcnow()})
+        s.commit()
+        third = stores._build(s, base, (stores._fingerprint(s), base), prev=second)
+    assert third.count == first.count and "late.example" not in {r.key for r in third.rows}
+    monkeypatch.setattr(stores, "FULL_REBUILD_SECONDS", 0)
+    read.clear()
+    with client.app.state.sessionmaker() as s:
+        stores._build(s, base, (stores._fingerprint(s), base), prev=third)
+    assert read == [first.count]

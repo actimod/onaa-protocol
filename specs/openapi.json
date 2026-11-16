@@ -3070,7 +3070,7 @@
                 "type": "null"
               }
             ],
-            "description": "Buying channels: ONAA's last probe of whether an outside agent can search and reach checkout (stops before payment). status checkout_ready, buyer_step_required, auth_required, no_checkout or failed, with checked_at. An observation, not a verification or endorsement.",
+            "description": "Buying channels: ONAA's last probe of whether an outside agent can search and reach checkout (stops before payment). status checkout_ready, buyer_step_required, auth_required, no_checkout or failed, with checked_at. An observation, not a verification or endorsement. payment_tested, payment_success_verified and post_link_autonomy_verified are always false: ONAA never pays.",
             "title": "Agent Checkout"
           },
           "capabilities": {
@@ -5157,7 +5157,7 @@
             "description": "Successful Response"
           }
         },
-        "summary": "All stores AI buying agents can buy from, with checkout requirements (one file)",
+        "summary": "All stores probed for AI agent checkout, with checkout requirements (one file)",
         "tags": [
           "stores"
         ]
@@ -7631,7 +7631,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Can I buy at these stores, and how? (ids, domains or product URLs, up to 25)",
+        "summary": "Can I reach checkout at these stores, and how? (ids, domains or product URLs, up to 25)",
         "tags": [
           "buying"
         ]
@@ -7835,6 +7835,18 @@
               "title": "Reachable Only",
               "type": "boolean"
             }
+          },
+          {
+            "description": "clearer name for reachable_only (same rule)",
+            "in": "query",
+            "name": "exclude_unreachable",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "clearer name for reachable_only (same rule)",
+              "title": "Exclude Unreachable",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -7857,7 +7869,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Stores an agent can buy from under your conditions (ship-to, payment, pay alone)",
+        "summary": "Stores where an agent can reach checkout under your conditions (ship-to, payment)",
         "tags": [
           "buying"
         ]
@@ -10179,6 +10191,18 @@
             }
           },
           {
+            "description": "clearer name for reachable_only (same rule): drop only stores whose last 3 health probes failed",
+            "in": "query",
+            "name": "exclude_unreachable",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "clearer name for reachable_only (same rule): drop only stores whose last 3 health probes failed",
+              "title": "Exclude Unreachable",
+              "type": "boolean"
+            }
+          },
+          {
             "in": "query",
             "name": "limit",
             "required": false,
@@ -10222,7 +10246,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Find stores an AI agent can buy from (filter by shipping country, pay-alone, ...)",
+        "summary": "Find stores where an AI agent can reach checkout (filter: ship-to, pay-alone, ...)",
         "tags": [
           "stores"
         ]
@@ -10344,7 +10368,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Can an AI agent buy here? Any product URL, store domain or svc_ id",
+        "summary": "Can an AI agent reach checkout here? Any product URL, store domain or svc_ id",
         "tags": [
           "stores"
         ]

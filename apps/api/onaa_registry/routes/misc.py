@@ -273,7 +273,7 @@ def llms_txt(request: Request):
 {enabled}
 ## Buying agents: start here
 
-Can my agent buy at this store, and how?   (any product URL, store domain or svc_ id; up to 25)
+Can my agent reach checkout here, and how? (any product URL, store domain or svc_ id; up to 25)
   GET  {base}/v1/stores/check?url=https://<store>/products/<item>&country=US
   POST {base}/v1/stores/check  {{"stores": ["<url or domain>", ...], "country": "US", "pay_alone": true}}
   Answer per store: verdict (yes, yes_buyer_finishes, maybe, no, unknown), reasons, cautions, how_to_buy steps.
@@ -281,7 +281,7 @@ Can my agent buy at this store, and how?   (any product URL, store domain or svc
   payment_success_verified=false and post_link_autonomy_verified=false: ONAA never pays.
   Found a product with Shop MCP or a store's own search? Pass those shop URLs here to see which ones your agent
   can actually check out at. A store ONAA has not listed is looked up live at its /.well-known/ucp.
-Which stores can my agent buy from?
+Where can my agent reach checkout?
   GET {base}/v1/stores?ships_to=US&pays_alone=true    (also checkout=, protocol=ucp|shop-mcp, payment_handler=,
       currency=, q=)
   GET {base}/v1/buying/stores?country=US&payment=shop_pay&agent=gemini   (ranked by verdict)
@@ -440,7 +440,7 @@ def mcp_card(request: Request) -> JSONResponse:
     base = request.app.state.settings.public_base_url.rstrip("/")
     return JSONResponse({
         "name": "onaa-registry",
-        "title": "ONAA: stores AI buying agents can buy from",
+        "title": "ONAA: stores where AI buying agents reach checkout",
         "description": SUMMARY,
         "version": __version__,
         "remotes": [{"type": "streamable-http", "url": f"{base}/mcp", "auth": "none"}],

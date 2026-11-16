@@ -29,7 +29,7 @@ CHECKOUT_LABELS = {
 
 # Sections a human can open from the board. Values: (heading, listing types, facet filters, service types).
 SECTIONS: dict[str, tuple[str, tuple[str, ...], dict[str, list[str]], list[str] | None]] = {
-    "stores": ("Stores agents can buy from", ("service",), {}, ["marketplace"]),
+    "stores": ("Stores where agents reach checkout", ("service",), {}, ["marketplace"]),
     "stores-ready": ("Checkout tested (payment not tested)", ("service",), {"agent_checkout": ["checkout_ready"]},
                      ["marketplace"]),
     "stores-buyer-step": ("Checkout reached, buyer step needed", ("service",),
@@ -176,8 +176,14 @@ def _item(rec: schemas.RegistryRecord, base: str) -> str:
     if len(desc) > 220:
         desc = desc[:217].rstrip() + "..."
     regions = ", ".join(rec.regions[:6]) + (" +" if len(rec.regions) > 6 else "")
-    links = [f'<a href="{_e(base)}/v1/{kind}/{_e(rec.id)}" rel="nofollow">'
-             + ("How to buy here" if rec.service_type == "marketplace" else "Listing data") + "</a>"]
+    if rec.service_type == "marketplace":
+        from .stores import store_domain  # the human store page; the JSON stays one click away for agents
+
+        key = store_domain(rec) or rec.id
+        links = [f'<a href="/stores/{_e(key)}">How to buy here</a>',
+                 f'<a href="{_e(base)}/v1/stores/{_e(key)}" rel="nofollow">JSON</a>']
+    else:
+        links = [f'<a href="{_e(base)}/v1/{kind}/{_e(rec.id)}" rel="nofollow">Listing data</a>']
     checkout = (rec.agent_checkout or {}).get("status") if rec.service_type == "marketplace" else None
     if rec.agent_card_url:
         links.append(f'<a href="{_e(rec.agent_card_url)}" rel="nofollow noopener ugc">Agent card</a>')
@@ -217,7 +223,7 @@ def render_home(session: Session, base: str, links: dict[str, str], *, q: str | 
         if section == "hosting":
             types = ("hosting",)
     else:
-        heading, types, filters, stypes = "Stores agents can buy from", ("service",), {}, ["marketplace"]
+        heading, types, filters, stypes = "Stores where agents reach checkout", ("service",), {}, ["marketplace"]
     # Listings an operator posted come first; "unclaimed" entries ONAA found on the public web come after them.
     common = dict(listing_types=types, q=q, filters=filters, service_type=stypes,
                   verified_only=False, certified_only=False, claimed_only=False, offset=0,
@@ -260,7 +266,7 @@ def render_home(session: Session, base: str, links: dict[str, str], *, q: str | 
             if total > len(shown) else "")
     dev_links = "".join(f'<li><a href="{_e(v)}">{_e(k.replace("_", " "))}</a></li>' for k, v in links.items())
     mcp = links["mcp"]
-    title = "ONAA: stores AI agents can buy from"
+    title = "ONAA: stores where AI agents reach checkout"
     desc = TAGLINE
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
