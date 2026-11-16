@@ -10,7 +10,7 @@ We aim to acknowledge reports within 5 business days. There is no bug bounty at 
 
 ## Scope
 
-In scope: the registry API (`apps/api`), the MCP adapter (`apps/mcp-registry`), the SDKs (`packages/`), the demo (`examples/`) and the specifications (`specs/`), for example SSRF, injection, authentication or authorization bypass, signature or verification bypass, and trust-level confusion.
+In scope: the directory API (`apps/api`), the MCP adapter (`apps/mcp-registry`), the SDKs (`packages/`), the demo (`examples/`) and the specifications (`specs/`), for example SSRF, injection, authentication or authorization bypass, signature or verification bypass, and trust-level confusion.
 
 ## Security model in brief
 

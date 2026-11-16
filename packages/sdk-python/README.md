@@ -1,6 +1,6 @@
 # onaa-sdk (Python)
 
-Python client for the ONAA (Open Network for AI Agents) Registry API v1. The Registry handles discovery and
+Python client for the ONAA (Open Network for AI Agents) Directory API v1. The Directory handles discovery and
 trust metadata only: after you find a seller or service, connect to its endpoint **directly** (A2A/HTTPS).
 
 Status: development, not published to PyPI.

@@ -132,3 +132,47 @@ def test_stale_and_never_checked():
     assert buying.store_key("HTTPS://WWW.A.Example/x") == "a.example"
     assert buying.normalise_payment(["Google Pay", "credit-card", "Shop Pay"]) == ["gpay", "shop_pay",
                                                                                     "shopify.card"]
+
+
+def test_find_stores_candidate_cache_serves_stale_then_refreshes(client, monkeypatch):
+    """Production keeps the candidate list in memory; a new probe result shows up after the next refresh."""
+    import time
+
+    monkeypatch.setattr(buying, "BUYING_CACHE_SECONDS", 3600)
+    buying.reset_cache()
+    try:
+        _seed(client)
+        before = client.get("/v1/buying/stores", params={"include": "possible"}).json()["total"]
+        _store(client, "cachetest.example.com", "checkout_ready", CARD_ONLY)
+        assert client.get("/v1/buying/stores", params={"include": "possible"}).json()["total"] == before  # cached
+        key = buying.POSSIBLE_STATUSES
+        stale_at = buying._cache[key][0] - 7200
+        buying._cache[key] = (stale_at, buying._cache[key][1])  # expire it
+        client.get("/v1/buying/stores", params={"include": "possible"})  # stale served, refresh started
+        for _ in range(200):  # wait for the background rebuild itself, not a proxy for it
+            if buying._cache[key][0] > stale_at and key not in buying._refreshing:
+                break
+            time.sleep(0.05)
+        assert client.get("/v1/buying/stores", params={"include": "possible"}).json()["total"] == before + 1
+    finally:
+        buying.reset_cache()
+
+
+def test_candidate_probe_json_is_interned():
+    """The cached candidate list keeps one copy of each repeated string (country codes, handler names)."""
+    a = buying._compact({"requirements": {"published_ships_to": ["U" + "S", "CA"]}})
+    b = buying._compact({"requirements": {"published_ships_to": ["".join(["U", "S"]), "CA"]}})
+    assert a == b and a["requirements"]["published_ships_to"][0] is b["requirements"]["published_ships_to"][0]
+
+
+def test_find_stores_trust_filters(client):
+    """claimed_only and reachable_only mean the same on find_stores, /v1/buying/stores and /v1/stores."""
+    _seed(client)
+    for path in ("/v1/buying/stores", "/v1/stores"):
+        everything = client.get(path).json()["total"]
+        assert everything > 0
+        # Every seeded store was found on the web (unclaimed) and never health-checked.
+        assert client.get(path, params={"claimed_only": "true"}).json()["total"] == 0
+        assert client.get(path, params={"reachable_only": "true"}).json()["total"] == 0
+    item = client.get("/v1/stores").json()["items"][0]
+    assert item["trust"]["claimed"] is False and item["trust"]["reachability"] == "unknown"

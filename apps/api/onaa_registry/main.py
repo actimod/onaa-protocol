@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from . import __version__
+from .buying import warm_cache as buying_warm_cache
 from .checker_loop import from_env as checker_from_env
 from .config import Settings
 from .db import Base, make_engine, make_sessionmaker
@@ -20,6 +22,8 @@ from .routes import (
     operators,
     optout,
     policy,
+    privacy,
+    reports,
     self_register,
     stats,
     stores,
@@ -27,6 +31,7 @@ from .routes import (
     vocabulary,
 )
 from .security import RateLimiter
+from .stores import warm_snapshot
 from .terms import load_terms
 from .traffic import TrafficMiddleware, Usage
 from .trust_ops import load_trust_config
@@ -49,7 +54,7 @@ def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
         description=(
             "Find stores and marketplaces AI buying agents can actually buy from, with each store's tested "
             "checkout requirements (UCP, Shop MCP); links only. Also lists payment and other providers and buyer "
-            "and seller agents. This registry API holds listings and trust metadata "
+            "and seller agents. This directory API holds listings and trust metadata "
             "only; it never relays buyer/seller transactions, holds funds, or hosts seller data."
         ),
     )
@@ -67,11 +72,16 @@ def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
     app.state.trust = load_trust_config(settings)  # fails fast on a misconfigured or non-test signing key
     app.state.self_register_limiter = RateLimiter(settings.self_registration_per_ip_per_hour, window_seconds=3600)
     app.state.store_probe_limiter = RateLimiter(settings.store_probe_per_ip_per_hour, window_seconds=3600)
+    app.state.needs_limiter = RateLimiter(settings.needs_per_ip_per_hour, window_seconds=3600)
     # Anonymous agent-traffic counters (no IPs or user agents stored); see traffic.py.
     app.state.usage = Usage(app.state.sessionmaker, settings.usage_flush_seconds)
     app.add_middleware(TrafficMiddleware, usage=app.state.usage)
     app.add_event_handler("startup", app.state.usage.start)
     app.add_event_handler("shutdown", app.state.usage.stop)
+    if os.environ.get("ONAA_STORE_FEED_WARM", "0") == "1":  # build the store snapshot at startup (production)
+        base = settings.public_base_url.rstrip("/")
+        app.add_event_handler("startup", lambda: warm_snapshot(app.state.sessionmaker, base))
+        app.add_event_handler("startup", lambda: buying_warm_cache(app.state.sessionmaker))
     app.state.checker = checker_from_env(app.state.sessionmaker, settings.public_base_url)
     if app.state.checker is not None:
         app.add_event_handler("startup", app.state.checker.start)
@@ -79,8 +89,10 @@ def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
 
     app.include_router(misc.router)
     app.include_router(buying.router)
+    app.include_router(buying.admin_router)
     app.include_router(operators.router)
     app.include_router(self_register.router)
+    app.include_router(self_register.claims_router)
     app.include_router(listings.build_router("agents"))
     app.include_router(listings.build_router("services"))
     app.include_router(certifications.router)
@@ -90,6 +102,8 @@ def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
     app.include_router(trust.router)
     app.include_router(stats.router)
     app.include_router(stores.router)
+    app.include_router(reports.router)
+    app.include_router(privacy.router)
 
     @app.get("/v1/specs/registry-record.schema.json", tags=["meta"], include_in_schema=False)
     def record_schema():

@@ -113,8 +113,10 @@ def maybe_sweep(app_state, session: Session) -> None:
     if now - getattr(app_state, "last_expiry_sweep", 0.0) < EXPIRY_SWEEP_INTERVAL_SECONDS:
         return
     app_state.last_expiry_sweep = now
+    from .routes.optout import expire_opt_outs  # restores discovered entries whose opt-out was never proven
+
     ids = expire_verifications(session)
-    if ids:
+    if ids or expire_opt_outs(session):
         session.commit()
 
 

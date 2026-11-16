@@ -1,12 +1,23 @@
-"""Opt-out for discovered entries (growth DISCOVERY_POLICY section 7).
+"""Opt-out for discovered entries (growth DISCOVERY_POLICY section 7; founder decision 2026-11-16).
 
-ONAA lists some publicly documented agents and providers as `discovered` before they register. Anyone can ask
-for those entries to be removed, with no account and no proof: discovered entries are unclaimed, so removing
-them on request is the safe default. Removal is immediate, content fields are erased, and only hashes of the
-URL/host are kept so the entry is not re-imported. Registered listings are never touched by this route.
+ONAA lists some publicly documented agents, stores and providers as `discovered` before they register. Anyone can
+ask for those entries to be removed, with no account. Because a request alone proves nothing (a competitor could
+send it), removal is in two steps:
+
+1. The request hides the matched discovered entries at once and returns a token. Nothing is erased yet.
+2. Within OPT_OUT_PROOF_DAYS the host proves control (the token at its well-known path or in a DNS TXT record, as
+   for self-registration) with POST /v1/discovered/opt-out/{id}/confirm. Then the content is erased and only
+   hashes of the URL/host are kept so the entry is not re-imported. Without proof, the entries come back when the
+   window ends.
+
+Registered listings are never touched by this route. The optional reason text is never stored. Every step is
+written to the audit log (counts and ids only).
 """
 
 from __future__ import annotations
+
+import datetime as dt
+import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
@@ -15,11 +26,17 @@ from sqlalchemy.orm import Session
 
 from .. import schemas
 from ..db import get_session
-from ..logic import audit, host_of, normalise_url, set_facet_kind, utcnow
-from ..models import Listing, Suppression
+from ..logic import audit, aware, host_of, normalise_url, set_facet_kind, utcnow
+from ..models import Listing, OptOutClaim, Suppression
 from ..security import sha256_hex, write_limit
+from ..verification import CHALLENGE_PATH, check_host_proof, dns_record_name
 
 router = APIRouter(tags=["opt-out"])
+
+OPT_OUT_PROOF_DAYS = 7
+PENDING_PER_HOST = 3
+MAX_PROOF_ATTEMPTS = 20
+HIDDEN_REASON = "opt_out_pending"
 
 
 def suppression_keys(url: str | None = None, host: str | None = None) -> list[str]:
@@ -32,8 +49,19 @@ def suppression_keys(url: str | None = None, host: str | None = None) -> list[st
 
 
 def is_suppressed(session: Session, *, url: str | None, host: str | None) -> bool:
+    """True for a permanent opt-out, and also while a request for this URL or host is waiting for proof."""
     keys = suppression_keys(url, host)
-    return bool(keys) and session.scalar(select(Suppression.id).where(Suppression.key_hash.in_(keys))) is not None
+    if not keys:
+        return False
+    if session.scalar(select(Suppression.id).where(Suppression.key_hash.in_(keys))) is not None:
+        return True
+    if not host:
+        return False
+    now = utcnow()
+    for claim in session.scalars(select(OptOutClaim).where(OptOutClaim.host == host, OptOutClaim.state == "pending")):
+        if aware(claim.expires_at) > now and set(keys) & set(claim.key_hashes or []):
+            return True
+    return False
 
 
 def _erase(listing: Listing) -> None:
@@ -49,26 +77,103 @@ def _erase(listing: Listing) -> None:
     listing.updated_at = utcnow()
 
 
+def _hidden(session: Session, claim: OptOutClaim) -> list[Listing]:
+    ids = claim.listing_ids or []
+    if not ids:
+        return []
+    return list(session.scalars(select(Listing).where(Listing.id.in_(ids), Listing.lifecycle_status == "suspended",
+                                                      Listing.status_reason == HIDDEN_REASON)))
+
+
+def expire_opt_outs(session: Session) -> int:
+    """Restore the entries of requests whose proof window ended without proof. Returns how many requests."""
+    now = utcnow()
+    claims = [c for c in session.scalars(select(OptOutClaim).where(OptOutClaim.state == "pending",
+                                                                    OptOutClaim.expires_at <= now))]
+    for claim in claims:
+        restored = 0
+        for listing in _hidden(session, claim):
+            listing.lifecycle_status, listing.status_reason, listing.updated_at = "discovered", None, now
+            restored += 1
+        claim.state, claim.resolved_at = "expired", now
+        audit(session, "system", None, "discovered.opt_out_expired", claim.id, restored=restored)
+    return len(claims)
+
+
 @router.post("/v1/discovered/opt-out", response_model=schemas.OptOutResult, dependencies=[Depends(write_limit)],
-             summary="Remove discovered (unregistered) entries for a URL or host and block re-import")
-def opt_out(body: schemas.OptOutRequest, session: Session = Depends(get_session)):
+             summary="Hide discovered (unregistered) entries for a URL or host; erase them once the host proves "
+                     "control")
+def opt_out(body: schemas.OptOutRequest, request: Request, session: Session = Depends(get_session)):
     url = normalise_url(body.url, "url")
     host = host_of(url)
     if not host:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "url must include a host")
+    expire_opt_outs(session)
+    pending = session.scalars(select(OptOutClaim.id).where(OptOutClaim.host == host,
+                                                           OptOutClaim.state == "pending")).all()
+    if len(pending) >= PENDING_PER_HOST:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS,
+                            "removal requests for this host are already waiting for proof; prove control of the "
+                            "host with one of them, or wait until they expire")
     match = (or_(Listing.agent_card_url == url, Listing.documentation_url == url, Listing.endpoint_url == url)
              if body.scope == "url" else Listing.endpoint_host == host)
-    removed = []
+    hidden = []
     for listing in session.scalars(select(Listing).where(match, Listing.operator_id.is_(None),
                                                          Listing.lifecycle_status == "discovered")):
-        removed.append(listing.id)
+        listing.lifecycle_status, listing.status_reason, listing.updated_at = "suspended", HIDDEN_REASON, utcnow()
+        hidden.append(listing.id)
+    token = "onaa-optout-" + secrets.token_urlsafe(32)
+    claim = OptOutClaim(host=host, scope=body.scope, nonce_hash=sha256_hex(token), listing_ids=hidden,
+                        key_hashes=suppression_keys(url if body.scope == "url" else None,
+                                                    host if body.scope == "host" else None),
+                        expires_at=utcnow() + dt.timedelta(days=OPT_OUT_PROOF_DAYS))
+    session.add(claim)
+    session.flush()
+    # The reason text is not stored: it may contain personal data. Only counts and ids are audited.
+    audit(session, "anonymous", None, "discovered.opt_out_requested", claim.id, scope=body.scope,
+          hidden=len(hidden))
+    base = request.app.state.settings.public_base_url.rstrip("/")
+    return schemas.OptOutResult(
+        status="hidden" if hidden else "pending", removed_listing_ids=hidden, request_id=claim.id, token=token,
+        expires_at=aware(claim.expires_at).isoformat(),
+        well_known_url=f"https://{host}" + CHALLENGE_PATH.format(cid=claim.id), dns_record_name=dns_record_name(host),
+        confirm_url=f"{base}/v1/discovered/opt-out/{claim.id}/confirm")
+
+
+@router.post("/v1/discovered/opt-out/{request_id}/confirm", response_model=schemas.OptOutConfirmResult,
+             dependencies=[Depends(write_limit)],
+             summary="Prove control of the host (well-known file or DNS TXT) to erase the hidden entries for good")
+def confirm_opt_out(request_id: str, body: schemas.OptOutConfirm, request: Request,
+                    session: Session = Depends(get_session)):
+    expire_opt_outs(session)
+    claim = session.get(OptOutClaim, request_id)
+    if claim is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no such removal request")
+    if claim.state == "confirmed":
+        return schemas.OptOutConfirmResult(status="removed", removed_listing_ids=list(claim.listing_ids or []))
+    if claim.state != "pending":
+        raise HTTPException(status.HTTP_410_GONE, "this request expired without proof; the entries are listed again. "
+                                                  "Send a new removal request")
+    if claim.attempts >= MAX_PROOF_ATTEMPTS:
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many proof attempts for this request")
+    claim.attempts += 1
+    error = check_host_proof(request.app.state.fetcher, request.app.state.txt_resolver, host=claim.host,
+                             method=body.method, challenge_id=claim.id, nonce_hash=claim.nonce_hash)
+    if error:
+        audit(session, "anonymous", None, "discovered.opt_out_proof", claim.id, result="failed", error=error)
+        session.commit()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"proof not found: {error}")
+    erased = []
+    for listing in _hidden(session, claim):
         _erase(listing)
-    for key in suppression_keys(url if body.scope == "url" else None, host if body.scope == "host" else None):
+        erased.append(listing.id)
+    for key in claim.key_hashes or []:
         if session.scalar(select(Suppression.id).where(Suppression.key_hash == key)) is None:
             session.add(Suppression(key_hash=key))
-    # The reason text is not stored: it may contain personal data. Only counts are audited.
-    audit(session, "anonymous", None, "discovered.opt_out", None, scope=body.scope, removed=len(removed))
-    return schemas.OptOutResult(status="removed" if removed else "suppressed", removed_listing_ids=removed)
+    claim.state, claim.resolved_at = "confirmed", utcnow()
+    audit(session, "anonymous", None, "discovered.opt_out_confirmed", claim.id, method=body.method,
+          removed=len(erased))
+    return schemas.OptOutConfirmResult(status="removed", removed_listing_ids=erased)
 
 
 @router.get("/opt-out", response_class=HTMLResponse, include_in_schema=False)
@@ -85,16 +190,23 @@ code,pre{background:#f3f3f3;padding:.1rem .3rem;border-radius:4px}pre{padding:.7
 <p>The ONAA registry (Open Network for AI Agents) lists some publicly documented AI agents and service providers
 as <strong>discovered, not registered</strong>, using only information they publish themselves (for example an
 A2A Agent Card or public API documentation). These entries are not endorsements and the provider has not joined.</p>
-<p>If you run one of these services and do not want it listed, you can remove it at any time. No account or proof
-is needed. Removal takes effect immediately, the entry's content is erased, and we keep only a one-way hash of the
-URL or host so it is not added again.</p>
+<p>If you run one of these services and do not want it listed, ask for removal. No account is needed. Because a
+request alone does not show who sent it, removal has two steps:</p>
+<ol><li><strong>Hidden now.</strong> Your request hides the matching entries immediately and returns a token.</li>
+<li><strong>Erased after proof.</strong> Within 7 days, publish the token on your host (a file at the
+<code>well_known_url</code> in the answer, or a DNS TXT record at <code>dns_record_name</code>) and call the
+<code>confirm_url</code>. The content is then erased and we keep only a one-way hash of the URL or host so it is
+not added again. Without proof, the entries are listed again after 7 days.</li></ol>
 <h2>How to remove it</h2>
 <p>Send the URL of your Agent Card, documentation or website:</p>
 <pre>curl -X POST {base}/v1/discovered/opt-out \\
   -H 'content-type: application/json' \\
   -d '{"url": "https://your-domain.example/", "scope": "host"}'</pre>
-<p><code>scope: "host"</code> removes every discovered entry on that host; <code>scope: "url"</code> removes only
-that exact URL. Please do not include personal data in the optional <code>reason</code>; it is not stored.</p>
+<p>Then publish the returned <code>token</code> and confirm:</p>
+<pre>curl -X POST {base}/v1/discovered/opt-out/&lt;request_id&gt;/confirm \\
+  -H 'content-type: application/json' -d '{"method": "well_known"}'</pre>
+<p><code>scope: "host"</code> covers every discovered entry on that host; <code>scope: "url"</code> only that exact
+URL. Please do not include personal data in the optional <code>reason</code>; it is not stored.</p>
 <p>Listings that a provider registered itself are not affected; their owner can delete them with their own key.
 To report a listing someone else registered for your endpoint, use <code>POST {base}/v1/reports</code> with
 category <code>unauthorized_registration</code>.</p>

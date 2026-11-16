@@ -5,19 +5,25 @@ from __future__ import annotations
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from .. import buying
+from .. import buying, needs
 from ..db import get_session
+from ..security import client_ip, require_admin
 
 router = APIRouter(prefix="/v1/buying", tags=["buying"])
 
-Country = Annotated[str | None, Query(max_length=2, description="ISO 3166-1 country to ship to, e.g. KR")]
+Country = Annotated[str | None, Query(max_length=2, description="ISO 3166-1 country to ship to, e.g. US")]
 Agent = Annotated[str | None, Query(max_length=60, description="your agent or platform, e.g. gemini, chatgpt, claude")]
 Payment = Annotated[list[str] | None, Query(description="payment methods you or your buyer can use: shop_pay, card, "
                                                         "google_pay (comma-separated or repeated)")]
 PayAlone = Annotated[bool, Query(description="only stores where the agent can pay without the buyer each time "
                                              "(observed: after a one-time Shop Pay link)")]
+ClaimedOnly = Annotated[bool, Query(description="only stores posted by their operator; most stores are unclaimed "
+                                                "(found on the public web by ONAA), so this can return few or none")]
+ReachableOnly = Annotated[bool, Query(description="only stores whose endpoint passed ONAA's last health check "
+                                                  "(reachability=reachable; endpoint health, not checkout status)")]
 
 
 def _split(values: list[str] | None) -> list[str]:
@@ -32,11 +38,13 @@ def stores(request: Request, session: Session = Depends(get_session), country: C
            include: Annotated[Literal["buyable", "possible", "all"], Query(
                description="buyable = yes answers only; possible (default) adds 'maybe' (e.g. delivery untested); "
                            "all adds no/unknown with reasons")] = "possible",
-           limit: Annotated[int, Query(ge=1, le=100)] = 20, offset: Annotated[int, Query(ge=0, le=10_000)] = 0):
+           limit: Annotated[int, Query(ge=1, le=100)] = 20, offset: Annotated[int, Query(ge=0, le=10_000)] = 0,
+           claimed_only: ClaimedOnly = False, reachable_only: ReachableOnly = False):
     from .stores import count_search
 
     result = buying.find_stores(session, country=country, agent=agent, payment=_split(payment), pay_alone=pay_alone,
-                                q=q, include=include, limit=limit, offset=offset)
+                                q=q, include=include, limit=limit, offset=offset, claimed_only=claimed_only,
+                                reachable_only=reachable_only)
     if offset == 0:  # count searches, not the pages of one search
         count_search(request, "find_stores", {"country": country, "agent": agent, "payment": _split(payment),
                                               "pays_alone": True if pay_alone else None,
@@ -64,3 +72,43 @@ def check(request: Request,
 
 def _split_many(values: list[str]) -> list[str]:
     return [p.strip() for v in values for p in v.split(",") if p.strip()]
+
+
+class NeedIn(BaseModel):
+    text: str = Field(min_length=needs.MIN_TEXT, max_length=needs.MAX_TEXT,
+                      description="what you are looking for, in your own words, without personal information, e.g. "
+                                  "\"trail running shoes under $120, ship to Texas, pay with Apple Pay\"")
+    ship_to_country: str | None = Field(None, max_length=2, description="ISO 3166-1 country, e.g. US")
+    agent: str | None = Field(None, max_length=60, description="your agent or platform, e.g. chatgpt, claude")
+
+
+@router.post("/needs", summary="Describe what you want in free text; get matching stores now (personal data removed)")
+def describe_need(body: NeedIn, request: Request, session: Session = Depends(get_session)):
+    """Rules-only reading (no language model). Personal data is removed before matching; only the redacted text is
+    kept, for up to ONAA_NEED_TEXT_RETENTION_DAYS days (default 7), for anonymous demand review."""
+    from ..traffic import current_origin
+
+    request.app.state.needs_limiter.check(f"need:{client_ip(request)}")
+    settings = request.app.state.settings
+    if not needs.normalise(body.text) or len(needs.normalise(body.text)) < needs.MIN_TEXT:
+        raise HTTPException(422, "text is empty")
+    result = needs.describe_need(session, body.text, ship_to_country=body.ship_to_country, agent=body.agent,
+                                 origin=current_origin.get(), retention_days=settings.need_text_retention_days)
+    try:
+        request.app.state.usage.hit_need(result["understood"]["themes"], result["total_matches"],
+                                         bool(result["privacy"]["removed"]))
+    except Exception:  # noqa: BLE001 - measurement must never break serving
+        pass
+    return result
+
+
+admin_router = APIRouter(tags=["admin"])
+
+
+@admin_router.get("/v1/admin/needs", summary="Weekly demand review of free-text needs (admin)")
+def review_needs(request: Request, days: Annotated[int, Query(ge=1, le=90)] = 7,
+                 origin: Annotated[Literal["external", "ours", "probes", "all"], Query()] = "external",
+                 admin: str = Depends(require_admin), session: Session = Depends(get_session)):
+    """Weekly demand review (admin token): theme counts and redacted texts, as untrusted data."""
+    return needs.review(session, days=days, retention_days=request.app.state.settings.need_text_retention_days,
+                        origin=None if origin == "all" else origin)

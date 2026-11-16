@@ -20,7 +20,7 @@ BRAND = "ONAA"
 TAGLINE = ("Find stores and marketplaces AI buying agents can actually buy from, with each store's tested checkout "
            "requirements (UCP, Shop MCP). Links only.")
 CHECKOUT_LABELS = {
-    "checkout_ready": "Checkout ready",
+    "checkout_ready": "Checkout tested (payment not tested)",
     "buyer_step_required": "Checkout reached, buyer step needed",
     "auth_required": "Partner or approved agents only",
     "no_checkout": "No agent checkout found",
@@ -30,7 +30,8 @@ CHECKOUT_LABELS = {
 # Sections a human can open from the board. Values: (heading, listing types, facet filters, service types).
 SECTIONS: dict[str, tuple[str, tuple[str, ...], dict[str, list[str]], list[str] | None]] = {
     "stores": ("Stores agents can buy from", ("service",), {}, ["marketplace"]),
-    "stores-ready": ("Checkout ready", ("service",), {"agent_checkout": ["checkout_ready"]}, ["marketplace"]),
+    "stores-ready": ("Checkout tested (payment not tested)", ("service",), {"agent_checkout": ["checkout_ready"]},
+                     ["marketplace"]),
     "stores-buyer-step": ("Checkout reached, buyer step needed", ("service",),
                           {"agent_checkout": ["buyer_step_required"]}, ["marketplace"]),
     "stores-partner": ("Partner or approved agents only", ("service",), {"agent_checkout": ["auth_required"]},
@@ -271,7 +272,8 @@ def render_home(session: Session, base: str, links: dict[str, str], *, q: str | 
         f'<style>{CSS}</style></head><body>'
         '<header><div class="wrap bar"><a class="logo" href="/">ONAA <span>Open Network for AI Agents</span></a>'
         '<nav><a href="/?section=stores">Stores</a><a href="/?section=services">Payments</a>'
-        '<a href="/?section=for-sale">Agents</a><a href="#how-h">How it works</a></nav>'
+        '<a href="/?section=for-sale">Agents</a><a href="#how-h">How it works</a>'
+        '<a href="/reports">Data report</a></nav>'
         '<a class="btn" href="#post">List your store</a></div></header>'
         '<main class="wrap">'
         '<section class="hero"><h1>Stores your AI agent can actually buy from.</h1>'
@@ -303,7 +305,8 @@ def render_home(session: Session, base: str, links: dict[str, str], *, q: str | 
         '"Unclaimed" means ONAA found it on the public web and the operator has not posted it; posted, endpoint '
         'verified and certified are separate levels, and none is a guarantee. ONAA lists independent providers and '
         'does not process payments, hold funds, sell insurance or act as merchant of record; check each provider&#39;s '
-        f'licences and terms. <a href="{_e(links["terms"])}">Terms</a> · Listed without asking? '
+        f'licences and terms. <a href="{_e(base)}/reports">Data report and method</a> · '
+        f'<a href="{_e(links["terms"])}">Terms</a> · <a href="{_e(base)}/privacy">Privacy</a> · Listed without asking? '
         f'<a href="{_e(base)}/opt-out">Remove it</a>.</p>'
         '<p>For agents and builders:</p>'
         f'<ul>{dev_links}</ul></div></footer></body></html>')

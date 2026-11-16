@@ -90,9 +90,11 @@ def stores_csv(request: Request, session: Session = Depends(get_session)):
 @router.get("/v1/stores", summary="Find stores an AI agent can buy from (filter by shipping country, pay-alone, ...)")
 def list_stores(
     request: Request,
-    ships_to: Annotated[list[str] | None, Query(description="ISO country ONAA's test checkout confirmed delivery "
-                                                            "to (verified; tested: " + ", ".join(TESTED_COUNTRIES)
-                                                            + ")")] = None,
+    ships_to: Annotated[list[str] | None, Query(description="ISO country where ONAA's test checkout (one test "
+                                                            "item, public test address, cancelled before payment) "
+                                                            "offered a delivery option. Observed, not a guarantee "
+                                                            "for your items or address. Tested: "
+                                                            + ", ".join(TESTED_COUNTRIES))] = None,
     store_ships_to: Annotated[list[str] | None, Query(
         description="ISO country the store's own published shipping list includes (worldwide counts; "
                     "store-published, not tested by ONAA). Works for any country")] = None,
@@ -105,6 +107,10 @@ def list_stores(
     payment_handler: Annotated[list[str] | None, Query(description="e.g. shop_pay, shopify.card, gpay")] = None,
     currency: Annotated[list[str] | None, Query(description="currency seen at checkout, ISO 4217")] = None,
     q: Annotated[str | None, Query(max_length=200, description="store name or domain contains")] = None,
+    claimed_only: Annotated[bool, Query(description="only stores posted by their operator; most are unclaimed "
+                                                    "(found on the public web by ONAA)")] = False,
+    reachable_only: Annotated[bool, Query(description="only stores whose endpoint passed ONAA's last health check "
+                                                      "(endpoint health, not checkout status)")] = False,
     limit: Annotated[int, Query(ge=1, le=500)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     session: Session = Depends(get_session),
@@ -138,6 +144,8 @@ def list_stores(
         if want_currencies and not want_currencies & row.currencies:
             continue
         if terms and not all(t in row.hay for t in terms):
+            continue
+        if (claimed_only and not row.claimed) or (reachable_only and not row.reachable):
             continue
         matched.append(row)
     if offset == 0:  # count searches, not the pages of one search
@@ -220,7 +228,7 @@ def check_get(
 def check_post(
     request: Request,
     body: Annotated[dict, Body(examples=[{"stores": ["https://example-shop.com/products/x", "svc_..."],
-                                          "country": "KR", "pay_alone": True}])],
+                                          "country": "US", "pay_alone": True}])],
     session: Session = Depends(get_session),
 ):
     stores = body.get("stores") or body.get("urls") or []
@@ -269,7 +277,7 @@ def _page(title: str, desc: str, body: str, alt_json: str) -> str:
 
 
 STATUS_TEXT = {
-    "checkout_ready": "An outside agent reached a payable checkout",
+    "checkout_ready": "Checkout tested: an outside agent reached a checkout that asks for payment (payment not tested)",
     "buyer_step_required": "An outside agent built a checkout; the buyer must finish a step",
     "auth_required": "Partner or approved agents only",
     "no_checkout": "No agent checkout found",
@@ -301,7 +309,7 @@ def stores_index(request: Request, page: Annotated[int, Query(ge=1, le=10_000)] 
     body = (f'<section class="hero"><h1>{snap.count} stores AI agents can buy from</h1>'
             '<p>Each store was tested by ONAA as an outside agent, up to a created checkout that was then '
             f'cancelled. Agents: get everything at once from <a href="{_e(base)}/stores.json">/stores.json</a> or '
-            f'filter with <code>GET {_e(base)}/v1/stores?ships_to=KR&amp;pays_alone=true</code>.</p></section>'
+            f'filter with <code>GET {_e(base)}/v1/stores?ships_to=US&amp;pays_alone=true</code>.</p></section>'
             f'<p class="list-sub">{nav}</p>' + "".join(rows) + f'<p class="list-sub">{nav}</p>')
     return HTMLResponse(_page(f"{snap.count} stores AI agents can buy from | ONAA",
                               "Stores and marketplaces with an agent checkout, tested by ONAA.", body,

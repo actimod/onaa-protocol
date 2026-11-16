@@ -86,7 +86,7 @@ class Diagnoser:
             validate_url(url, allow_localhost=self.allow_localhost, resolver=self.resolver, timeout=self.deadline)
         except UnsafeURLError as exc:
             return {"answered": False, "error": "blocked_unsafe_url", "detail": str(exc)[:200]}
-        text = (f"ONAA Registry Steward: incident {incident['id']} on listing {listing_id}: {symptom[:200]}. "
+        text = (f"ONAA Directory Steward: incident {incident['id']} on listing {listing_id}: {symptom[:200]}. "
                 "Please reply with your current status and the cause if known. This is an automated diagnostic "
                 "request; no action is required from you and the steward will not change your agent.")
         msg = make_message(ROLE_USER, [

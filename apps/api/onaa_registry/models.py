@@ -241,6 +241,43 @@ class Suppression(Base):
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class KeyClaim(Base):
+    """One-time link that hands a self-registered operator its first API key outside the agent's conversation
+    (founder decision 2026-11-16, external review F06). Only the SHA-256 of the code is stored; the key itself is
+    created when the link is used, so nothing reusable ever sits in the calling model's context."""
+
+    __tablename__ = "key_claims"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("kcl"))
+    operator_id: Mapped[str] = mapped_column(ForeignKey("operators.id", ondelete="CASCADE"), index=True)
+    code_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class OptOutClaim(Base):
+    """A pending opt-out of discovered entries (founder decision 2026-11-16, external review F05).
+
+    The matched discovered listings are hidden at once. If the host proves control within the window (the same
+    well-known file or DNS TXT as self-registration), they are erased and the hashes become a permanent
+    Suppression. Otherwise the listings are restored when the window ends. No reason text or contact is kept."""
+
+    __tablename__ = "opt_out_claims"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("opt"))
+    host: Mapped[str] = mapped_column(String(253), index=True)
+    scope: Mapped[str] = mapped_column(String(10))
+    key_hashes: Mapped[list] = mapped_column(JSON, default=list)  # suppression keys made permanent on proof
+    listing_ids: Mapped[list] = mapped_column(JSON, default=list)  # discovered listings hidden by this claim
+    nonce_hash: Mapped[str] = mapped_column(String(64))
+    state: Mapped[str] = mapped_column(String(12), default="pending", index=True)  # pending|confirmed|expired
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), index=True)
+    resolved_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class VocabularyProposal(Base):
     """Agent-proposed new field, capability, category, protocol token or service type. Support from distinct
     identities plus observed usage is the promotion signal; a maintainer decision promotes it."""
@@ -426,3 +463,24 @@ class UsageCounter(Base):
     kind: Mapped[str] = mapped_column(String(20))
     key: Mapped[str] = mapped_column(String(160))
     count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class BuyerNeed(Base):
+    """Free-text buying request (MCP describe_need / POST /v1/buying/needs), **after** personal data was removed.
+
+    No IP address, user agent or caller identity. Deleted after `need_text_retention_days` (default 7). Identical
+    text on one day is one row with `repeat_count`. Admin-only; the text is untrusted third-party data."""
+
+    __tablename__ = "buyer_needs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    day: Mapped[str] = mapped_column(String(10), index=True)  # ISO date (UTC)
+    text_hash: Mapped[str] = mapped_column(String(64), unique=True)  # sha256(day|origin|text), for same-day repeats
+    text: Mapped[str] = mapped_column(Text)
+    origin: Mapped[str] = mapped_column(String(10))  # external | ours | probes
+    matched: Mapped[int] = mapped_column(Integer, default=0)
+    agent_platform: Mapped[str | None] = mapped_column(String(20), nullable=True)  # fixed vocabulary token
+    themes: Mapped[list] = mapped_column(JSON, default=list)
+    conditions: Mapped[dict] = mapped_column(JSON, default=dict)
+    repeat_count: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)

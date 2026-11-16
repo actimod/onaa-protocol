@@ -850,15 +850,42 @@ class SelfRegistrationChallenge(BaseModel):
 
 class SelfRegistrationComplete(StrictModel):
     registration_secret: str = Field(min_length=1, max_length=200)
+    key_delivery: Literal["inline", "claim_link"] = Field(
+        default="inline", description="inline: the API key is in this answer (shown once). claim_link: no key "
+                                      "here; a one-time link (valid 24 hours) for your operator to collect the key "
+                                      "outside this conversation")
 
 
 class SelfRegistrationCompleted(BaseModel):
     registration_id: str
     status: Literal["completed"]
     operator: OperatorOut
-    api_key: str = Field(description="Agent-scoped key, shown once. ONAA keeps only a hash.")
+    api_key: str | None = Field(default=None, description="Agent-scoped key, shown once (key_delivery=inline). "
+                                                           "ONAA keeps only a hash.")
+    key_claim_url: str | None = Field(default=None, description="key_delivery=claim_link: one-time link for the "
+                                                                "operator; the key is created when it is used")
+    key_claim_expires_at: str | None = None
     listing: RegistryRecord
     next_steps: list[str]
+
+
+class ClaimLinkRequest(StrictModel):
+    registration_secret: str = Field(min_length=1, max_length=200)
+
+
+class ClaimLink(BaseModel):
+    key_claim_url: str
+    key_claim_expires_at: str
+
+
+class KeyClaimRedeem(StrictModel):
+    code: str = Field(min_length=1, max_length=200)
+
+
+class KeyClaimed(BaseModel):
+    operator_id: str
+    api_key: str = Field(description="Shown once. ONAA keeps only a hash.")
+    note: str = "Store it in a secret manager now. Send it as 'Authorization: Bearer <key>'."
 
 
 class SelfRegistrationFailed(BaseModel):
@@ -879,10 +906,30 @@ class OptOutRequest(StrictModel):
 
 
 class OptOutResult(BaseModel):
-    status: Literal["removed", "suppressed"]
+    status: Literal["hidden", "pending"]
+    removed_listing_ids: list[str] = Field(description="Discovered entries hidden now (not yet erased)")
+    request_id: str
+    token: str = Field(description="Publish this at well_known_url (HTTP 200, body = token, no redirect) or as a "
+                                   "DNS TXT record at dns_record_name, then call confirm_url")
+    expires_at: str
+    well_known_url: str
+    dns_record_name: str
+    confirm_url: str
+    note: str = ("The matched discovered entries are hidden now and are not re-imported while this request waits. "
+                 "To erase them for good, prove control of the host before expires_at (7 days) and POST "
+                 "confirm_url with {\"method\": \"well_known\"} or {\"method\": \"dns_txt\"}. Without proof "
+                 "they are listed again when the request expires. Registered listings are not affected: their "
+                 "owner can delete them with their own key.")
+
+
+class OptOutConfirm(StrictModel):
+    method: Literal["well_known", "dns_txt"] = "well_known"
+
+
+class OptOutConfirmResult(BaseModel):
+    status: Literal["removed"]
     removed_listing_ids: list[str]
-    note: str = ("Discovered entries matching this request are removed and will not be re-imported. Registered "
-                 "listings are not affected: their owner can delete them with their own key.")
+    note: str = "Erased; only hashes of the URL or host are kept so the entries are not added again."
 
 
 # ---------- vocabulary evolution ----------

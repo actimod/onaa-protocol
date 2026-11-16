@@ -24,6 +24,7 @@ from ..logic import (
     set_facets,
     to_record,
 )
+from ..mcp_inventory import HOSTED_READ_ONLY, HOSTED_TOOLS
 from ..models import AbuseReport, Listing, Operator, utcnow
 from ..security import optional_operator, require_admin, write_limit
 from ..terms import load_terms
@@ -45,7 +46,7 @@ def specs(request: Request):
         "registry_record_version": REGISTRY_RECORD_VERSION,
         "openapi": f"{base}/openapi.json",
         "registry_record_schema": f"{base}/v1/specs/registry-record.schema.json",
-        "agent_card_note": "ONAA links to operator-published A2A Agent Cards; registry records are not Agent Cards.",
+        "agent_card_note": "ONAA links to operator-published A2A Agent Cards; directory records are not Agent Cards.",
     }
 
 
@@ -54,7 +55,7 @@ AUTHORITY_NOTE = ("You register FOR your operator: the person or organisation th
                   "terms on its behalf. Your operator, not you, is bound by the terms.")
 
 
-@router.get("/v1/terms", tags=["meta"], summary="Current registry terms: version, SHA-256 and full text")
+@router.get("/v1/terms", tags=["meta"], summary="Current directory terms: version, SHA-256 and full text")
 def terms(request: Request):
     settings = request.app.state.settings
     t = load_terms(settings.terms_version)
@@ -68,7 +69,7 @@ def terms(request: Request):
                           "confirm_operator_authority": True},
         "summary": [
             "You accept for your operator, and only if your operator authorised you to.",
-            "ONAA is a discovery registry only: not a party to transactions, never holds funds.",
+            "ONAA is a discovery directory only: not a party to transactions, never holds funds.",
             "Listings are public; the optional operator_contact is private and used only for notices.",
             "Delete anytime: DELETE the listing, or DELETE /v1/operators/me.",
             "Unauthorised registrations can be reported: POST /v1/reports, category unauthorized_registration.",
@@ -79,7 +80,7 @@ def terms(request: Request):
     }
 
 
-@router.get("/v1/terms.md", response_class=PlainTextResponse, tags=["meta"], summary="Current registry terms text")
+@router.get("/v1/terms.md", response_class=PlainTextResponse, tags=["meta"], summary="Current directory terms text")
 def terms_text(request: Request):
     t = load_terms(request.app.state.settings.terms_version)
     return PlainTextResponse(t.text, media_type="text/markdown; charset=utf-8",
@@ -114,8 +115,10 @@ def onboarding(settings) -> dict:
                            "(text body = token, HTTP 200, no redirect)",
              "dns_txt": "TXT record _onaa-challenge.<your-host> = token"},
             {"step": 3, "call": f"POST {base}/v1/self-register/<registration_id>/complete",
-             "body": {"registration_secret": "<from step 1>"},
-             "returns": "agent-scoped api_key (shown once), operator (type agent), listing"},
+             "body": {"registration_secret": "<from step 1>", "key_delivery": "inline | claim_link (optional)"},
+             "returns": "agent-scoped api_key (shown once), operator (type agent), listing; with "
+                        "key_delivery=claim_link no key but key_claim_url, a one-time link (24 h) for your operator "
+                        "to collect the key outside your context"},
         ],
         "limits": {
             "challenge_ttl_seconds": settings.self_registration_ttl_seconds,
@@ -140,9 +143,10 @@ def onboarding(settings) -> dict:
         },
         "clients": {
             "remote_mcp": {"url": f"{base}/mcp", "transport": "streamable-http", "auth": "none",
-                           "tools": ["search_agents", "search_services", "get_listing"] + (
-                               ["get_terms", "self_register_start", "self_register_complete"]
-                               if settings.self_registration_enabled else []),
+                           "tools": list(HOSTED_TOOLS), "read_only_tools": list(HOSTED_READ_ONLY),
+                           "tools_note": "The full hosted tool list; tools/list on the server is the contract. "
+                                         "Tools not in read_only_tools write or keep data (see each "
+                                         "tool's description).",
                            "note": "Self-registration over MCP returns the registration secret and the API key "
                                    "to the calling agent once, like this REST flow."},
             "python_sdk": "packages/sdk-python (onaa.OnaaClient.self_register)",
@@ -207,7 +211,8 @@ def sitemap(request: Request, session: Session = Depends(get_session)):
     base = request.app.state.settings.public_base_url.rstrip("/")
     paths = ["/", "/stores", "/stores.json", "/stores.csv", "/llms.txt", "/llms-full.txt",
              "/.well-known/onaa-registry.json", "/.well-known/agent-card.json", "/.well-known/mcp.json",
-             "/openapi.json", "/v1/stores", "/v1/terms", "/v1/agents", "/v1/services", "/opt-out"]
+             "/openapi.json", "/v1/stores", "/v1/terms", "/v1/agents", "/v1/services", "/opt-out", "/reports",
+             "/privacy"]
     snap = snapshot(session, base)
     paths += [f"/stores?page={n}" for n in range(2, -(-snap.count // PAGE_SIZE) + 1)]
     paths += [f"/stores/{row.key}" for row in snap.rows][:45000]
@@ -229,7 +234,7 @@ def well_known(request: Request):
         "openapi": f"{base}/openapi.json",
         "search": {"agents": f"{base}/v1/agents", "services": f"{base}/v1/services", "stores": f"{base}/v1/stores"},
         "stores": {"feed_json": f"{base}/stores.json", "feed_csv": f"{base}/stores.csv",
-                   "filter": f"{base}/v1/stores?ships_to=KR&pays_alone=true",
+                   "filter": f"{base}/v1/stores?ships_to=US&pays_alone=true",
                    "one": f"{base}/v1/stores/<domain or svc_ id>",
                    "llms_full_txt": f"{base}/llms-full.txt"},
         "mcp": {"url": f"{base}/mcp", "transport": "streamable-http", "auth": "none"},
@@ -261,18 +266,18 @@ def llms_txt(request: Request):
 ## Buying agents: start here
 
 Can my agent buy at this store, and how?   (any product URL, store domain or svc_ id; up to 25)
-  GET  {base}/v1/stores/check?url=https://<store>/products/<item>&country=KR
-  POST {base}/v1/stores/check  {{"stores": ["<url or domain>", ...], "country": "KR", "pay_alone": true}}
+  GET  {base}/v1/stores/check?url=https://<store>/products/<item>&country=US
+  POST {base}/v1/stores/check  {{"stores": ["<url or domain>", ...], "country": "US", "pay_alone": true}}
   Answer per store: verdict (yes, yes_buyer_finishes, maybe, no, unknown), reasons, cautions, how_to_buy steps.
   Found a product with Shop MCP or a store's own search? Pass those shop URLs here to see which ones your agent
   can actually check out at. A store ONAA has not listed is looked up live at its /.well-known/ucp.
 Which stores can my agent buy from?
-  GET {base}/v1/stores?ships_to=KR&pays_alone=true    (also checkout=, protocol=ucp|shop-mcp, payment_handler=,
+  GET {base}/v1/stores?ships_to=US&pays_alone=true    (also checkout=, protocol=ucp|shop-mcp, payment_handler=,
       currency=, q=)
-  GET {base}/v1/buying/stores?country=KR&payment=shop_pay&agent=gemini   (ranked by verdict)
+  GET {base}/v1/buying/stores?country=US&payment=shop_pay&agent=gemini   (ranked by verdict)
 One store: GET {base}/v1/stores/<domain or svc_ id>    Page for people: {base}/stores/<domain>
 Everything in one request: {base}/stores.json (ETag; also {base}/stores.csv and {base}/llms-full.txt)
-MCP (no auth): {base}/mcp, tools find_stores, can_i_buy_here, how_to_buy, search_services.
+MCP (no auth): {base}/mcp, 13 tools; for buying start with find_stores, can_i_buy_here and how_to_buy.
 
 Every store was tested by ONAA as an anonymous outside agent: list tools, search, create a one-item checkout,
 cancel it. Never paid, no order placed. Results show protocol, payment handlers, whether an agent can pay alone
@@ -289,7 +294,7 @@ API: {base}/v1
 OpenAPI: {base}/openapi.json
 Registry metadata (JSON, includes these steps): {base}/.well-known/onaa-registry.json
 Remote MCP server (no auth, Streamable HTTP): {base}/mcp
-A2A Agent Card (the registry's steward agent; ask it questions in plain language): {base}/.well-known/agent-card.json
+A2A Agent Card (the directory's steward agent; ask it questions in plain language): {base}/.well-known/agent-card.json
 Terms: {base}/v1/terms (version {tv}, draft, sha256 {sha})
 
 ## Register for your operator (no human signup form)
@@ -320,6 +325,8 @@ register this endpoint and to accept terms on its behalf. If you are not sure, s
    {{"registration_secret": "<from step 1>"}}
    You get an agent-scoped api_key (shown once; ONAA stores only a hash) and your listing.
    Send it later as: Authorization: Bearer <api_key>
+   Cannot keep secrets outside this conversation? Add "key_delivery": "claim_link": no key comes back, only
+   key_claim_url, a one-time link (24 hours) your operator opens to collect the key.
 
 4. Tell your operator that you registered and accepted the terms for it, and how to undo it:
    DELETE {base}/v1/agents/<id> (or /v1/services/<id>), or DELETE {base}/v1/operators/me.
@@ -339,15 +346,16 @@ Recommended: name your operator (person or organisation) with PATCH {base}/v1/op
 Registered without authorisation? Report it: POST {base}/v1/reports with category "unauthorized_registration".
 
 Listed here as "discovered" without having registered? Remove it: POST {base}/v1/discovered/opt-out
-(details at {base}/opt-out).
+hides the entries at once; prove control of the host within 7 days to erase them for good (otherwise they come
+back). Details at {base}/opt-out.
 
 ## Find other agents and services
 
-GET {base}/v1/agents?q=...&role=seller_agent&capability=...&country=KR&accepts=escrow&skill=...
-GET {base}/v1/services?service_type=escrow&country=KR&data_residency=EU
+GET {base}/v1/agents?q=...&role=seller_agent&capability=...&country=US&accepts=escrow&skill=...
+GET {base}/v1/services?service_type=escrow&country=US&data_residency=EU
 GET {base}/v1/agents/<id>/trust
 GET {base}/v1/agents?updated_since=<ISO time>&sort=updated_asc   (incremental sync; GET one returns an ETag)
-GET {base}/v1/services?service_type=payment&payment_method=card&country=KR   (card, bank_transfer, stablecoin...)
+GET {base}/v1/services?service_type=payment&payment_method=card&country=US   (card, bank_transfer, stablecoin...)
 More filters: operating_country, compliance, pricing_model, quote_mode, payment_terms, payment_method,
 payment_network (visa, sepa, usdc, x402...), human_approval (none, at_setup, in_advance, per_payment, at_release),
 human_setup, human_per_payment, escrow_release, classification
@@ -390,11 +398,15 @@ onaa-demo.widgets.sell, SKU widget-std), escrow https://onaa-demo-escrow.fly.dev
 
 - Public source, specs, SDK and demo (Apache-2.0): https://github.com/actimod/onaa-protocol
 
-- Remote MCP (no install): add {base}/mcp as a Streamable HTTP MCP server, no auth. 12 tools. Read-only:
+- Remote MCP (no install): add {base}/mcp as a Streamable HTTP MCP server, no auth. 13 tools. Read-only:
   search_agents, search_services, find_stores, can_i_buy_here, how_to_buy, get_listing, get_vocabulary,
   verify_attestations, get_terms. Not read-only: self_register_start / self_register_complete (the same steps
-  as above; same rules: operator authority, terms, limits per IP and host; the API key comes back to you once)
-  and ask_steward (diagnostics; may probe the agents involved, cannot change any listing).
+  as above; same rules: operator authority, terms, limits per IP and host; the API key comes back to you once),
+  ask_steward (diagnostics; may probe the agents involved, cannot change any listing) and describe_need (say
+  in free text what you want, e.g. "trail running shoes under $120, ship to Texas"; matching stores come back at
+  once; personal data is removed and the redacted text kept up to 7 days for demand review, notice:
+  {base}/privacy; REST: POST
+  {base}/v1/buying/needs with a JSON body whose text field holds the request).
   Search results include discovered listings (never registered); pass claimed_only=true to leave them out.
   Claude Code: claude mcp add --transport http onaa {base}/mcp
 - Python SDK: pip install "git+https://github.com/actimod/onaa-protocol#subdirectory=packages/sdk-python",

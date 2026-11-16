@@ -191,6 +191,8 @@ def get_listing(session: Session, listing_id: str, *, include_hidden: bool = Fal
         raise HTTPException(status.HTTP_404_NOT_FOUND, "listing not found")
     if listing.lifecycle_status == "deleted" and not include_hidden:
         raise HTTPException(status.HTTP_410_GONE, "listing deleted")
+    if listing.status_reason == "opt_out_pending" and listing.lifecycle_status == "suspended" and not include_hidden:
+        raise HTTPException(status.HTTP_410_GONE, "listing hidden: removal requested")
     return listing
 
 

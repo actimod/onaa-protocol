@@ -15,7 +15,7 @@ buyer <---------------------- [signed SERVICE_HANDOFF_ACK mock=true MOCK-ESC-...
 buyer --[SERVICE_STATUS_QUERY] --> MOCK escrow --> [signed SERVICE_STATUS state=CREATED, never SECURED]
 ```
 
-The registry answers only the two searches. The tests assert that it never sees an RFQ, QUOTE, ORDER or handoff message. Envelope logic, signing, the state machines, the SSRF-safe fetcher and the conformance suite all come from the shared package [`packages/onaa-protocol`](../../packages/onaa-protocol/) (`onaa_protocol`). The demo adds only the Starlette servers and the sample agents.
+The directory answers only the two searches. The tests assert that it never sees an RFQ, QUOTE, ORDER or handoff message. Envelope logic, signing, the state machines, the SSRF-safe fetcher and the conformance suite all come from the shared package [`packages/onaa-protocol`](../../packages/onaa-protocol/) (`onaa_protocol`). The demo adds only the Starlette servers and the sample agents.
 
 ## Run
 
@@ -28,8 +28,8 @@ pip install -e packages/onaa-protocol && pip install -e 'examples/direct-trade-d
 cd examples/direct-trade-demo && ruff check . && python -m pytest -q
 ```
 
-- **No `REGISTRY_URL`:** the demo starts an in-process registry stub. It mirrors the `apps/api` search contract and returns `{items, total, limit, offset}` with `RegistryRecord` fields.
-- **`REGISTRY_URL=https://...`:** the read-only adapter (`registry_client.py`) searches that registry instead. The real registry accepts only public https listings, so the local sample nodes are not discoverable there. `tests/test_registry_adapter.py::test_contract_against_real_registry_api` covers this path when `onaa_registry` (`apps/api`) is installed. It registers sample listings on fake public hostnames, and every agent, including the seller and escrow when they verify the buyer's signature, reaches the others through a test-only transport under strict SSRF rules.
+- **No `REGISTRY_URL`:** the demo starts an in-process directory stub. It mirrors the `apps/api` search contract and returns `{items, total, limit, offset}` with `RegistryRecord` fields.
+- **`REGISTRY_URL=https://...`:** the read-only adapter (`registry_client.py`) searches that directory instead. The real directory accepts only public https listings, so the local sample nodes are not discoverable there. `tests/test_registry_adapter.py::test_contract_against_real_registry_api` covers this path when `onaa_registry` (`apps/api`) is installed. It registers sample listings on fake public hostnames, and every agent, including the seller and escrow when they verify the buyer's signature, reaches the others through a test-only transport under strict SSRF rules.
 - **`ONAA_DEMO_ALLOW_LOCALHOST=1`:** the run script sets this, and it is the only setting that lets agents reach `127.0.0.1` or `::1`. Other private ranges stay blocked even in demo mode.
 
 ## Conformance
@@ -40,7 +40,7 @@ cd examples/direct-trade-demo && ruff check . && python -m pytest -q
 python -m onaa_protocol.conformance --agent-card-url http://127.0.0.1:PORT/.well-known/agent-card.json --role seller --allow-loopback
 ```
 
-**Buyer conformance trade trigger (opt-in).** `BuyerNode(conformance_trigger=True)` (or `start_network(buyer_conformance_trigger=True)`) is the explicit operator opt-in of spec §12.1. Only then does the buyer declare `params.conformance.trade_trigger` and accept a signed, recipient-bound trigger from the conformance harness. It then runs one TEST-ONLY mock trade against the harness seller and provider named in the trigger, after checking that both cards mark themselves as harness counterparties of that harness. It never uses the registry for triggered trades. The flag is off by default and `run_demo.sh` never sets it. The conformance tests enable it, so the buyer's client-side tests (`ONAA-C-MUST-080`–`091`) run, and `tests/test_conformance_buyer_trigger.py` shows that they catch deliberately broken buyers. The buyer also applies inbound ORDER_STATUS / SERVICE_STATUS for its own deals to the deal's state machine.
+**Buyer conformance trade trigger (opt-in).** `BuyerNode(conformance_trigger=True)` (or `start_network(buyer_conformance_trigger=True)`) is the explicit operator opt-in of spec §12.1. Only then does the buyer declare `params.conformance.trade_trigger` and accept a signed, recipient-bound trigger from the conformance harness. It then runs one TEST-ONLY mock trade against the harness seller and provider named in the trigger, after checking that both cards mark themselves as harness counterparties of that harness. It never uses the directory for triggered trades. The flag is off by default and `run_demo.sh` never sets it. The conformance tests enable it, so the buyer's client-side tests (`ONAA-C-MUST-080`–`091`) run, and `tests/test_conformance_buyer_trigger.py` shows that they catch deliberately broken buyers. The buyer also applies inbound ORDER_STATUS / SERVICE_STATUS for its own deals to the deal's state machine.
 
 ## Layout
 

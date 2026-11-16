@@ -26,7 +26,7 @@ from pathlib import Path
 import httpx
 
 READ_ONLY_CALLS = {"search_agents", "search_services", "get_listing"}
-WRITE_TOOLS = {"self_register_start", "self_register_complete", "update_my_listing", "ask_steward"}
+WRITE_TOOLS = {"self_register_start", "self_register_complete", "update_my_listing", "ask_steward", "describe_need"}
 HEADERS = {"X-ONAA-Traffic": "internal", "User-Agent": "onaa-smoke-readonly/0.1"}
 TIMEOUT = 30.0
 
