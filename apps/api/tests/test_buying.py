@@ -296,3 +296,46 @@ def test_how_to_buy_uses_the_currency_the_store_actually_returned():
     usd = {**ac, "requirements": {**req, "currencies_seen": ["USD"]}}
     same = " ".join(buying.how_to_buy(usd, country="US")["steps"])
     assert '"currency": "USD"' in same and "answered in" not in same
+
+
+def test_check_record_counts_probes_and_shows_recent_checks(client):
+    sid = _store(client, "record.example.com", "buyer_step_required", SHOP_PAY)
+    path = f"/v1/admin/listings/{sid}/agent-checkout"
+    for status in ("failed", "checkout_ready"):
+        r = client.post(path, headers=admin_headers(), json={"status": status, "requirements": SHOP_PAY})
+        assert r.status_code == 200, r.text
+    item = client.get("/v1/buying/check", params={"store": "record.example.com"}).json()["items"][0]
+    rec = item["check_record"]
+    assert rec["checks_total"] == 3 and rec["checkout_reached_count"] == 2
+    assert rec["checkout_reached_rate"] == 0.67
+    assert [c["status"] for c in rec["recent_checks"]] == ["checkout_ready", "failed", "buyer_step_required"]
+    assert rec["first_checked_on"] == rec["recent_checks"][-1]["on"] and rec["last_checked_at"]
+    assert rec["recent_consistent"] is False and "not a verification" in rec["note"]
+    store = client.get("/v1/stores/record.example.com").json()
+    assert store["trust"]["check_record"]["checks_total"] == 3
+
+
+def test_check_record_rebuilt_from_audit_for_older_probes(client):
+    sid = _store(client, "older.example.com", "checkout_ready", CARD_ONLY)
+    with client.app.state.sessionmaker() as s:
+        listing = s.get(Listing, sid)
+        listing.agent_checkout = {k: v for k, v in listing.agent_checkout.items() if k != "check_history"}
+        s.commit()
+    # Before the next probe, the answer falls back to the last probe alone.
+    rec = client.get("/v1/buying/check", params={"store": sid}).json()["items"][0]["check_record"]
+    assert rec["checks_total"] == 1 and rec["checkout_reached_rate"] == 1.0
+    r = client.post(f"/v1/admin/listings/{sid}/agent-checkout", headers=admin_headers(),
+                    json={"status": "no_checkout"})
+    assert r.status_code == 200, r.text
+    rec = client.get("/v1/buying/check", params={"store": sid}).json()["items"][0]["check_record"]
+    assert rec["checks_total"] == 2 and rec["checkout_reached_count"] == 1
+
+
+def test_next_check_history_keeps_newest_five():
+    hist = None
+    for i in range(7):
+        hist = buying.next_check_history(hist, "checkout_ready" if i % 2 else "failed",
+                                         dt.datetime(2026, 11, 1 + i, tzinfo=dt.UTC))
+    assert hist["total"] == 7 and hist["reached"] == 3 and hist["first"] == "2026-11-01"
+    assert [d for d, _ in hist["recent"]] == ["2026-11-07", "2026-11-06", "2026-11-05", "2026-11-04", "2026-11-03"]
+    assert buying.check_record({})["checks_total"] == 0

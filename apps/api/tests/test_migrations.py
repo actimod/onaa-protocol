@@ -59,3 +59,38 @@ def test_app_does_not_auto_create_on_server_db_by_default(monkeypatch):
     assert Settings().auto_create_schema is False
     monkeypatch.setenv("ONAA_DATABASE_URL", "sqlite:///x.db")
     assert Settings().auto_create_schema is True
+
+
+def test_0019_backfills_check_record_from_audit(tmp_path):
+    import datetime as dt
+    import json
+
+    from sqlalchemy import text
+
+    url = f"sqlite:///{tmp_path / 'bf.db'}"
+    engine = make_engine(url)
+    cfg = _cfg(url)
+    command.upgrade(cfg, "0018")
+    cols = {c["name"]: c for c in inspect(engine).get_columns("listings")}
+    now = dt.datetime(2026, 11, 14, tzinfo=dt.UTC)
+    with engine.begin() as conn:
+        values = {"id": "svc_bf", "listing_type": "service", "service_type": "marketplace", "display_name": "bf",
+                  "lifecycle_status": "discovered", "agent_checkout": '{"status": "checkout_ready"}',
+                  "created_at": now, "updated_at": now}
+        for name, col in cols.items():  # fill other NOT NULL columns with neutral values
+            if name not in values and not col["nullable"] and col.get("default") is None:
+                values[name] = 0 if "INT" in str(col["type"]).upper() or "BOOL" in str(col["type"]).upper() else (
+                    "[]" if "JSON" in str(col["type"]).upper() else "x")
+        conn.execute(text(f"INSERT INTO listings ({', '.join(values)}) VALUES ({', '.join(':' + k for k in values)})"),
+                     values)
+        for i, st in enumerate(["failed", "buyer_step_required", "checkout_ready"]):
+            conn.execute(text("INSERT INTO audit_events (id, actor_type, action, subject_id, result, detail, "
+                              "created_at) VALUES (:id, 'system', 'listing.agent_checkout', 'svc_bf', 'ok', :d, :at)"),
+                         {"id": f"evt_{i}", "d": f'{{"status": "{st}"}}', "at": now + dt.timedelta(days=i)})
+    command.upgrade(cfg, "0019")
+    with engine.connect() as conn:
+        ac = json.loads(conn.execute(text("SELECT agent_checkout FROM listings WHERE id='svc_bf'")).scalar())
+    assert ac["check_history"] == {"total": 3, "reached": 2, "first": "2026-11-14",
+                                   "recent": [["2026-11-16", "checkout_ready"], ["2026-11-15", "buyer_step_required"],
+                                              ["2026-11-14", "failed"]]}
+    engine.dispose()

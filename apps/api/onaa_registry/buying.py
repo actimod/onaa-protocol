@@ -77,6 +77,46 @@ BUYER_INFO_TEXT = {
     "payment_method_required": "a payment method",
     "buyer_identity_required": "buyer identity (name, email)",
 }
+# Per-store check record (trust signal): how often ONAA's checker has probed the store and how often it reached
+# checkout. Kept inside agent_checkout as {"total", "reached", "first", "recent": [[YYYY-MM-DD, status], ...]} with
+# dates only and the newest RECENT_CHECKS kept, so the in-memory store cache stays small (strings are interned).
+RECENT_CHECKS = 5
+CHECK_RECORD_NOTE = ("ONAA's own checkout probes of this store (each stops before payment). checkout_reached_rate = "
+                     "share of all probes that reached checkout; recent_checks = newest first, by day. A record of "
+                     "observations, not a verification or guarantee.")
+
+
+def next_check_history(prev: dict | None, status: str, at: dt.datetime) -> dict:
+    """The stored check record after one more probe with result `status` at `at`."""
+    prev = prev or {}
+    day = aware(at).date().isoformat()
+    recent = [[day, status]] + [list(x) for x in prev.get("recent") or [] if isinstance(x, list | tuple)]
+    return {"total": int(prev.get("total") or 0) + 1,
+            "reached": int(prev.get("reached") or 0) + (status in CHECKOUT_REACHED_STATUSES),
+            "first": prev.get("first") or day, "recent": recent[:RECENT_CHECKS]}
+
+
+def check_record(ac: dict | None) -> dict[str, Any]:
+    """Public trust signal from the stored check record; falls back to the last probe alone."""
+    ac = ac or {}
+    hist = ac.get("check_history")
+    if not hist and ac.get("status"):
+        day = (ac.get("checked_at") or "")[:10] or None
+        hist = {"total": 1, "reached": int(ac["status"] in CHECKOUT_REACHED_STATUSES), "first": day,
+                "recent": [[day, ac["status"]]]}
+    if not hist:
+        return {"checks_total": 0, "checkout_reached_count": 0, "checkout_reached_rate": None, "recent_checks": [],
+                "first_checked_on": None, "last_checked_at": None, "note": CHECK_RECORD_NOTE}
+    total, reached = int(hist.get("total") or 0), int(hist.get("reached") or 0)
+    recent = [{"on": d, "status": st} for d, st in hist.get("recent") or []]
+    return {"checks_total": total, "checkout_reached_count": reached,
+            "checkout_reached_rate": round(reached / total, 2) if total else None,
+            "recent_checks": recent,
+            "recent_consistent": len(recent) > 1 and len({r["status"] for r in recent}) == 1,
+            "first_checked_on": hist.get("first"), "last_checked_at": ac.get("checked_at"),
+            "note": CHECK_RECORD_NOTE}
+
+
 AGENT_WORDS = {  # words in accepted_agents_hint -> agent names that match it
     "google": ("gemini", "google", "ai mode", "ai-mode", "bard", "project mariner", "mariner"),
 }
@@ -332,6 +372,7 @@ def assess(listing: Listing, *, country: str | None = None, agent: str | None = 
                                                               else None),
         "how_to_buy": how_to_buy(ac, country=cc),
         "last_checked_at": checked,
+        "check_record": check_record(ac),
         **PAYMENT_EVIDENCE,
     }
 

@@ -434,7 +434,9 @@ onaa-demo.widgets.sell, SKU widget-std), escrow https://onaa-demo-escrow.fly.dev
   in free text what you want, e.g. "trail running shoes under $120, ship to Texas"; matching stores come back at
   once; personal data is removed and the redacted text kept up to 7 days for demand review, notice:
   {base}/privacy; REST: POST
-  {base}/v1/buying/needs with a JSON body whose text field holds the request).
+  {base}/v1/buying/needs with a JSON body whose text field holds the request). Its answer lists
+  applied_constraints (filtered), substituted_constraints (could not be checked; a weaker condition was used, with
+  the caveat) and unapplied_constraints (not filtered; re-apply them yourself).
   Search results include discovered listings (never registered); pass claimed_only=true to leave them out.
   Claude Code: claude mcp add --transport http onaa {base}/mcp
 - Python SDK: pip install "git+https://github.com/actimod/onaa-protocol#subdirectory=packages/sdk-python",

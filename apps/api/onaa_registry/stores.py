@@ -29,7 +29,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .buying import HEAVY_BUILD_LOCK, PAYMENT_EVIDENCE, TESTED_COUNTRIES, VERDICT_NOTE, shipping_view
+from .buying import HEAVY_BUILD_LOCK, PAYMENT_EVIDENCE, TESTED_COUNTRIES, VERDICT_NOTE, check_record, shipping_view
 from .logic import PUBLIC_STATUSES, aware, ensure_not_taken, host_of, make_listing_id, set_facets
 from .models import Listing, utcnow
 
@@ -179,6 +179,7 @@ def store_record(listing: Listing, base: str, *, country: str | None = None) -> 
             "reachability": listing.reachability or "unknown",
             "last_health_check_at": aware(listing.last_checked_at).isoformat() if listing.last_checked_at else None,
             "affiliated_with_onaa": False,
+            "check_record": check_record(ac),
         },
         "first_seen": aware(listing.discovered_at or listing.created_at).isoformat()
         if (listing.discovered_at or listing.created_at) else None,
