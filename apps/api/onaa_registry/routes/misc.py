@@ -277,18 +277,26 @@ Can my agent reach checkout here, and how? (any product URL, store domain or svc
   GET  {base}/v1/stores/check?url=https://<store>/products/<item>&country=US
   POST {base}/v1/stores/check  {{"stores": ["<url or domain>", ...], "country": "US", "pay_alone": true}}
   Answer per store: verdict (yes, yes_buyer_finishes, maybe, no, unknown), reasons, cautions, how_to_buy steps.
-  verdict yes = agent checkout path observed (payment not tested). Every answer carries payment_tested=false,
-  payment_success_verified=false and post_link_autonomy_verified=false: ONAA never pays.
+  verdict yes = ONAA's probe reached the store's checkout (checkout_path_observed) AND the store meets your
+  conditions (eligible_for_request); the buyer still provides details and approves or makes the payment, under
+  the store's terms. Read checkout_path_observed and eligible_for_request rather than verdict. Every answer
+  carries payment_tested=false, payment_success_verified=false and post_link_autonomy_verified=false: ONAA never
+  pays. Check cautions too: a sandbox endpoint or a store probed only once is flagged there.
+  pay_alone=true (pays_alone=true on /v1/stores) is a substitute, not the real thing: it keeps stores that offer
+  a one-time Shop Pay link. The buyer must approve once when linking, and ONAA has not tested
+  whether the agent can pay alone after that.
   Found a product with Shop MCP or a store's own search? Pass those shop URLs here to see at which stores ONAA
   observed a created checkout, and which buyer steps remain. A store ONAA has not listed is looked up live at
   its /.well-known/ucp.
 Where can my agent reach checkout?
   GET {base}/v1/stores?ships_to=US&pays_alone=true    (also checkout=, protocol=ucp|shop-mcp, payment_handler=,
-      currency=, q=)
+      currency=, q=; pays_alone = one-time Shop Pay link offered, the buyer approves it once, later payment
+      not tested)
   GET {base}/v1/buying/stores?country=US&payment=shop_pay&agent=gemini   (ranked by verdict)
 One store: GET {base}/v1/stores/<domain or svc_ id>    Page for people: {base}/stores/<domain>
 Page through, don't download everything: GET {base}/v1/stores?limit=100&offset=0 (then offset=100, ...; total
-  is in the answer) with filters to keep it small, e.g. ?ships_to=KR&pays_alone=true (about 15 KB per 100 stores).
+  is in the answer) with filters to keep it small, e.g. ?ships_to=KR&pays_alone=true (about 15 KB per 100 stores;
+  pays_alone means a one-time Shop Pay link is offered, payment not tested).
 Bulk only if you need all of it: {base}/stores.json (several MB gzip, ETag; also {base}/stores.csv). The
   llms-full.txt store list is large too; agents with fetch limits should use /v1/stores instead.
 MCP (no auth): {base}/mcp, {len(HOSTED_TOOLS)} tools; for buying start with find_stores, can_i_buy_here and how_to_buy.

@@ -264,7 +264,7 @@ def origin_forwarding(client: OnaaClient) -> OnaaClient:
     return client
 
 
-def forwarding_client_factory(upstream: str, trusted_proxy_hops: int, *, timeout: float = 15.0):
+def forwarding_client_factory(upstream: str, trusted_proxy_hops: int, *, timeout: float = 30.0):
     """Per-call credential-free OnaaClient whose requests carry the caller's IP as the last X-Forwarded-For hop.
 
     The loopback API reads the client IP from X-Forwarded-For only when ONAA_TRUSTED_PROXY_HOPS > 0 (the hosted
