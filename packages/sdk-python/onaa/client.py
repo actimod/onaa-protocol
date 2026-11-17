@@ -287,12 +287,13 @@ class OnaaClient:
     def buying_stores(self, **filters) -> dict:
         """Stores where an agent can reach checkout (payment not tested).
 
-        Filters: country, agent, payment (list), pay_alone, q, include, limit, offset."""
+        Filters: country, agent, payment (list), shop_pay_link_offered (pay_alone = old name), q, include,
+        limit, offset, exclude_sandbox."""
         return self._request("GET", "/v1/buying/stores", params=_params(filters))
 
     def buying_check(self, stores: list[str], **filters) -> dict:
         """Can I reach checkout at these stores (svc_ ids, domains or URLs), and how. Filters: country, agent, payment,
-        pay_alone."""
+        shop_pay_link_offered (pay_alone = old name)."""
         return self._request("GET", "/v1/buying/check", params=_params({**filters, "store": list(stores)}))
 
     def buying_need(self, text: str, *, ship_to_country: str | None = None, agent: str | None = None) -> dict:

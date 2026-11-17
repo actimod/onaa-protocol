@@ -4,8 +4,8 @@ errors, returns isError, or is too slow.
 
 Why: on 2026-11-17 ChatGPT reported "Error executing tool find_stores" for include=all while the REST route answered
 200. REST checks and tools/list checks did not catch it. This runs every combination a client can send:
-find_stores with include buyable/possible/all x health filter none/relaxed/strict, plus can_i_buy_here, how_to_buy
-and describe_need.
+find_stores with include buyable/possible/all x health filter none/relaxed/strict (plus shop_pay_link_offered and
+exclude_sandbox), can_i_buy_here, how_to_buy and describe_need.
 
     python3 apps/mcp-registry/mcp_smoke.py --base https://api.onaa.net            # live (tagged as our own traffic)
     python3 apps/mcp-registry/mcp_smoke.py --base http://127.0.0.1:8080 --json    # machine-readable result
@@ -35,6 +35,9 @@ def cases(store: str = STORE, describe_need: bool = True) -> list[tuple[str, str
     out = [(f"find_stores include={inc} filter={name}", "find_stores",
             {"ship_to_country": "US", "limit": 5, "include": inc, **flt})
            for inc in INCLUDES for name, flt in FILTERS.items()]
+    out += [(f"find_stores include={inc} shop_pay_link_offered exclude_sandbox", "find_stores",
+             {"ship_to_country": "US", "limit": 5, "include": inc, "shop_pay_link_offered": True,
+              "exclude_sandbox": True}) for inc in ("possible", "all")]
     out += [(f"can_i_buy_here pay_alone={pa}", "can_i_buy_here",
              {"stores": [store], "ship_to_country": "US", "pay_alone": pa}) for pa in (False, True)]
     out.append(("how_to_buy", "how_to_buy", {"store": store, "ship_to_country": "US"}))

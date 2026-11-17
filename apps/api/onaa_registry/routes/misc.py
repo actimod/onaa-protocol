@@ -275,14 +275,15 @@ def llms_txt(request: Request):
 
 Can my agent reach checkout here, and how? (any product URL, store domain or svc_ id; up to 25)
   GET  {base}/v1/stores/check?url=https://<store>/products/<item>&country=US
-  POST {base}/v1/stores/check  {{"stores": ["<url or domain>", ...], "country": "US", "pay_alone": true}}
+  POST {base}/v1/stores/check  {{"stores": ["<url or domain>", ...], "country": "US", "shop_pay_link_offered": true}}
   Answer per store: verdict (yes, yes_buyer_finishes, maybe, no, unknown), reasons, cautions, how_to_buy steps.
   verdict yes = ONAA's probe reached the store's checkout (checkout_path_observed) AND the store meets your
   conditions (eligible_for_request); the buyer still provides details and approves or makes the payment, under
   the store's terms. Read checkout_path_observed and eligible_for_request rather than verdict. Every answer
   carries payment_tested=false, payment_success_verified=false and post_link_autonomy_verified=false: ONAA never
   pays. Check cautions too: a sandbox endpoint or a store probed only once is flagged there.
-  pay_alone=true (pays_alone=true on /v1/stores) is a substitute, not the real thing: it keeps stores that offer
+  shop_pay_link_offered=true (old name pay_alone, still accepted; pays_alone=true on /v1/stores) is a
+  substitute, not the real thing: it keeps stores that offer
   a one-time Shop Pay link. The buyer must approve once when linking, and ONAA has not tested
   whether the agent can pay alone after that.
   Found a product with Shop MCP or a store's own search? Pass those shop URLs here to see at which stores ONAA
@@ -313,7 +314,9 @@ Endpoint health filters (find_stores, /v1/stores, /v1/buying/stores):
 Per-store answers also give: check_record.checks_total next to checkout_reached_rate (insufficient_history=true
   below 3 probes: too few for the rate to mean much); declared_payment_handlers (the store's manifest) apart from
   observed_checkout_payment_options (what ONAA's test checkout offered); endpoint_environment ("sandbox" when the
-  endpoint hostname says so, else "unknown": ONAA cannot confirm an endpoint is production).
+  endpoint hostname says so, else "unknown": ONAA cannot confirm an endpoint is production);
+  shop_pay_link_offered (true/false/null). Sandbox endpoints are listed by default, with a caution and ranked
+  last within their verdict; add exclude_sandbox=true on /v1/buying/stores (find_stores) to hide them.
 Checkout currency: shipping.currencies_seen (and observed_checkout_currency in buying answers) is what the store's
   test checkout returned. Use the store's own live quote for prices; do not assume your requested currency.
 

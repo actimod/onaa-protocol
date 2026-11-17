@@ -7601,11 +7601,23 @@
           {
             "description": "only stores that offer a Shop Pay one-time link the buyer approves once (offered, not observed; payment not tested)",
             "in": "query",
-            "name": "pay_alone",
+            "name": "shop_pay_link_offered",
             "required": false,
             "schema": {
               "default": false,
               "description": "only stores that offer a Shop Pay one-time link the buyer approves once (offered, not observed; payment not tested)",
+              "title": "Shop Pay Link Offered",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "deprecated name for shop_pay_link_offered (same rule; kept so existing calls work)",
+            "in": "query",
+            "name": "pay_alone",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "deprecated name for shop_pay_link_offered (same rule; kept so existing calls work)",
               "title": "Pay Alone",
               "type": "boolean"
             }
@@ -7743,11 +7755,23 @@
           {
             "description": "only stores that offer a Shop Pay one-time link the buyer approves once (offered, not observed; payment not tested)",
             "in": "query",
-            "name": "pay_alone",
+            "name": "shop_pay_link_offered",
             "required": false,
             "schema": {
               "default": false,
               "description": "only stores that offer a Shop Pay one-time link the buyer approves once (offered, not observed; payment not tested)",
+              "title": "Shop Pay Link Offered",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "deprecated name for shop_pay_link_offered (same rule; kept so existing calls work)",
+            "in": "query",
+            "name": "pay_alone",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "deprecated name for shop_pay_link_offered (same rule; kept so existing calls work)",
               "title": "Pay Alone",
               "type": "boolean"
             }
@@ -7857,6 +7881,18 @@
               "default": false,
               "description": "strict: only stores whose last endpoint probe answered; drops unknown",
               "title": "Confirmed Reachable Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "hide stores whose endpoint hostname looks like a sandbox, staging or test store (endpoint_environment=sandbox). Off by default: such stores are listed with a caution and ranked last within their verdict",
+            "in": "query",
+            "name": "exclude_sandbox",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "hide stores whose endpoint hostname looks like a sandbox, staging or test store (endpoint_environment=sandbox). Off by default: such stores are listed with a caution and ranked last within their verdict",
+              "title": "Exclude Sandbox",
               "type": "boolean"
             }
           }
@@ -10362,11 +10398,25 @@
             }
           },
           {
+            "description": "only count stores offering a Shop Pay one-time link the buyer approves once (payment not tested)",
+            "in": "query",
+            "name": "shop_pay_link_offered",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "only count stores offering a Shop Pay one-time link the buyer approves once (payment not tested)",
+              "title": "Shop Pay Link Offered",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "deprecated name for shop_pay_link_offered",
             "in": "query",
             "name": "pay_alone",
             "required": false,
             "schema": {
               "default": false,
+              "description": "deprecated name for shop_pay_link_offered",
               "title": "Pay Alone",
               "type": "boolean"
             }
@@ -10407,7 +10457,7 @@
                 "examples": [
                   {
                     "country": "US",
-                    "pay_alone": true,
+                    "shop_pay_link_offered": true,
                     "stores": [
                       "https://example-shop.com/products/x",
                       "svc_..."
