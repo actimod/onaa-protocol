@@ -18,8 +18,14 @@ Country = Annotated[str | None, Query(max_length=2, description="ISO 3166-1 coun
 Agent = Annotated[str | None, Query(max_length=60, description="your agent or platform, e.g. gemini, chatgpt, claude")]
 Payment = Annotated[list[str] | None, Query(description="payment methods you or your buyer can use: shop_pay, card, "
                                                         "google_pay (comma-separated or repeated)")]
-PayAlone = Annotated[bool, Query(description="only stores that offer a Shop Pay one-time link the buyer "
-                                             "approves once (offered, not observed; payment not tested)")]
+PayAlone = Annotated[bool, Query(description="deprecated name for shop_pay_link_offered (same rule; kept so "
+                                             "existing calls work)")]
+LinkOffered = Annotated[bool, Query(description="only stores that offer a Shop Pay one-time link the buyer "
+                                                "approves once (offered, not observed; payment not tested)")]
+ExcludeSandbox = Annotated[bool, Query(description="hide stores whose endpoint hostname looks like a sandbox, "
+                                                   "staging or test store (endpoint_environment=sandbox). Off by "
+                                                   "default: such stores are listed with a caution and ranked last "
+                                                   "within their verdict")]
 ClaimedOnly = Annotated[bool, Query(description="only stores posted by their operator; most stores are unclaimed "
                                                 "(found on the public web by ONAA), so this can return few or none")]
 ReachableOnly = Annotated[bool, Query(description="hide stores whose last 3 health probes failed "
@@ -33,7 +39,7 @@ def _split(values: list[str] | None) -> list[str]:
 
 @router.get("/stores", summary="Stores where an agent can reach checkout under your conditions (ship-to, payment)")
 def stores(request: Request, session: Session = Depends(get_session), country: Country = None, agent: Agent = None,
-           payment: Payment = None, pay_alone: PayAlone = False,
+           payment: Payment = None, shop_pay_link_offered: LinkOffered = False, pay_alone: PayAlone = False,
            q: Annotated[str | None, Query(max_length=100, description="words in the store name or description; "
                                                                       "product search stays with each store")] = None,
            include: Annotated[Literal["buyable", "possible", "all"], Query(
@@ -44,13 +50,15 @@ def stores(request: Request, session: Session = Depends(get_session), country: C
            exclude_unreachable: Annotated[bool, Query(description="clearer name for reachable_only (same rule)")]
            = False,
            confirmed_reachable_only: Annotated[bool, Query(description="strict: only stores whose last endpoint "
-                                                                       "probe answered; drops unknown")] = False):
+                                                                       "probe answered; drops unknown")] = False,
+           exclude_sandbox: ExcludeSandbox = False):
     from .stores import count_search
 
+    pay_alone = pay_alone or shop_pay_link_offered
     result = buying.find_stores(session, country=country, agent=agent, payment=_split(payment), pay_alone=pay_alone,
                                 q=q, include=include, limit=limit, offset=offset, claimed_only=claimed_only,
                                 reachable_only=reachable_only or exclude_unreachable,
-                                confirmed_reachable_only=confirmed_reachable_only)
+                                confirmed_reachable_only=confirmed_reachable_only, exclude_sandbox=exclude_sandbox)
     if offset == 0:  # count searches, not the pages of one search
         count_search(request, "find_stores", {"country": country, "agent": agent, "payment": _split(payment),
                                               "pays_alone": True if pay_alone else None,
@@ -64,7 +72,8 @@ def check(request: Request,
           store: Annotated[list[str], Query(description="svc_ id, store domain or any URL on the store; repeat or "
                                                         "comma-separate, e.g. the shops in Shop MCP results")],
           session: Session = Depends(get_session), country: Country = None, agent: Agent = None,
-          payment: Payment = None, pay_alone: PayAlone = False):
+          payment: Payment = None, shop_pay_link_offered: LinkOffered = False, pay_alone: PayAlone = False):
+    pay_alone = pay_alone or shop_pay_link_offered
     keys = [k[:300] for k in _split_many(store)]
     if not keys:
         raise HTTPException(422, "store is required")

@@ -333,7 +333,7 @@ def test_every_buying_tool_call_combination_over_mcp(hosted):
     spec.loader.exec_module(smoke)
     base, _ = hosted
     rows = smoke.run(base, store="kicks.example.com", max_seconds=15)
-    assert len(rows) == 3 * 3 + 2 + 1 + 1
+    assert len(rows) == 3 * 3 + 2 + 2 + 1 + 1  # + shop_pay_link_offered/exclude_sandbox for possible and all
     assert [r for r in rows if r["problem"]] == []
     everything = next(r for r in rows if r["case"] == "find_stores include=all filter=none")
     assert "unknown" in everything["summary"]

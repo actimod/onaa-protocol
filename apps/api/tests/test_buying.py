@@ -398,3 +398,66 @@ def test_include_all_appends_unprobed_stores_counted_in_sql(client, monkeypatch)
         assert [i["store"]["name"] for i in texty["items"]] == ["nocheckout.example.com"]
     finally:
         buying.reset_cache()
+
+
+def test_shop_pay_link_offered_is_the_literal_name_for_pay_alone(client):
+    """8th live audit 2026-11-17: pay_alone read like a capability. shop_pay_link_offered names what ONAA saw;
+    pay_alone stays as a deprecated alias with the same result."""
+    ids = _seed(client)
+    new = client.get("/v1/buying/stores", params={"country": "KR", "shop_pay_link_offered": "true"}).json()
+    old = client.get("/v1/buying/stores", params={"country": "KR", "pay_alone": "true"}).json()
+    assert [i["store"]["id"] for i in new["items"]] == [i["store"]["id"] for i in old["items"]] == [ids["shoes"]]
+    item = new["items"][0]
+    assert item["shop_pay_link_offered"] is True and item["pay_alone"] == "after_one_time_link"
+    assert new["conditions"]["shop_pay_link_offered"] is True
+    assert not any("works" in c for c in item["cautions"])
+    cards = client.get("/v1/buying/check", params={"store": "cards.example.com"}).json()["items"][0]
+    assert cards["shop_pay_link_offered"] is False
+    check = client.get("/v1/buying/check", params={"store": "cards.example.com", "country": "KR",
+                                                   "shop_pay_link_offered": "true"}).json()["items"][0]
+    assert check["verdict"] == "no"
+
+
+def test_exclude_sandbox_hides_sandbox_endpoints_but_default_lists_them(client):
+    """8th live audit: sandbox endpoints could be eligible with no way to drop them. exclude_sandbox drops them
+    (in the ranked list and in the include=all rest); the default is unchanged."""
+    _store(client, "prod.example.com", "checkout_ready", CARD_ONLY)
+    _store(client, "sbx.example.com", "checkout_ready", CARD_ONLY, endpoint="https://sbx-sandbox.myshopify.com/api")
+    _store(client, "dead.example.com", "failed", endpoint="https://shop.test.example.org/api")
+    names = lambda body: {i["store"]["name"] for i in body["items"]}  # noqa: E731
+    default = client.get("/v1/buying/stores", params={"country": "US"}).json()
+    assert names(default) == {"prod.example.com", "sbx.example.com"}
+    assert default["conditions"]["exclude_sandbox"] is False
+    hidden = client.get("/v1/buying/stores", params={"country": "US", "exclude_sandbox": "true"}).json()
+    assert names(hidden) == {"prod.example.com"} and hidden["total"] == 1
+    every = client.get("/v1/buying/stores", params={"include": "all", "exclude_sandbox": "true"}).json()
+    assert names(every) == {"prod.example.com"} and every["total"] == 1
+
+
+def test_ranking_is_computed_once_per_condition_set(client, monkeypatch):
+    """8th live audit: nine concurrent find_stores calls took 8-11 s each because every call assessed every
+    candidate. The ranking is now cached per condition set and store list, and concurrent callers share one."""
+    import threading
+
+    monkeypatch.setattr(buying, "BUYING_CACHE_SECONDS", 3600)
+    buying.reset_cache()
+    try:
+        _seed(client)
+        calls = []
+        real = buying.assess
+        monkeypatch.setattr(buying, "assess", lambda *a, **k: calls.append(k.get("steps", True)) or real(*a, **k))
+        first = client.get("/v1/buying/stores", params={"country": "KR"}).json()
+        ranked = calls.count(False)
+        assert ranked == 3  # every candidate once
+        results = []
+        threads = [threading.Thread(target=lambda: results.append(
+            client.get("/v1/buying/stores", params={"country": "KR", "q": "o"}).json())) for _ in range(6)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+        assert calls.count(False) == ranked  # same conditions: no new ranking
+        assert all(r["total"] >= 1 for r in results)
+        client.get("/v1/buying/stores", params={"country": "DE"})
+        assert calls.count(False) == 2 * ranked  # new conditions: one new ranking
+        assert first["list_as_of"]
+    finally:
+        buying.reset_cache()

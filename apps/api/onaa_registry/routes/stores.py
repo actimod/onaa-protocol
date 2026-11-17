@@ -225,21 +225,23 @@ def check_get(
     agent: Annotated[str | None, Query(max_length=60, description="your agent platform, e.g. gemini")] = None,
     payment: Annotated[list[str] | None, Query(description="payment methods you can use: shop_pay, card, "
                                                            "google_pay")] = None,
-    pay_alone: bool = False,
+    shop_pay_link_offered: Annotated[bool, Query(description="only count stores offering a Shop Pay one-time link "
+                                                             "the buyer approves once (payment not tested)")] = False,
+    pay_alone: Annotated[bool, Query(description="deprecated name for shop_pay_link_offered")] = False,
     session: Session = Depends(get_session),
 ):
     """Answers per store: verdict (yes, yes_buyer_finishes, maybe, no, unknown), reasons, cautions and how to
     buy. A store ONAA has not listed is looked up live at its /.well-known/ucp (robots.txt honoured); if it
     publishes a UCP shopping endpoint, ONAA adds it (links only) and answers from its declared protocol."""
     return run_check(request, session, _split(url) + _split(store), country=country, agent=agent,
-                     payment=_split(payment), pay_alone=pay_alone)
+                     payment=_split(payment), pay_alone=pay_alone or shop_pay_link_offered)
 
 
 @router.post("/v1/stores/check", summary="Same as GET /v1/stores/check, with a JSON body")
 def check_post(
     request: Request,
     body: Annotated[dict, Body(examples=[{"stores": ["https://example-shop.com/products/x", "svc_..."],
-                                          "country": "US", "pay_alone": True}])],
+                                          "country": "US", "shop_pay_link_offered": True}])],
     session: Session = Depends(get_session),
 ):
     stores = body.get("stores") or body.get("urls") or []
@@ -254,7 +256,7 @@ def check_post(
     if agent is not None and (not isinstance(agent, str) or len(agent) > 60):
         raise HTTPException(422, "agent must be a short string")
     return run_check(request, session, stores, country=country, agent=agent, payment=payment[:10],
-                     pay_alone=bool(body.get("pay_alone")))
+                     pay_alone=bool(body.get("shop_pay_link_offered") or body.get("pay_alone")))
 
 
 @router.get("/v1/stores/{store}", summary="One store by listing id or domain, with how to buy there")

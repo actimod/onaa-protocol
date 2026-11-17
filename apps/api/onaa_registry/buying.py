@@ -90,7 +90,8 @@ CHECK_RECORD_NOTE = ("ONAA's own checkout probes of this store (each stops befor
 MIN_CHECKS_FOR_RATE = 3
 # Endpoint environment from the endpoint's own hostname only. ONAA cannot confirm that an endpoint is production,
 # so the answer is "sandbox" when the name says so and "unknown" otherwise.
-_SANDBOX_HOST = re.compile(r"(?:^|[.-])(?:sandbox|staging|stage|test|testing|dev|preview|demo)(?:[.-]|$)", re.I)
+_SANDBOX_WORDS = ("sandbox", "staging", "stage", "test", "testing", "dev", "preview", "demo")
+_SANDBOX_HOST = re.compile(rf"(?:^|[.-])(?:{'|'.join(_SANDBOX_WORDS)})(?:[.-]|$)", re.I)
 
 
 @functools.lru_cache(maxsize=65536)
@@ -348,7 +349,8 @@ def assess(listing: Listing, *, country: str | None = None, agent: str | None = 
             verdict = "no"
             reasons.append("the one-time link needs Shop Pay, which is not among your payment methods")
         else:
-            cautions.append("paying alone works after the buyer links Shop Pay once (first purchase)")
+            cautions.append("a Shop Pay one-time link is offered: the buyer must approve it once, and payment "
+                            "after that was not tested")
 
     checked = ac.get("checked_at")
     when = now or utcnow()
@@ -389,7 +391,8 @@ def assess(listing: Listing, *, country: str | None = None, agent: str | None = 
         "declared_payment_handlers": req.get("manifest_payment_handlers") or [],
         "observed_checkout_payment_options": req.get("payment_handlers") or [],
         "endpoint_environment": environment,
-        "pay_alone": alone,
+        "pay_alone": alone,  # legacy name; read shop_pay_link_offered
+        "shop_pay_link_offered": {"after_one_time_link": True, "none_observed": False}.get(alone),
         "ships_to": view["ships_to"],
         "no_shipping_to": view["no_shipping_to"],
         "shipping_quote": view["quotes"].get(cc) if cc else None,
@@ -571,17 +574,26 @@ def warm_cache(sessionmaker, after: threading.Thread | None = None) -> None:
     def run() -> None:
         if after is not None:
             after.join()
-        try:
-            with sessionmaker() as s:
-                _cached_stores(s, POSSIBLE_STATUSES)
-        except Exception:  # noqa: BLE001
-            log.warning("buying store list warm-up failed", exc_info=True)
+        # Load at startup, then refresh on a timer: refreshing only when a request arrives served the first
+        # caller after a quiet spell a list up to 40 min old (live audit 2026-11-17, 8th).
+        while True:
+            try:
+                with sessionmaker() as s:
+                    hit = _cache.get(POSSIBLE_STATUSES)
+                    if hit is None:
+                        _cached_stores(s, POSSIBLE_STATUSES)
+                    elif time.monotonic() - hit[0] >= BUYING_CACHE_SECONDS:
+                        _cache[POSSIBLE_STATUSES] = _load(s, POSSIBLE_STATUSES, hit)
+            except Exception:  # noqa: BLE001
+                log.warning("buying store list refresh failed", exc_info=True)
+            time.sleep(max(BUYING_CACHE_SECONDS / 2, 30))
 
     threading.Thread(target=run, name="onaa-buying-warm", daemon=True).start()
 
 
 def reset_cache() -> None:
     _cache.clear()
+    _ranks.clear()
 
 
 def _lookup(session: Session, key: str) -> StoreView | None:
@@ -632,32 +644,30 @@ def find_stores(session: Session, *, country: str | None = None, agent: str | No
                 payment: list[str] | None = None, pay_alone: bool = False, q: str | None = None,
                 include: Literal["buyable", "possible", "all"] = "possible", limit: int = 20,
                 offset: int = 0, claimed_only: bool = False, reachable_only: bool = False,
-                confirmed_reachable_only: bool = False) -> dict[str, Any]:
+                confirmed_reachable_only: bool = False, exclude_sandbox: bool = False) -> dict[str, Any]:
     """Stores matching the buyer's conditions, best answers first.
 
     include=all = the ranked candidate list (stores whose probe got far enough to answer, cached in memory) followed
     by every other store in store id order. That rest (stores never probed, or whose probe failed) is counted in SQL
     and only the rows on the requested page are read: reading all ~32k stores with their probe JSON per call took
-    5-7 s and enough memory to slow the whole 1 GB machine (live re-verification 2026-11-17, 7th)."""
+    5-7 s and enough memory to slow the whole 1 GB machine (live re-verification 2026-11-17, 7th).
+    exclude_sandbox drops stores whose endpoint hostname looks like a sandbox or test store."""
     wanted = {"buyable": ("yes", "yes_buyer_finishes"), "possible": ("yes", "yes_buyer_finishes", "maybe"),
               "all": tuple(VERDICT_RANK)}[include]
     stores, list_as_of = _cached_stores_as_of(session, POSSIBLE_STATUSES)
     kw = {"country": country, "agent": agent, "payment": payment, "pay_alone": pay_alone}
-    pairs = [(s, assess(s, steps=False, **kw)) for s in stores
-             if _matches_text(s, q) and (not claimed_only or s.claimed)
+    pairs = [(s, verdict) for s, verdict, sandbox in _ranked(stores, kw)
+             if verdict in wanted and _matches_text(s, q) and (not claimed_only or s.claimed)
              and (not reachable_only or s.reachability != "unreachable")
-             and (not confirmed_reachable_only or s.reachability == "reachable")]
-    pairs = [(s, r) for s, r in pairs if r["verdict"] in wanted]
-    pairs.sort(key=lambda p: (VERDICT_RANK[p[1]["verdict"]], p[1]["endpoint_environment"] == "sandbox",
-                              p[1]["pay_alone"] != "after_one_time_link",
-                              p[1]["ships_to_country"] is not True, (p[0].display_name or "").lower()))
+             and (not confirmed_reachable_only or s.reachability == "reachable")
+             and not (exclude_sandbox and sandbox)]
     from .stores import reachability_counts  # stores imports this module
 
     counts = reachability_counts(s.reachability or "unknown" for s, _ in pairs)
     page = [assess(s, **kw) for s, _ in pairs[offset:offset + limit]]
     total = len(pairs)
     if include == "all":
-        rest = _rest_conditions(q, claimed_only, reachable_only, confirmed_reachable_only)
+        rest = _rest_conditions(q, claimed_only, reachable_only, confirmed_reachable_only, exclude_sandbox)
         for state, n in session.execute(select(Listing.reachability, func.count()).where(*rest)
                                         .group_by(Listing.reachability)).all():
             key = state if state in counts else "unknown"
@@ -673,12 +683,51 @@ def find_stores(session: Session, *, country: str | None = None, agent: str | No
             "reachability_counts": counts,
             "list_as_of": list_as_of,
             "conditions": {"country": _country(country), "agent": agent, "payment": normalise_payment(payment),
-                           "pay_alone": pay_alone, "query": q, "include": include, "claimed_only": claimed_only,
-                           "reachable_only": reachable_only, "confirmed_reachable_only": confirmed_reachable_only},
+                           "pay_alone": pay_alone, "shop_pay_link_offered": pay_alone, "query": q,
+                           "include": include, "claimed_only": claimed_only, "reachable_only": reachable_only,
+                           "confirmed_reachable_only": confirmed_reachable_only, "exclude_sandbox": exclude_sandbox},
             "tested_countries": list(TESTED_COUNTRIES), "note": NOTE, "verdict_note": VERDICT_NOTE}
 
 
-def _rest_conditions(q: str | None, claimed_only: bool, reachable_only: bool, confirmed: bool) -> list:
+# Ranked candidate lists per buyer condition set (country, agent, payment, pay_alone) for the current store list.
+# Ranking assesses every candidate (~20k) and took about 1 s of CPU per call on the production machine, so nine
+# concurrent calls took 8-11 s each (live audit 2026-11-17, 8th). A ranking is computed once per condition set and
+# store list; concurrent callers with the same conditions wait for that one computation. Each entry holds only
+# (store, verdict, sandbox) tuples, about 2 MB.
+RANK_CACHE_SIZE = 24
+_ranks: dict[tuple, tuple[list, list]] = {}
+_rank_locks: dict[tuple, threading.Lock] = {}
+_ranks_guard = threading.Lock()
+
+
+def _ranked(stores: list[StoreView], kw: dict) -> list[tuple[StoreView, str, bool]]:
+    key = (_country(kw["country"]), (kw["agent"] or "").lower() or None,
+           tuple(normalise_payment(kw["payment"])), bool(kw["pay_alone"]))
+    hit = _ranks.get(key)
+    if hit is not None and hit[0] is stores:
+        return hit[1]
+    with _ranks_guard:
+        lock = _rank_locks.setdefault(key, threading.Lock())
+    with lock:
+        hit = _ranks.get(key)
+        if hit is not None and hit[0] is stores:
+            return hit[1]
+        scored = [(s, assess(s, steps=False, **kw)) for s in stores]
+        scored.sort(key=lambda p: (VERDICT_RANK[p[1]["verdict"]], p[1]["endpoint_environment"] == "sandbox",
+                                   p[1]["pay_alone"] != "after_one_time_link",
+                                   p[1]["ships_to_country"] is not True, (p[0].display_name or "").lower()))
+        ranked = [(s, r["verdict"], r["endpoint_environment"] == "sandbox") for s, r in scored]
+        with _ranks_guard:
+            for k in [k for k, v in _ranks.items() if v[0] is not stores]:
+                del _ranks[k]  # rankings of an older store list would keep that whole list in memory
+            if key not in _ranks and len(_ranks) >= RANK_CACHE_SIZE:
+                _ranks.pop(next(iter(_ranks)))
+            _ranks[key] = (stores, ranked)
+    return ranked
+
+
+def _rest_conditions(q: str | None, claimed_only: bool, reachable_only: bool, confirmed: bool,
+                     exclude_sandbox: bool = False) -> list:
     """SQL for the stores outside the candidate list, with the same filters find_stores applies in memory."""
     out = [Listing.service_type == "marketplace", Listing.lifecycle_status.in_(PUBLIC_STATUSES),
            ~Listing.id.in_(select(ListingFacet.listing_id).where(
@@ -693,6 +742,9 @@ def _rest_conditions(q: str | None, claimed_only: bool, reachable_only: bool, co
         out.append(Listing.reachability != "unreachable")
     if confirmed:
         out.append(Listing.reachability == "reachable")
+    if exclude_sandbox:  # the SQL side of endpoint_environment's _SANDBOX_HOST: a sandbox word between . - or ://
+        url = func.lower(func.coalesce(Listing.endpoint_url, ""))
+        out.extend(~url.like(f"%{a}{w}{b}%") for w in _SANDBOX_WORDS for a in ("://", ".", "-") for b in (".", "-"))
     return out
 
 

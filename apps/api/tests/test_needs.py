@@ -236,5 +236,6 @@ def test_no_manual_approval_is_substituted_not_applied(client):
     [sub] = body["substituted_constraints"]
     assert sub == {"requested": "no manual buyer approval", "used_instead": "store offers a one-time Shop Pay link",
                    "caveat": "The buyer must approve once when linking. "
-                             "ONAA has not tested whether the agent can pay alone after that."}
+                             "ONAA has not tested whether the agent can pay alone after that.",
+                   "original_constraint_satisfied": "unknown"}
     assert any("substituted_constraints" in s for s in body["next_steps"])

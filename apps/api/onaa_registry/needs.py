@@ -430,7 +430,9 @@ def constraints_report(c: dict[str, Any]) -> tuple[list[dict], list[dict], list[
         substituted.append({"requested": "no manual buyer approval",
                             "used_instead": "store offers a one-time Shop Pay link",
                             "caveat": "The buyer must approve once when linking. "
-                                      "ONAA has not tested whether the agent can pay alone after that."})
+                                      "ONAA has not tested whether the agent can pay alone after that.",
+                            # matches are stores offering the link, not stores known to need no approval (8th audit)
+                            "original_constraint_satisfied": "unknown"})
     if c["region"]:
         unapplied.append({"constraint": "region", "value": c["region"],
                           "reason": "delivery is tested per country, not per state or region"})
