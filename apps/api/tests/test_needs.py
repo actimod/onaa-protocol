@@ -219,7 +219,7 @@ def test_card_and_no_approval_are_read_and_unapplied_constraints_are_listed(clie
         "text": "trail shoes under $120 to Texas, pay with shop pay"}).json()
     applied = {a["constraint"] for a in body["applied_constraints"]}
     unapplied = {u["constraint"]: u for u in body["unapplied_constraints"]}
-    assert {"keywords", "ship_to_country", "payment_methods"} <= applied
+    assert {"store_metadata_keywords", "ship_to_country", "payment_methods"} <= applied
     assert unapplied["max_price_usd"]["value"] == 120 and "no prices" in unapplied["max_price_usd"]["reason"]
     assert "region" in unapplied and "product" in unapplied
     assert any("unapplied_constraints" in s for s in body["next_steps"])

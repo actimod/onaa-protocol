@@ -299,6 +299,13 @@ Endpoint health filters (find_stores, /v1/stores, /v1/buying/stores):
                                  failed; stores not probed yet (unknown) stay in. reachability_counts shows the split.
   Totals and counts in one answer come from one store list (list_as_of on buying answers); two calls made a few
   minutes apart can differ because new probes landed in between.
+  The default include=possible keeps stores whose probe got far enough to answer, so in practice strict and
+  relaxed look the same there. To see stores not probed yet (unknown), compare with include=all, e.g.
+  {base}/v1/buying/stores?country=US&include=all&limit=1 against the same URL with confirmed_reachable_only=true.
+Per-store answers also give: check_record.checks_total next to checkout_reached_rate (insufficient_history=true
+  below 3 probes: too few for the rate to mean much); declared_payment_handlers (the store's manifest) apart from
+  observed_checkout_payment_options (what ONAA's test checkout offered); endpoint_environment ("sandbox" when the
+  endpoint hostname says so, else "unknown": ONAA cannot confirm an endpoint is production).
 Checkout currency: shipping.currencies_seen (and observed_checkout_currency in buying answers) is what the store's
   test checkout returned. Use the store's own live quote for prices; do not assume your requested currency.
 

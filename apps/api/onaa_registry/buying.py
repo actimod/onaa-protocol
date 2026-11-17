@@ -82,8 +82,19 @@ BUYER_INFO_TEXT = {
 # dates only and the newest RECENT_CHECKS kept, so the in-memory store cache stays small (strings are interned).
 RECENT_CHECKS = 5
 CHECK_RECORD_NOTE = ("ONAA's own checkout probes of this store (each stops before payment). checkout_reached_rate = "
-                     "share of all probes that reached checkout; recent_checks = newest first, by day. A record of "
-                     "observations, not a verification or guarantee.")
+                     "share of all probes that reached checkout; always read it with checks_total: "
+                     "insufficient_history = true means fewer than 3 probes, too few for the rate to mean much. "
+                     "recent_checks = newest first, by day. A record of observations, not a verification or "
+                     "guarantee.")
+MIN_CHECKS_FOR_RATE = 3
+# Endpoint environment from the endpoint's own hostname only. ONAA cannot confirm that an endpoint is production,
+# so the answer is "sandbox" when the name says so and "unknown" otherwise.
+_SANDBOX_HOST = re.compile(r"(?:^|[.-])(?:sandbox|staging|stage|test|testing|dev|preview|demo)(?:[.-]|$)", re.I)
+
+
+def endpoint_environment(url: str | None) -> str:
+    host = urlsplit(url or "").hostname or ""
+    return "sandbox" if host and _SANDBOX_HOST.search(host) else "unknown"
 
 
 def next_check_history(prev: dict | None, status: str, at: dt.datetime) -> dict:
@@ -105,12 +116,14 @@ def check_record(ac: dict | None) -> dict[str, Any]:
         hist = {"total": 1, "reached": int(ac["status"] in CHECKOUT_REACHED_STATUSES), "first": day,
                 "recent": [[day, ac["status"]]]}
     if not hist:
-        return {"checks_total": 0, "checkout_reached_count": 0, "checkout_reached_rate": None, "recent_checks": [],
+        return {"checks_total": 0, "checkout_reached_count": 0, "checkout_reached_rate": None,
+                "insufficient_history": True, "recent_checks": [],
                 "first_checked_on": None, "last_checked_at": None, "note": CHECK_RECORD_NOTE}
     total, reached = int(hist.get("total") or 0), int(hist.get("reached") or 0)
     recent = [{"on": d, "status": st} for d, st in hist.get("recent") or []]
     return {"checks_total": total, "checkout_reached_count": reached,
             "checkout_reached_rate": round(reached / total, 2) if total else None,
+            "insufficient_history": total < MIN_CHECKS_FOR_RATE,
             "recent_checks": recent,
             "recent_consistent": len(recent) > 1 and len({r["status"] for r in recent}) == 1,
             "first_checked_on": hist.get("first"), "last_checked_at": ac.get("checked_at"),
@@ -360,6 +373,10 @@ def assess(listing: Listing, *, country: str | None = None, agent: str | None = 
         "store_publishes_country": published,
         "country": cc,
         "payment_match": pay_ok,
+        # What the store's manifest declares vs what ONAA's test checkout actually offered: they can differ.
+        "declared_payment_handlers": req.get("manifest_payment_handlers") or [],
+        "observed_checkout_payment_options": req.get("payment_handlers") or [],
+        "endpoint_environment": endpoint_environment(listing.endpoint_url),
         "pay_alone": alone,
         "ships_to": view["ships_to"],
         "no_shipping_to": view["no_shipping_to"],
