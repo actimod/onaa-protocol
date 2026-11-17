@@ -17,7 +17,7 @@ Source of truth: [`specs/onaa-facts.json`](../specs/onaa-facts.json) (updated 20
 * Observed checkout: **Agent checkout path observed (payment not tested)**
 * Shop Pay one-time link: **Shop Pay one-time link offered (payment not tested)**
 * Rule: ONAA's checker stops before payment. Say an agent reached or observed checkout; never that an agent can buy, buys, pays or pays alone.
-* Banned patterns (regex, case-insensitive): `(?:can|agents?) (?:actually )?buy (?:here|from|at)`, `agent can buy`, `stores you can buy`, `can pay alone: yes`, `(?:can|could|will) (?:then )?pay alone|(?-i:\bpays alone\b)`, `pay on (?:my|your|its) own`, `can actually buy`, `can pay without the buyer`, `\bcheckout tested\b`, `lets? an agent pay alone`, `agent to pay alone`, `buys at the store itself`, `checks out there`, `actually check out`
+* Banned patterns (regex, case-insensitive): `(?:can|agents?) (?:actually )?buy (?:here|from|at)`, `agent can buy`, `stores you can buy`, `can pay alone: yes`, `(?<!whether the agent )(?:can|could|will) (?:then )?pay alone|(?-i:\bpays alone\b)`, `pay on (?:my|your|its) own`, `can actually buy`, `can pay without the buyer`, `\bcheckout tested\b`, `lets? an agent pay alone`, `agent to pay alone`, `buys at the store itself`, `checks out there`, `actually check out`
 * Exceptions: Field and parameter names (agent_can_pay_alone, pay_alone, pays_alone) and the quoted titles of already-published posts in growth/ history files.
 
 ### Checkout status labels

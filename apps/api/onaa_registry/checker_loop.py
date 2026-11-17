@@ -24,6 +24,7 @@ from types import SimpleNamespace
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .buying import next_check_history
 from .health import apply_probe_result
 from .logic import PUBLIC_STATUSES, aware, set_facet_kind
 from .models import Listing, ListingFacet, utcnow
@@ -42,7 +43,11 @@ def apply_observation(session: Session, listing: Listing, obs: dict, actor: str 
     """Store one checkout observation on a marketplace listing (shared with the admin endpoint)."""
     from .logic import audit
 
-    listing.agent_checkout = {**obs, "checked_at": aware(utcnow()).isoformat(), "note": NOTE}
+    now = utcnow()
+    prev = listing.agent_checkout or {}
+    history = prev.get("check_history") or (_history_from_audit(session, listing.id) if prev else None)
+    listing.agent_checkout = {**obs, "checked_at": aware(now).isoformat(), "note": NOTE,
+                              "check_history": next_check_history(history, obs["status"], now)}
     set_facet_kind(listing, "agent_checkout", {obs["status"]})
     # The checker contacted the store's endpoint: record that as endpoint health too (discovered stores get no
     # other health probe). Any answer counts as reachable; "failed" (network or protocol error) counts as a failure,
@@ -50,6 +55,21 @@ def apply_observation(session: Session, listing: Listing, obs: dict, actor: str 
     apply_probe_result(listing, "checkout_probe_failed" if obs["status"] == "failed" else "ok")
     listing.updated_at = utcnow()
     audit(session, actor, None, "listing.agent_checkout", listing.id, status=obs["status"])
+
+
+def _history_from_audit(session: Session, listing_id: str) -> dict | None:
+    """Check record rebuilt from the audit log, for a store first probed before records were kept."""
+    from .models import AuditEvent
+
+    rows = session.execute(select(AuditEvent.created_at, AuditEvent.detail).where(
+        AuditEvent.subject_id == listing_id, AuditEvent.action == "listing.agent_checkout",
+        AuditEvent.result == "ok").order_by(AuditEvent.created_at, AuditEvent.id)).all()
+    hist = None
+    for at, detail in rows:
+        status = (detail or {}).get("status")
+        if isinstance(status, str):
+            hist = next_check_history(hist, status, at)
+    return hist
 
 
 def due_listing_ids(session: Session, limit: int, recheck_days: float) -> list[str]:

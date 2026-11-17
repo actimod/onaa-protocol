@@ -361,7 +361,7 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
             return _err(exc)
         item = _store_answer(data["items"][0]) if data.get("items") else {"found": False}
         keep = ("query", "found", "store_id", "how_to_buy", "accepted_agents", "ships_to", "no_shipping_to",
-                "currencies_seen", "checkout_status", "last_checked_at", "reasons", "via_shop_mcp",
+                "currencies_seen", "checkout_status", "last_checked_at", "check_record", "reasons", "via_shop_mcp",
                 "untrusted_operator_content")
         return {**{k: item[k] for k in keep if k in item}, "note": data.get("note"), "untrusted_note": UNTRUSTED_NOTE}
 
@@ -441,6 +441,11 @@ def _register_need_tool(mcp: MCPServer, client_for: RemoteClient) -> None:
         what it finds before matching, keeps only the redacted text up to 7 days for anonymous demand review
         (no IP address stored), and publishes only theme counts. ONAA holds no product data or prices: search the
         matched store's own catalog next. Nothing is bought or reserved through ONAA.
+        The answer splits your request three ways: applied_constraints filtered the matches;
+        substituted_constraints could not be checked, so ONAA filtered on a weaker condition instead (e.g. "no
+        manual buyer approval" becomes "store offers a one-time Shop Pay link": the buyer must approve once when
+        linking, and ONAA has not tested whether the agent can pay alone after that); unapplied_constraints
+        did not filter at all, so re-apply them yourself.
         Side effect: not read-only. Each call stores the redacted request (the same text on the same day is kept
         once, with a repeat count). status=not_found_noted only means the request was counted for demand review:
         no alert, follow-up or order is created, and nobody will contact you."""

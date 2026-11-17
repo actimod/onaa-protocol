@@ -22,7 +22,7 @@
       "agent can buy",
       "stores you can buy",
       "can pay alone: yes",
-      "(?:can|could|will) (?:then )?pay alone|(?-i:\\bpays alone\\b)",
+      "(?<!whether the agent )(?:can|could|will) (?:then )?pay alone|(?-i:\\bpays alone\\b)",
       "pay on (?:my|your|its) own",
       "can actually buy",
       "can pay without the buyer",

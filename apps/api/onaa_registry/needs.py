@@ -407,9 +407,11 @@ def record(session: Session, redacted: str, conditions: dict[str, Any], *, match
     return True
 
 
-def constraints_report(c: dict[str, Any]) -> tuple[list[dict], list[dict]]:
-    """Which parts of the request filtered the matches, and which did not (the caller must re-apply those)."""
+def constraints_report(c: dict[str, Any]) -> tuple[list[dict], list[dict], list[dict]]:
+    """Which parts of the request filtered the matches (applied), which were replaced by a weaker check ONAA can
+    make (substituted), and which did not filter them at all (unapplied: the caller must re-apply those)."""
     applied: list[dict] = []
+    substituted: list[dict] = []
     unapplied: list[dict] = [{"constraint": "product", "reason": "ONAA has no product data: keywords matched store "
                                                                "names and descriptions, not items or stock"}]
     if c["keywords"]:
@@ -422,21 +424,18 @@ def constraints_report(c: dict[str, Any]) -> tuple[list[dict], list[dict]]:
         applied.append({"constraint": "payment_methods", "value": c["payment_methods"],
                         "how": "one of them was offered at ONAA's test checkout"})
     if c["pay_alone"]:
-        # Only a proxy: ONAA never pays, so no store is known to take payment with no buyer approval at all.
-        applied.append({"constraint": "pay_alone", "value": True, "partial": True,
-                        "how": "narrowed to stores offering a Shop Pay one-time link, which the buyer approves "
-                               "once (payment not tested)"})
-        unapplied.append({"constraint": "no_manual_buyer_approval", "value": True,
-                          "reason": "not verified: ONAA never pays, so it cannot confirm that any store takes "
-                                    "payment with no buyer approval; the buyer still approves the one-time link, "
-                                    "and payment after it was not tested"})
+        # ONAA never pays, so it cannot check "no buyer approval". It filters on the nearest thing it observed.
+        substituted.append({"requested": "no manual buyer approval",
+                            "used_instead": "store offers a one-time Shop Pay link",
+                            "caveat": "The buyer must approve once when linking. "
+                                      "ONAA has not tested whether the agent can pay alone after that."})
     if c["region"]:
         unapplied.append({"constraint": "region", "value": c["region"],
                           "reason": "delivery is tested per country, not per state or region"})
     if c["max_price_usd"] is not None:
         unapplied.append({"constraint": "max_price_usd", "value": c["max_price_usd"],
                           "reason": "ONAA holds no prices; apply the budget in the store's catalog search"})
-    return applied, unapplied
+    return applied, substituted, unapplied
 
 
 def describe_need(session: Session, text: str, *, ship_to_country: str | None, agent: str | None, origin: str,
@@ -460,7 +459,10 @@ def describe_need(session: Session, text: str, *, ship_to_country: str | None, a
     next_steps.append("For structured filters use find_stores (ship_to_country, payment_methods, pay_alone).")
     if conditions["max_price_usd"] is not None:
         next_steps.append("ONAA holds no prices: apply the budget when you search the store's catalog.")
-    applied, unapplied = constraints_report(conditions)
+    applied, substituted, unapplied = constraints_report(conditions)
+    if substituted:
+        next_steps.append("Read substituted_constraints: ONAA could not check what you asked there and filtered "
+                          "on a weaker condition instead; tell the buyer what still needs their approval.")
     if unapplied:
         next_steps.append("Re-apply every entry of unapplied_constraints yourself: the matches were not filtered "
                           "by them.")
@@ -469,6 +471,7 @@ def describe_need(session: Session, text: str, *, ship_to_country: str | None, a
         "understood": {k: conditions[k] for k in ("ship_to_country", "region", "payment_methods", "pay_alone",
                                                   "max_price_usd", "keywords", "themes")},
         "applied_constraints": applied,
+        "substituted_constraints": substituted,
         "unapplied_constraints": unapplied,
         "total_matches": total,
         "matches": matches,
