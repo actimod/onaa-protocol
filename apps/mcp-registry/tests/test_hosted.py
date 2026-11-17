@@ -85,6 +85,18 @@ def _seed_store(base: str, admin: str) -> None:
                          "buyer_info_required": ["delivery_address_required"], "tested_country": "US",
                          "currency": "USD", "ships_to": ["KR", "US"], "autonomous_payment": "after_one_time_link"}})
     assert r.status_code == 200, r.text
+    # A sandbox store probed once whose health is unknown, and a store never probed: the records only
+    # include=all returns (the 7th live re-verification failed on exactly those calls).
+    for name, endpoint in (("sandboxy.example.com", "https://sandboxy-sandbox.myshopify.com/api/ucp/mcp"),
+                           ("unprobed.example.com", "https://unprobed-shop.myshopify.com/api/ucp/mcp")):
+        r = httpx.post(f"{base}/v1/admin/discovered/services", headers=hdrs, json={
+            "display_name": name, "service_type": "marketplace", "endpoint_url": endpoint,
+            "documentation_url": f"https://{name}/.well-known/ucp", "source_url": f"https://{name}/.well-known/ucp"})
+        assert r.status_code == 201, r.text
+        if name.startswith("sandboxy"):
+            r = httpx.post(f"{base}/v1/admin/listings/{r.json()['id']}/agent-checkout", headers=hdrs, json={
+                "status": "failed", "steps": ["tools_list"]})
+            assert r.status_code == 200, r.text
 
 
 @pytest.mark.anyio
@@ -307,3 +319,21 @@ def test_mcp_search_conditions_are_counted_for_external_callers_only(hosted):
     assert count("external", "q", "given") - count("external", "q", "given", before) == 1
     assert stats["ours"]["search_conditions"] == {}
     assert "secret" not in json.dumps(stats)
+
+
+def test_every_buying_tool_call_combination_over_mcp(hosted):
+    """The MCP smoke matrix the deploy also runs against live (apps/mcp-registry/mcp_smoke.py): find_stores with every
+    include x health filter, can_i_buy_here both ways, how_to_buy and describe_need. None may error."""
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "mcp_smoke.py"
+    spec = importlib.util.spec_from_file_location("mcp_smoke", path)
+    smoke = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(smoke)
+    base, _ = hosted
+    rows = smoke.run(base, store="kicks.example.com", max_seconds=15)
+    assert len(rows) == 3 * 3 + 2 + 1 + 1
+    assert [r for r in rows if r["problem"]] == []
+    everything = next(r for r in rows if r["case"] == "find_stores include=all filter=none")
+    assert "unknown" in everything["summary"]

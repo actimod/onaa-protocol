@@ -38,3 +38,15 @@ def test_error_mapping_and_bearer_header():
         c.register_agent(display_name="x", roles=["seller_agent"], agent_card_url="https://x.example.com/card")
     assert ei.value.status_code == 409 and ei.value.detail == "conflict here"
     assert seen["auth"] == "Bearer onaa_sk_abc"
+
+
+@pytest.mark.parametrize(("exc", "status"), [(httpx.ReadTimeout("slow"), 504), (httpx.ConnectError("down"), 503)])
+def test_transport_errors_become_retryable_onaa_errors(exc, status):
+    """A timeout used to escape as a bare httpx exception, which MCP clients showed as "Error executing tool"."""
+    def handler(request: httpx.Request):
+        raise exc
+
+    c = OnaaClient("https://registry.example.com", http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+    with pytest.raises(OnaaError) as ei:
+        c.buying_stores(country="US")
+    assert ei.value.status_code == status and "retry" in str(ei.value.detail)

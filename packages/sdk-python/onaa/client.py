@@ -85,7 +85,13 @@ class OnaaClient:
             if not self.api_key:
                 raise ValueError("this call needs an operator api_key")
             headers["Authorization"] = f"Bearer {self.api_key}"
-        resp = self._http.request(method, self.base_url + path, json=json, params=params, headers=headers)
+        try:
+            resp = self._http.request(method, self.base_url + path, json=json, params=params, headers=headers)
+        except httpx.TimeoutException as exc:  # a clear, retryable error instead of a bare transport exception
+            raise OnaaError(504, "ONAA did not answer in time; retry shortly, or narrow the request "
+                                 "(filters, a smaller limit)", None) from exc
+        except httpx.TransportError as exc:
+            raise OnaaError(503, f"could not reach ONAA ({type(exc).__name__}); retry shortly", None) from exc
         if resp.status_code not in ok:
             try:
                 body = resp.json()

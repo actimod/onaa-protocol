@@ -356,3 +356,45 @@ def test_declared_vs_observed_payment_and_endpoint_environment(client):
     assert sb["observed_checkout_payment_options"] == ["shopify.card"]
     assert sb["endpoint_environment"] == "sandbox" and plain["endpoint_environment"] == "unknown"
     assert buying.endpoint_environment("https://staging.shop.example.com/mcp") == "sandbox"
+
+
+def test_sandbox_and_single_probe_are_cautioned(client):
+    """7th live re-verification: a sandbox endpoint probed once came back verdict yes with no cautions."""
+    _store(client, "sbx.example.com", "checkout_ready", CARD_ONLY,
+           endpoint="https://sbx-sandbox.myshopify.com/api/ucp/mcp")
+    item = client.get("/v1/buying/check", params={"store": "sbx.example.com"}).json()["items"][0]
+    text = " ".join(item["cautions"])
+    assert "sandbox" in text and "only 1 time" in text
+    _store(client, "prod.example.com", "checkout_ready", CARD_ONLY)
+    ranked = [i["store_id"] if "store_id" in i else i["store"]["name"]
+              for i in client.get("/v1/buying/stores", params={"country": "US"}).json()["items"]]
+    assert ranked.index("prod.example.com") < ranked.index("sbx.example.com")
+
+
+def test_include_all_appends_unprobed_stores_counted_in_sql(client, monkeypatch):
+    """7th live re-verification 2026-11-17: include=all read every store with its probe JSON per call (5-7 s, and
+    memory enough to slow the 1 GB machine). The candidate list stays cached; the other stores are counted in SQL
+    and only the rows on the page are read."""
+    monkeypatch.setattr(buying, "BUYING_CACHE_SECONDS", 3600)
+    buying.reset_cache()
+    try:
+        _store(client, "ready.example.com", "checkout_ready", CARD_ONLY)
+        _store(client, "broken.example.com", "failed")
+        _store(client, "nocheckout.example.com", "no_checkout")
+        reads = []
+        real = buying._stores
+        monkeypatch.setattr(buying, "_stores", lambda s, st=None: reads.append(st) or real(s, st))
+        everything = client.get("/v1/buying/stores", params={"include": "all", "limit": 2}).json()
+        assert reads == [buying.POSSIBLE_STATUSES]  # never the whole table
+        assert everything["total"] == 3 == sum(everything["reachability_counts"].values())
+        names = [i["store"]["name"] for i in everything["items"]]
+        assert names[0] == "ready.example.com" and len(names) == 2
+        assert all(i["how_to_buy"] is not None for i in everything["items"])
+        page2 = client.get("/v1/buying/stores", params={"include": "all", "limit": 2, "offset": 2}).json()
+        assert len(page2["items"]) == 1 and page2["items"][0]["store"]["name"] not in names
+        strict = client.get("/v1/buying/stores", params={"include": "all", "confirmed_reachable_only": "true"}).json()
+        assert strict["total"] == everything["reachability_counts"]["reachable"]
+        texty = client.get("/v1/buying/stores", params={"include": "all", "q": "nocheckout"}).json()
+        assert [i["store"]["name"] for i in texty["items"]] == ["nocheckout.example.com"]
+    finally:
+        buying.reset_cache()

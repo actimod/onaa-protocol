@@ -14,6 +14,7 @@ terms apply. Answers distinguish "not tested" from "no".
 from __future__ import annotations
 
 import datetime as dt
+import functools
 import gc
 import logging
 import os
@@ -25,7 +26,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
-from sqlalchemy import String, cast, func, or_, select
+from sqlalchemy import String, and_, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from .checkout_checker import SHIP_TEST
@@ -92,6 +93,7 @@ MIN_CHECKS_FOR_RATE = 3
 _SANDBOX_HOST = re.compile(r"(?:^|[.-])(?:sandbox|staging|stage|test|testing|dev|preview|demo)(?:[.-]|$)", re.I)
 
 
+@functools.lru_cache(maxsize=65536)
 def endpoint_environment(url: str | None) -> str:
     host = urlsplit(url or "").hostname or ""
     return "sandbox" if host and _SANDBOX_HOST.search(host) else "unknown"
@@ -262,8 +264,9 @@ def published_ships(view: dict, cc: str) -> bool | None:
 
 def assess(listing: Listing, *, country: str | None = None, agent: str | None = None,
            payment: list[str] | None = None, pay_alone: bool = False,
-           now: dt.datetime | None = None) -> dict[str, Any]:
-    """Answer "can this agent reach checkout here (shipping to `country`, paying with `payment`)?" from the probe."""
+           now: dt.datetime | None = None, steps: bool = True) -> dict[str, Any]:
+    """Answer "can this agent reach checkout here (shipping to `country`, paying with `payment`)?" from the probe.
+    steps=False leaves how_to_buy out (find_stores ranks thousands of stores and fills it for its page only)."""
     ac = listing.agent_checkout or {}
     req = ac.get("requirements") or {}
     status = ac.get("status")
@@ -357,6 +360,15 @@ def assess(listing: Listing, *, country: str | None = None, agent: str | None = 
         cautions.append(f"last checked {checked_dt.date().isoformat()}, more than 14 days ago")
     if verdict in ("yes", "yes_buyer_finishes", "maybe") and listing.reachability == "unreachable":
         cautions.append("ONAA's recent health probes could not reach the endpoint")
+    environment = endpoint_environment(listing.endpoint_url)
+    record = check_record(ac)
+    if environment == "sandbox":
+        cautions.append("the endpoint hostname looks like a sandbox or test store: orders there may not be real; "
+                        "confirm the store's production endpoint before involving a buyer")
+    if record["insufficient_history"] and record["checks_total"]:
+        n = record["checks_total"]
+        cautions.append(f"ONAA has probed this store only {n} time{'s' if n != 1 else ''}: too few to rely on "
+                        "the result; re-check at the store")
 
     return {
         # The probe's observation never depends on the caller's conditions; eligibility does.
@@ -376,7 +388,7 @@ def assess(listing: Listing, *, country: str | None = None, agent: str | None = 
         # What the store's manifest declares vs what ONAA's test checkout actually offered: they can differ.
         "declared_payment_handlers": req.get("manifest_payment_handlers") or [],
         "observed_checkout_payment_options": req.get("payment_handlers") or [],
-        "endpoint_environment": endpoint_environment(listing.endpoint_url),
+        "endpoint_environment": environment,
         "pay_alone": alone,
         "ships_to": view["ships_to"],
         "no_shipping_to": view["no_shipping_to"],
@@ -387,9 +399,9 @@ def assess(listing: Listing, *, country: str | None = None, agent: str | None = 
         "accepted_agents": req.get("accepted_agents_hint") or ("any agent that sends a UCP agent profile"
                                                               if status in ("checkout_ready", "buyer_step_required")
                                                               else None),
-        "how_to_buy": how_to_buy(ac, country=cc),
+        "how_to_buy": how_to_buy(ac, country=cc) if steps else None,
         "last_checked_at": checked,
-        "check_record": check_record(ac),
+        "check_record": record,
         **PAYMENT_EVIDENCE,
     }
 
@@ -474,7 +486,7 @@ def _cached_stores(session: Session, statuses: tuple[str, ...] | None) -> list[S
 def _cached_stores_as_of(session: Session, statuses: tuple[str, ...] | None) -> tuple[list[StoreView], str]:
     """The store list and when it was read (UTC). Totals and reachability_counts in one answer come from one list,
     so they always reconcile; two answers with different `list_as_of` may differ as new probes come in."""
-    if BUYING_CACHE_SECONDS <= 0 or statuses is None:  # include=all (every store) is rare and too big to keep
+    if BUYING_CACHE_SECONDS <= 0 or statuses is None:
         return _stores(session, statuses), _now_iso()
     hit = _cache.get(statuses)
     if hit is not None:
@@ -506,14 +518,14 @@ def _watermark(session: Session):
     return session.scalar(select(func.max(Listing.updated_at)).where(Listing.service_type == "marketplace"))
 
 
-def _load(session: Session, statuses: tuple[str, ...], prev: tuple | None) -> tuple:
+def _load(session: Session, statuses: tuple[str, ...] | None, prev: tuple | None) -> tuple:
     with HEAVY_BUILD_LOCK:
         out = _load_unlocked(session, statuses, prev)
     gc.collect()  # hand the build's temporaries back before the next one starts
     return out
 
 
-def _load_unlocked(session: Session, statuses: tuple[str, ...], prev: tuple | None) -> tuple:
+def _load_unlocked(session: Session, statuses: tuple[str, ...] | None, prev: tuple | None) -> tuple:
     now = time.monotonic()
     watermark = _watermark(session)
     if prev is None or prev[2] is None or watermark is None or now - prev[3] >= FULL_RELOAD_SECONDS:
@@ -524,7 +536,8 @@ def _load_unlocked(session: Session, statuses: tuple[str, ...], prev: tuple | No
     for row in rows:
         view = StoreView(*row[:6], _compact(row[6]), *row[7:])
         by_id.pop(view.id, None)
-        if view.lifecycle_status in PUBLIC_STATUSES and (view.agent_checkout or {}).get("status") in statuses:
+        if view.lifecycle_status in PUBLIC_STATUSES and (
+                statuses is None or (view.agent_checkout or {}).get("status") in statuses):
             by_id[view.id] = view
     return (now, sorted(by_id.values(), key=lambda v: v.id), watermark, prev[3], _now_iso())
 
@@ -620,28 +633,67 @@ def find_stores(session: Session, *, country: str | None = None, agent: str | No
                 include: Literal["buyable", "possible", "all"] = "possible", limit: int = 20,
                 offset: int = 0, claimed_only: bool = False, reachable_only: bool = False,
                 confirmed_reachable_only: bool = False) -> dict[str, Any]:
-    """Stores matching the buyer's conditions, best answers first."""
+    """Stores matching the buyer's conditions, best answers first.
+
+    include=all = the ranked candidate list (stores whose probe got far enough to answer, cached in memory) followed
+    by every other store in store id order. That rest (stores never probed, or whose probe failed) is counted in SQL
+    and only the rows on the requested page are read: reading all ~32k stores with their probe JSON per call took
+    5-7 s and enough memory to slow the whole 1 GB machine (live re-verification 2026-11-17, 7th)."""
     wanted = {"buyable": ("yes", "yes_buyer_finishes"), "possible": ("yes", "yes_buyer_finishes", "maybe"),
               "all": tuple(VERDICT_RANK)}[include]
-    stores, list_as_of = _cached_stores_as_of(session, None if include == "all" else POSSIBLE_STATUSES)
-    pairs = [(s, assess(s, country=country, agent=agent, payment=payment, pay_alone=pay_alone))
-             for s in stores
+    stores, list_as_of = _cached_stores_as_of(session, POSSIBLE_STATUSES)
+    kw = {"country": country, "agent": agent, "payment": payment, "pay_alone": pay_alone}
+    pairs = [(s, assess(s, steps=False, **kw)) for s in stores
              if _matches_text(s, q) and (not claimed_only or s.claimed)
              and (not reachable_only or s.reachability != "unreachable")
              and (not confirmed_reachable_only or s.reachability == "reachable")]
     pairs = [(s, r) for s, r in pairs if r["verdict"] in wanted]
-    rows = [r for _, r in pairs]
-    rows.sort(key=lambda r: (VERDICT_RANK[r["verdict"]], r["pay_alone"] != "after_one_time_link",
-                             r["ships_to_country"] is not True, (r["store"]["name"] or "").lower()))
+    pairs.sort(key=lambda p: (VERDICT_RANK[p[1]["verdict"]], p[1]["endpoint_environment"] == "sandbox",
+                              p[1]["pay_alone"] != "after_one_time_link",
+                              p[1]["ships_to_country"] is not True, (p[0].display_name or "").lower()))
     from .stores import reachability_counts  # stores imports this module
 
-    return {"total": len(rows), "offset": offset, "items": rows[offset:offset + limit],
-            "reachability_counts": reachability_counts(s.reachability or "unknown" for s, _ in pairs),
+    counts = reachability_counts(s.reachability or "unknown" for s, _ in pairs)
+    page = [assess(s, **kw) for s, _ in pairs[offset:offset + limit]]
+    total = len(pairs)
+    if include == "all":
+        rest = _rest_conditions(q, claimed_only, reachable_only, confirmed_reachable_only)
+        for state, n in session.execute(select(Listing.reachability, func.count()).where(*rest)
+                                        .group_by(Listing.reachability)).all():
+            key = state if state in counts else "unknown"
+            counts[key] += n
+            total += n
+        want = offset + limit - len(pairs)
+        if want > 0:
+            skip = max(0, offset - len(pairs))
+            rows = session.execute(_store_query().where(*rest).order_by(Listing.id).offset(skip)
+                                   .limit(min(want, limit))).all()
+            page += [assess(StoreView(*row[:6], _compact(row[6]), *row[7:]), **kw) for row in rows]
+    return {"total": total, "offset": offset, "items": page,
+            "reachability_counts": counts,
             "list_as_of": list_as_of,
             "conditions": {"country": _country(country), "agent": agent, "payment": normalise_payment(payment),
                            "pay_alone": pay_alone, "query": q, "include": include, "claimed_only": claimed_only,
                            "reachable_only": reachable_only, "confirmed_reachable_only": confirmed_reachable_only},
             "tested_countries": list(TESTED_COUNTRIES), "note": NOTE, "verdict_note": VERDICT_NOTE}
+
+
+def _rest_conditions(q: str | None, claimed_only: bool, reachable_only: bool, confirmed: bool) -> list:
+    """SQL for the stores outside the candidate list, with the same filters find_stores applies in memory."""
+    out = [Listing.service_type == "marketplace", Listing.lifecycle_status.in_(PUBLIC_STATUSES),
+           ~Listing.id.in_(select(ListingFacet.listing_id).where(
+               ListingFacet.kind == "agent_checkout", ListingFacet.value.in_(POSSIBLE_STATUSES)))]
+    for word in (q or "").lower().split():
+        like = f"%{word}%"
+        out.append(or_(func.lower(Listing.display_name).like(like), func.lower(Listing.description).like(like),
+                       func.lower(Listing.endpoint_url).like(like)))
+    if claimed_only:
+        out.append(and_(Listing.operator_id.is_not(None), Listing.lifecycle_status != "discovered"))
+    if reachable_only:
+        out.append(Listing.reachability != "unreachable")
+    if confirmed:
+        out.append(Listing.reachability == "reachable")
+    return out
 
 
 def check_stores(session: Session, stores: list[str], *, country: str | None = None, agent: str | None = None,
