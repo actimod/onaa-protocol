@@ -367,7 +367,8 @@ def test_sandbox_and_single_probe_are_cautioned(client):
     assert "sandbox" in text and "only 1 time" in text
     _store(client, "prod.example.com", "checkout_ready", CARD_ONLY)
     ranked = [i["store_id"] if "store_id" in i else i["store"]["name"]
-              for i in client.get("/v1/buying/stores", params={"country": "US"}).json()["items"]]
+              for i in client.get("/v1/buying/stores", params={"country": "US", "exclude_sandbox": "false"}).json()[
+                  "items"]]
     assert ranked.index("prod.example.com") < ranked.index("sbx.example.com")
 
 
@@ -418,20 +419,24 @@ def test_shop_pay_link_offered_is_the_literal_name_for_pay_alone(client):
     assert check["verdict"] == "no"
 
 
-def test_exclude_sandbox_hides_sandbox_endpoints_but_default_lists_them(client):
+def test_sandbox_endpoints_are_left_out_by_default(client):
     """8th live audit: sandbox endpoints could be eligible with no way to drop them. exclude_sandbox drops them
-    (in the ranked list and in the include=all rest); the default is unchanged."""
+    (in the ranked list and in the include=all rest), on by default since the founder's decision of 2026-11-17;
+    exclude_sandbox=false lists them."""
     _store(client, "prod.example.com", "checkout_ready", CARD_ONLY)
     _store(client, "sbx.example.com", "checkout_ready", CARD_ONLY, endpoint="https://sbx-sandbox.myshopify.com/api")
     _store(client, "dead.example.com", "failed", endpoint="https://shop.test.example.org/api")
     names = lambda body: {i["store"]["name"] for i in body["items"]}  # noqa: E731
-    default = client.get("/v1/buying/stores", params={"country": "US"}).json()
-    assert names(default) == {"prod.example.com", "sbx.example.com"}
-    assert default["conditions"]["exclude_sandbox"] is False
-    hidden = client.get("/v1/buying/stores", params={"country": "US", "exclude_sandbox": "true"}).json()
+    shown = client.get("/v1/buying/stores", params={"country": "US", "exclude_sandbox": "false"}).json()
+    assert names(shown) == {"prod.example.com", "sbx.example.com"}
+    assert shown["conditions"]["exclude_sandbox"] is False
+    hidden = client.get("/v1/buying/stores", params={"country": "US"}).json()
     assert names(hidden) == {"prod.example.com"} and hidden["total"] == 1
-    every = client.get("/v1/buying/stores", params={"include": "all", "exclude_sandbox": "true"}).json()
+    assert hidden["conditions"]["exclude_sandbox"] is True
+    every = client.get("/v1/buying/stores", params={"include": "all"}).json()
     assert names(every) == {"prod.example.com"} and every["total"] == 1
+    all_shown = client.get("/v1/buying/stores", params={"include": "all", "exclude_sandbox": "false"}).json()
+    assert all_shown["total"] == 3
 
 
 def test_ranking_is_computed_once_per_condition_set(client, monkeypatch):

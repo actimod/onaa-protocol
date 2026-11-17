@@ -23,9 +23,9 @@ PayAlone = Annotated[bool, Query(description="deprecated name for shop_pay_link_
 LinkOffered = Annotated[bool, Query(description="only stores that offer a Shop Pay one-time link the buyer "
                                                 "approves once (offered, not observed; payment not tested)")]
 ExcludeSandbox = Annotated[bool, Query(description="hide stores whose endpoint hostname looks like a sandbox, "
-                                                   "staging or test store (endpoint_environment=sandbox). Off by "
-                                                   "default: such stores are listed with a caution and ranked last "
-                                                   "within their verdict")]
+                                                   "staging or test store (endpoint_environment=sandbox). On by "
+                                                   "default: no real purchase happens there. false lists them, "
+                                                   "with a caution, ranked last within their verdict")]
 ClaimedOnly = Annotated[bool, Query(description="only stores posted by their operator; most stores are unclaimed "
                                                 "(found on the public web by ONAA), so this can return few or none")]
 ReachableOnly = Annotated[bool, Query(description="hide stores whose last 3 health probes failed "
@@ -51,7 +51,7 @@ def stores(request: Request, session: Session = Depends(get_session), country: C
            = False,
            confirmed_reachable_only: Annotated[bool, Query(description="strict: only stores whose last endpoint "
                                                                        "probe answered; drops unknown")] = False,
-           exclude_sandbox: ExcludeSandbox = False):
+           exclude_sandbox: ExcludeSandbox = True):
     from .stores import count_search
 
     pay_alone = pay_alone or shop_pay_link_offered

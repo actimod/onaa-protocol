@@ -647,14 +647,15 @@ def find_stores(session: Session, *, country: str | None = None, agent: str | No
                 payment: list[str] | None = None, pay_alone: bool = False, q: str | None = None,
                 include: Literal["buyable", "possible", "all"] = "possible", limit: int = 20,
                 offset: int = 0, claimed_only: bool = False, reachable_only: bool = False,
-                confirmed_reachable_only: bool = False, exclude_sandbox: bool = False) -> dict[str, Any]:
+                confirmed_reachable_only: bool = False, exclude_sandbox: bool = True) -> dict[str, Any]:
     """Stores matching the buyer's conditions, best answers first.
 
     include=all = the ranked candidate list (stores whose probe got far enough to answer, cached in memory) followed
     by every other store in store id order. That rest (stores never probed, or whose probe failed) is counted in SQL
     and only the rows on the requested page are read: reading all ~32k stores with their probe JSON per call took
     5-7 s and enough memory to slow the whole 1 GB machine (live re-verification 2026-11-17, 7th).
-    exclude_sandbox drops stores whose endpoint hostname looks like a sandbox or test store."""
+    exclude_sandbox (default on, founder decision 2026-11-17) drops stores whose endpoint hostname looks like a
+    sandbox or test store: no real purchase happens there. exclude_sandbox=False lists them, with a caution."""
     wanted = {"buyable": ("yes", "yes_buyer_finishes"), "possible": ("yes", "yes_buyer_finishes", "maybe"),
               "all": tuple(VERDICT_RANK)}[include]
     stores, list_as_of = _cached_stores_as_of(session, POSSIBLE_STATUSES)

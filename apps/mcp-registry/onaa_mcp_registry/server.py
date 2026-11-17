@@ -300,32 +300,33 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         reachable_only: bool = False,
         exclude_unreachable: bool = False,
         confirmed_reachable_only: bool = False,
-        exclude_sandbox: bool = False,
+        exclude_sandbox: bool = True,
     ) -> dict[str, Any]:
         """Where can I (an AI buying agent) reach checkout? E.g. "stores that ship to Korea and offer a Shop Pay
         one-time link (payment not tested)": ship_to_country=KR, shop_pay_link_offered=true (pay_alone is the old name
-        for the same filter). exclude_sandbox=true hides stores whose endpoint looks like a sandbox, staging or test
-        store (endpoint_environment=sandbox; listed with a caution by default). payment_methods: what you or your buyer
-        can use (shop_pay, card, google_pay). agent: your agent/platform (gemini, chatgpt, claude, ...), to rule out
-        stores that serve only some agents. store_text matches the store name/description only: ONAA holds no product
-        data, so to find e.g. shoes, take these stores and search their catalogs (search_catalog at the store endpoint,
-        or Shop MCP). include=possible (default) also returns "maybe" answers (e.g. delivery not tested); all adds no
-        and unknown with reasons. Each answer has verdict, reasons, how_to_buy and last_checked_at. Observed by ONAA's
-        checker (stops before payment), not verified. Trust filters mean the same as on search_services: claimed_only =
-        posted by the store's operator (most stores are unclaimed, found on the public web by ONAA); reachable_only =
-        hide stores whose last 3 health probes failed (reachability unreachable; unknown = not yet checked, kept);
-        exclude_unreachable is a clearer name for the same rule; confirmed_reachable_only keeps only stores whose last
-        endpoint probe answered. reachability_counts gives how many results are reachable, unknown or unreachable,
-        counted on the same store list as total (list_as_of says when it was read; totals from calls with different
-        list_as_of can differ as probes come in). Endpoint health, not checkout. Each answer separates
-        checkout_path_observed (what ONAA's probe saw, the same whatever you filter on) from eligible_for_request and
-        eligibility_reasons."""
+        for the same filter). exclude_sandbox (default true) hides stores whose endpoint looks like a sandbox, staging
+        or test store (endpoint_environment=sandbox): no real purchase happens there; false lists them, with a caution.
+        payment_methods: what you or your buyer can use (shop_pay, card, google_pay). agent: your agent/platform
+        (gemini, chatgpt, claude, ...), to rule out stores that serve only some agents. store_text matches the store
+        name/description only: ONAA holds no product data, so to find e.g. shoes, take these stores and search their
+        catalogs (search_catalog at the store endpoint, or Shop MCP). include=possible (default) also returns "maybe"
+        answers (e.g. delivery not tested); all adds no and unknown with reasons. Each answer has verdict, reasons,
+        how_to_buy and last_checked_at. Observed by ONAA's checker (stops before payment), not verified. Trust filters
+        mean the same as on search_services: claimed_only = posted by the store's operator (most stores are unclaimed,
+        found on the public web by ONAA); reachable_only = hide stores whose last 3 health probes failed (reachability
+        unreachable; unknown = not yet checked, kept); exclude_unreachable is a clearer name for the same rule;
+        confirmed_reachable_only keeps only stores whose last endpoint probe answered. reachability_counts gives how
+        many results are reachable, unknown or unreachable, counted on the same store list as total (list_as_of says
+        when it was read; totals from calls with different list_as_of can differ as probes come in). Endpoint health,
+        not checkout. Each answer separates checkout_path_observed (what ONAA's probe saw, the same whatever you filter
+        on) from eligible_for_request and eligibility_reasons."""
         try:
             return _answers(registry.buying_stores(
                 country=ship_to_country, pay_alone=pay_alone or shop_pay_link_offered, payment=payment_methods,
                 agent=agent, q=store_text, include=include, limit=max(1, min(limit, MAX_LIMIT)),
                 offset=max(0, offset), claimed_only=claimed_only, reachable_only=reachable_only or exclude_unreachable,
-                confirmed_reachable_only=confirmed_reachable_only, exclude_sandbox=exclude_sandbox))
+                confirmed_reachable_only=confirmed_reachable_only,
+                exclude_sandbox="true" if exclude_sandbox else "false"))  # the SDK drops a plain False
         except OnaaError as exc:
             return _err(exc)
 
