@@ -118,8 +118,11 @@ def run(base: str, *, max_seconds: float = 15.0, retry_seconds: float = 0.0, sto
                     row["problem"] = f"too slow: {secs:.1f} s > {max_seconds:.0f} s"
             except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
                 row.update(seconds=None, problem=f"transport: {exc}"[:300], summary="")
+            # 503 "being loaded" and the client's 504 "did not answer in time" happen in the first seconds after a
+            # restart while the store lists load; they are retried until --retry-seconds, so a service that stays
+            # slow still fails the gate.
             transient = row["problem"] and (row["problem"].startswith("transport") or "503" in row["problem"]
-                                            or "being loaded" in row["problem"])
+                                            or "being loaded" in row["problem"] or "504" in row["problem"])
             slow = bool(row["problem"]) and row["problem"].startswith("too slow")
             if slow and not row.get("retried_slow"):
                 # One slow answer right after a restart (a cache refresh or warm-up running) is retried once;
