@@ -315,8 +315,8 @@ Per-store answers also give: check_record.checks_total next to checkout_reached_
   below 3 probes: too few for the rate to mean much); declared_payment_handlers (the store's manifest) apart from
   observed_checkout_payment_options (what ONAA's test checkout offered); endpoint_environment ("sandbox" when the
   endpoint hostname says so, else "unknown": ONAA cannot confirm an endpoint is production);
-  shop_pay_link_offered (true/false/null). Sandbox endpoints are listed by default, with a caution and ranked
-  last within their verdict; add exclude_sandbox=true on /v1/buying/stores (find_stores) to hide them.
+  shop_pay_link_offered (true/false/null). /v1/buying/stores (find_stores) and describe_need leave sandbox
+  endpoints out by default (no real purchase happens there); exclude_sandbox=false lists them, with a caution.
 Checkout currency: shipping.currencies_seen (and observed_checkout_currency in buying answers) is what the store's
   test checkout returned. Use the store's own live quote for prices; do not assume your requested currency.
 

@@ -356,8 +356,8 @@ def match_stores(session: Session, conditions: dict[str, Any], agent: str | None
             continue
         answer = buying.assess(store, country=conditions["ship_to_country"], agent=agent,
                                payment=conditions["payment_methods"] or None, pay_alone=conditions["pay_alone"])
-        if answer["verdict"] not in wanted:
-            continue
+        if answer["verdict"] not in wanted or answer["endpoint_environment"] == "sandbox":
+            continue  # sandbox endpoints are left out, as on find_stores by default
         scored.append((-len(hits), buying.VERDICT_RANK[answer["verdict"]], (store.display_name or "").lower(),
                        {**answer, "matched_words": hits}))
     scored.sort(key=lambda t: t[:3])
