@@ -474,7 +474,10 @@ FULL_RELOAD_SECONDS = float(os.environ.get("ONAA_STORE_FULL_REBUILD_SECONDS", "8
 _cache: dict[tuple[str, ...] | None, tuple] = {}
 _cache_lock = threading.Lock()
 _refreshing: set[tuple[str, ...] | None] = set()
-COLD_WAIT_SECONDS = float(os.environ.get("ONAA_STORE_COLD_WAIT_SECONDS", "25"))
+# Shorter than the SDK/MCP client timeout (10 s): while the list loads after a restart (about 20 s), a caller gets a
+# clean 503 "being loaded; retry" instead of the client giving up with a 504 (deploy smoke gate, 2026-11-17). 8 s
+# was not enough margin while the startup loads hold the CPU.
+COLD_WAIT_SECONDS = float(os.environ.get("ONAA_BUYING_COLD_WAIT_SECONDS", "5"))
 log = logging.getLogger("onaa.buying")
 # One heavy read at a time: the store snapshot build (stores._build) and this list's loads each read every store
 # with its probe JSON. Run together on the 512 MB, one shared CPU machine they starved each other and the request
