@@ -311,6 +311,7 @@ def test_check_record_counts_probes_and_shows_recent_checks(client):
     assert [c["status"] for c in rec["recent_checks"]] == ["checkout_ready", "failed", "buyer_step_required"]
     assert rec["first_checked_on"] == rec["recent_checks"][-1]["on"] and rec["last_checked_at"]
     assert rec["recent_consistent"] is False and "not a verification" in rec["note"]
+    assert rec["insufficient_history"] is False
     store = client.get("/v1/stores/record.example.com").json()
     assert store["trust"]["check_record"]["checks_total"] == 3
 
@@ -324,6 +325,7 @@ def test_check_record_rebuilt_from_audit_for_older_probes(client):
     # Before the next probe, the answer falls back to the last probe alone.
     rec = client.get("/v1/buying/check", params={"store": sid}).json()["items"][0]["check_record"]
     assert rec["checks_total"] == 1 and rec["checkout_reached_rate"] == 1.0
+    assert rec["insufficient_history"] is True  # a rate of 1.0 from one probe means little
     r = client.post(f"/v1/admin/listings/{sid}/agent-checkout", headers=admin_headers(),
                     json={"status": "no_checkout"})
     assert r.status_code == 200, r.text
@@ -339,3 +341,18 @@ def test_next_check_history_keeps_newest_five():
     assert hist["total"] == 7 and hist["reached"] == 3 and hist["first"] == "2026-11-01"
     assert [d for d, _ in hist["recent"]] == ["2026-11-07", "2026-11-06", "2026-11-05", "2026-11-04", "2026-11-03"]
     assert buying.check_record({})["checks_total"] == 0
+
+
+def test_declared_vs_observed_payment_and_endpoint_environment(client):
+    """6th re-verification 2026-11-17: a manifest declared handlers the test checkout did not offer, and the
+    endpoint was a sandbox host. Both are now shown apart, and the environment is labelled."""
+    req = {**CARD_ONLY, "manifest_payment_handlers": ["com.google.pay", "dev.shopify.shop_pay"]}
+    _store(client, "sandboxed.example.com", "checkout_ready", req,
+           endpoint="https://sandboxed-sandbox.myshopify.com/api/ucp/mcp")
+    _store(client, "plain.example.com", "checkout_ready", CARD_ONLY)
+    sb, plain = (client.get("/v1/buying/check", params={"store": d}).json()["items"][0]
+                 for d in ("sandboxed.example.com", "plain.example.com"))
+    assert sb["declared_payment_handlers"] == ["com.google.pay", "dev.shopify.shop_pay"]
+    assert sb["observed_checkout_payment_options"] == ["shopify.card"]
+    assert sb["endpoint_environment"] == "sandbox" and plain["endpoint_environment"] == "unknown"
+    assert buying.endpoint_environment("https://staging.shop.example.com/mcp") == "sandbox"

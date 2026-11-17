@@ -415,8 +415,10 @@ def constraints_report(c: dict[str, Any]) -> tuple[list[dict], list[dict], list[
     unapplied: list[dict] = [{"constraint": "product", "reason": "ONAA has no product data: keywords matched store "
                                                                "names and descriptions, not items or stock"}]
     if c["keywords"]:
-        applied.append({"constraint": "keywords", "value": c["keywords"],
-                        "how": "store name, domain or description contains a keyword"})
+        applied.append({"constraint": "store_metadata_keywords", "value": c["keywords"],
+                        "how": "store name, domain or description contains a keyword; this says nothing about "
+                               "whether the store sells or stocks the product (see product in "
+                               "unapplied_constraints)"})
     if c["ship_to_country"]:
         applied.append({"constraint": "ship_to_country", "value": c["ship_to_country"],
                         "how": "delivery observed at ONAA's test checkout or published by the store"})

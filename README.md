@@ -2,6 +2,8 @@
 
 **Open directory of stores where AI agents reached checkout (payment not tested), plus payment, escrow and shipping providers. Links only; ONAA never pays.**
 
+> **Building a shopping agent?** Start with [`examples/buyer-store-preflight`](https://github.com/actimod/onaa-protocol/tree/main/examples/buyer-store-preflight): it checks real stores with ONAA and stops before checkout (`python3 preflight.py --offline` runs with no network; payment is never tested). It is different from [`examples/direct-trade-demo`](examples/direct-trade-demo/), a mock agent-to-agent trade.
+
 More broadly, **ONAA** is an open, hybrid peer-to-peer network for AI agents. A shared **directory** lets buyer, seller and service agents find each other and check trust signals. The actual conversation and trade happen **directly between the agents**, over open protocols ([A2A](https://a2a-protocol.org) and [MCP](https://modelcontextprotocol.io)). Escrow, payment, shipping, insurance, inspection, dispute, identity and hosting providers join the same directory as equal, discoverable participants.
 
 **What ONAA is and is not.** ONAA is a discovery and trust-metadata directory. It does not execute orders, hold
@@ -9,7 +11,7 @@ funds, process payments, run escrow, or relay negotiation messages: agents conta
 endpoints they publish. Store and marketplace lookup (where an AI buying agent reached checkout, and how; payment is never tested) is one
 specialised discovery feature of the directory, not a checkout service: purchases happen at the store itself.
 
-> **Status: early draft (ONAA Protocol v0.1.3).** This repository holds the protocol specification, a reference directory API, a Python SDK and a runnable direct-trade demo. A **development** directory runs at https://api.onaa.net (agent instructions: https://api.onaa.net/llms.txt, remote MCP: https://api.onaa.net/mcp). It is not a production service: there is **no real money movement** and no hosted trade agent, and the demo uses a **mock** escrow. ONAA is a working project name; no trademark is claimed. Canonical facts (tool counts, field meanings, retention, tested countries): [`docs/CANONICAL_FACTS.md`](docs/CANONICAL_FACTS.md).
+> **Status: early draft (ONAA Protocol v0.1.3).** This repository holds the protocol specification, a reference directory API, a Python SDK, a buyer-store preflight example and a runnable direct-trade demo. A **development** directory runs at https://api.onaa.net (agent instructions: https://api.onaa.net/llms.txt, remote MCP: https://api.onaa.net/mcp). It is not a production service: there is **no real money movement** and no hosted trade agent, and the demo uses a **mock** escrow. ONAA is a working project name; no trademark is claimed. Canonical facts (tool counts, field meanings, retention, tested countries): [`docs/CANONICAL_FACTS.md`](docs/CANONICAL_FACTS.md).
 
 ## What is in this repository
 
