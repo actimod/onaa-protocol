@@ -117,6 +117,8 @@ def apply_profile(listing: Listing, data: dict, *, partial: bool) -> list[str]:
             profile.pop(block, None)
         else:
             profile[block] = _norm_urls(data[block], f"{block}.")
+            if block == "store_stated":  # when the store last said this (shown next to the statement)
+                profile[block]["stated_at"] = aware(utcnow()).isoformat()
         changed.append(block)
     if changed:
         listing.profile = profile or None
@@ -195,7 +197,13 @@ def get_listing(session: Session, listing_id: str, *, include_hidden: bool = Fal
         raise HTTPException(status.HTTP_410_GONE, "listing deleted")
     if listing.status_reason == "opt_out_pending" and listing.lifecycle_status == "suspended" and not include_hidden:
         raise HTTPException(status.HTTP_410_GONE, "listing hidden: removal requested")
+    if listing.service_type == "marketplace" and stores_hidden(session) and not include_hidden:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "listing not found")
     return listing
+
+
+def stores_hidden(session: Session) -> bool:
+    return bool(getattr(session.info.get("settings"), "hide_stores", False))
 
 
 def require_owner(listing: Listing, operator: Operator, *, allow_claim_pending: bool = False) -> None:
@@ -302,6 +310,10 @@ def to_record(listing: Listing, operator: Operator | None = None) -> schemas.Reg
             "note": "Linked A2A Agent Card is published by the operator and is the source of truth for skills and "
                     "interfaces; ONAA caches an untrusted summary. Fetch the card yourself before trading.",
         }
+    from .registrant import LEVEL_LABELS, trust_level
+
+    level = trust_level(operator_id=listing.operator_id, lifecycle_status=status_, endpoint_verified=verified,
+                        certified=bool(certs), owner_confirmed_via=listing.owner_confirmed_via)
     provenance = None
     if listing.source_url:
         provenance = {"source_url": listing.source_url, "discovered_at": aware(listing.discovered_at),
@@ -344,6 +356,9 @@ def to_record(listing: Listing, operator: Operator | None = None) -> schemas.Reg
             or ("discovery_import" if listing.source_url and listing.operator_id is None else "operator_account"),
             reachability=listing.reachability or "unknown",
             last_check_result=listing.last_check_result,
+            owner_confirmed_via=listing.owner_confirmed_via if claimed else None,
+            level=level,
+            level_label=LEVEL_LABELS[level],
             operator_identity_verified=bool(claimed and operator and operator.identity_verified),
             certifications=[schemas.CertificationOut(
                 id=c.id, scheme=c.scheme, criteria_version=c.criteria_version, status=c.status,

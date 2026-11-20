@@ -37,11 +37,13 @@ def test_founding_cohort_unlocks_agent_verification(gated, fetcher):
     assert trust["endpoint_control_verified"] is True and trust["operator_identity_verified"] is False
 
 
-def test_founding_cohort_does_not_cover_service_providers(gated):
+def test_founding_cohort_covers_service_providers_and_stores(gated):
+    # Founder decision 2026-11-17: early registrants of every kind get verification free (was agents only).
     op_id, h = make_operator(gated)
-    gated.post(f"/v1/admin/operators/{op_id}/founding-cohort", headers=admin_headers(), json={"grant": True})
     sid = gated.post("/v1/services", json=SERVICE, headers=h).json()["id"]
     assert gated.post(f"/v1/services/{sid}/verify-domain", headers=h).status_code == 402
+    gated.post(f"/v1/admin/operators/{op_id}/founding-cohort", headers=admin_headers(), json={"grant": True})
+    assert gated.post(f"/v1/services/{sid}/verify-domain", headers=h).status_code == 201
 
 
 def test_cohort_cap_and_revoke(gated):

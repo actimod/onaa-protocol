@@ -9,6 +9,8 @@ from functools import lru_cache
 from importlib import resources
 
 CURRENT_TERMS_VERSION = "draft-0.2"
+# Members who sign in to list, offer and message (terms + privacy notice in one text, one hash).
+CURRENT_MEMBER_TERMS_VERSION = "member-draft-0.5"
 
 
 @dataclass(frozen=True)

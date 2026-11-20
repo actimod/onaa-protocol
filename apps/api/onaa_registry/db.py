@@ -38,8 +38,9 @@ def make_engine(url: str) -> Engine:
     return engine
 
 
-def make_sessionmaker(engine: Engine) -> sessionmaker[Session]:
-    return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+def make_sessionmaker(engine: Engine, settings=None) -> sessionmaker[Session]:
+    """Sessions carry the settings in session.info (used by code that needs keys deep inside, e.g. sealing)."""
+    return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, info={"settings": settings})
 
 
 def get_session(request: Request) -> Iterator[Session]:

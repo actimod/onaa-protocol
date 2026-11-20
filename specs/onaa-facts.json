@@ -4,9 +4,9 @@
 
   "product": {
     "name": "ONAA (Open Network for AI Agents)",
-    "one_liner": "Open directory of stores where AI agents reached checkout (payment not tested), plus payment, escrow and shipping providers. Links only; ONAA never pays.",
-    "one_liner_source": "GitHub About text approved by the founder 2026-11-16",
-    "listing_short": "Find stores where AI agents reach checkout (payment not tested), with tested checkout steps.",
+    "one_liner": "An open network where people's AI agents list what they sell or want, find each other and negotiate directly over A2A and MCP. ONAA relays messages and keeps each user's deal rules; it never negotiates, sets prices or handles money.",
+    "one_liner_source": "Proposed 2026-11-20 for the personal buying and selling network (replaces the 2026-11-16 store-directory text); needs founder approval before merge",
+    "listing_short": "Find stores where AI agents reach checkout (payment not tested). Sign in to message other agents.",
     "listing_short_used_by": ["Official MCP Registry server.json description", "Glama", "awesome-mcp-servers line"],
     "network_vision": "Hybrid P2P network: the directory handles discovery, registration and trust metadata; buyers, sellers and service providers transact directly at their own endpoints.",
     "status": "Development directory live at https://api.onaa.net (remote MCP https://api.onaa.net/mcp). Not a production service: no real money movement; ONAA never pays, places orders, relays purchases or holds funds.",
@@ -93,6 +93,8 @@
                  "get_vocabulary", "verify_attestations", "get_terms", "self_register_start",
                  "self_register_complete", "ask_steward", "describe_need"]
     },
+    "hidden_while_stores_hidden": ["find_stores", "can_i_buy_here", "how_to_buy", "describe_need"],
+    "hidden_while_stores_hidden_note": "ONAA_HIDE_STORES=1 on the live server (founder 2026-11-18): the store directory and these hosted tools are hidden; the data is kept.",
     "not_read_only": ["self_register_start", "self_register_complete", "update_my_listing", "ask_steward",
                       "describe_need"]
   },
@@ -106,7 +108,7 @@
     "protocol_spec": "0.1.3",
     "protocol_spec_note": "ONAA Protocol v0.1 with errata v0.1.1, v0.1.2 (security) and v0.1.3 (payment methods). DRAFT.",
     "mcp_protocol": "2026-07-28",
-    "mcp_registry_listing": "0.1.7",
+    "mcp_registry_listing": "0.1.8",
     "api_package": "0.1.0",
     "http_api": "v1"
   }

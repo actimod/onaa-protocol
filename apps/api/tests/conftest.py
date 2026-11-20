@@ -105,7 +105,8 @@ def settings():
                     admin_token=ADMIN, steward_token=STEWARD, write_rate_limit_per_minute=0,
                     terms_version="draft-0.2", challenge_ttl_seconds=3600, precheck_min_interval_seconds=0,
                     attestation_signing_jwk=TRUST["attestation"], status_signing_jwk=TRUST["status"],
-                    log_signing_jwk=TRUST["log"], issuer_manifest=json.dumps(TRUST["manifest"]))
+                    log_signing_jwk=TRUST["log"], issuer_manifest=json.dumps(TRUST["manifest"]),
+                    pilot_webhook_worker_seconds=0)
 
 
 class FakeTxt:
@@ -197,3 +198,36 @@ def _fresh_store_snapshot(monkeypatch):
     stores.reset_snapshot()
     yield
     stores.reset_snapshot()
+
+
+# Details every new pilot listing must state (founder decision 2026-11-18); tests merge them into item bodies.
+ITEM_REQUIRED = {"currency": "USD", "region": "Seoul Mapo", "trade_methods": ["in_person"], "payment_methods": ["cash"],
+                 "quantity": 1, "condition": "used_good"}
+WANT_REQUIRED = {"max_price": 1000, "currency": "USD", "region": "Seoul Mapo",
+                 "trade_methods": ["in_person", "shipping"],
+                 "payment_methods": ["cash"], "quantity": 1, "conditions": ["new", "like_new", "used_good"]}
+
+
+@pytest.fixture(autouse=True)
+def _reports_count_fully(monkeypatch):
+    """Members made in a test are seconds old, so they would count half as reporters (report_rules). Tests of
+    report thresholds count them fully; test_review_decisions sets the real age rule where it tests it."""
+    from onaa_registry import report_rules
+
+    monkeypatch.setattr(report_rules, "NEW_ACCOUNT_DAYS", 0)
+
+
+def loosen(c, headers, body: dict) -> dict:
+    """Loosen deal rules as the person does: their yes (user_approved) applies auto confirm inside saved ranges
+    at once; anything else returns a confirm link the person opens and confirms (deal_rules / rules_confirm).
+    Returns the rules view, with done=True once applied."""
+    from urllib.parse import urlsplit
+
+    body = {**body, "user_approved": True}
+    r = c.patch("/v1/market/rules", headers=headers, json=body).json()
+    if not r.get("confirm_url"):
+        return r
+    path = urlsplit(r["confirm_url"]).path
+    assert c.get(path).status_code == 200
+    assert c.post(path).status_code == 200
+    return c.get("/v1/market/rules", headers=headers).json() | {"done": True}

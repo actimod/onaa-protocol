@@ -106,7 +106,8 @@ jobs:
         if: steps.detect.outputs.present == 'true'
         working-directory: apps/api
         run: |
-          pip install -e ../../packages/onaa-protocol -e '.[dev]'
+          pip install -e ../../packages/onaa-protocol -e '.[dev]' ruff==0.14.4
+          ruff check .
           pytest -q
       - name: Skip notice
         if: steps.detect.outputs.present != 'true'

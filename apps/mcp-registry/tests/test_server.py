@@ -72,6 +72,17 @@ async def test_tools_are_read_only(fake_registry):
 
 
 @pytest.mark.anyio
+async def test_store_tools_hidden_while_stores_hidden(fake_registry, monkeypatch):
+    reg, _ = fake_registry
+    monkeypatch.setenv("ONAA_HIDE_STORES", "1")
+    server = build_server(reg)
+    async with Client(server) as client:
+        tools = {t.name for t in (await client.list_tools()).tools}
+    assert tools == {"search_agents", "search_services", "get_listing", "get_vocabulary", "verify_attestations"}
+    assert "store" not in server._lowlevel_server.instructions.lower().split("untrusted")[0]
+
+
+@pytest.mark.anyio
 async def test_search_agents_passes_filters_and_wraps_untrusted_text(fake_registry):
     reg, calls = fake_registry
     async with Client(build_server(reg)) as client:

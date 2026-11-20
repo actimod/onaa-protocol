@@ -78,7 +78,7 @@ def test_store_pages_are_crawlable_and_escaped(client):
     index = client.get("/stores")
     assert index.status_code == 200 and 'href="/stores/alpha.example"' in index.text
     page = client.get("/stores/alpha.example")
-    assert page.status_code == 200 and "Can an AI agent check out at alpha.example?" in page.text
+    assert page.status_code == 200 and "How alpha.example looks to an AI shopping agent" in page.text
     assert 'type="application/json"' in page.text
     assert client.get("/stores/<script>").status_code == 404
 
@@ -217,7 +217,7 @@ def test_old_no_address_results_unconfirmed_and_store_published_countries(client
     assert {x["domain"] for x in got["items"]} == {"new.example", "world.example"}
     assert {old["id"], new["id"], world["id"]}
     page = client.get("/stores/new.example")
-    assert page.status_code == 200 and "store-published" in page.text
+    assert page.status_code == 200 and "Store&#x27;s own published list" in page.text
 
 
 def test_profile_declares_fulfillment(client):
@@ -350,3 +350,27 @@ def test_snapshot_refresh_reads_only_changed_stores(client, monkeypatch):
     with client.app.state.sessionmaker() as s:
         stores._build(s, base, (stores._fingerprint(s), base), prev=third)
     assert read == [first.count]
+
+
+def test_hide_stores_hides_the_store_directory_everywhere_and_keeps_the_data(client):
+    a, _, _ = _seed(client)
+    settings = client.app.state.settings
+    object.__setattr__(settings, "hide_stores", True)
+    try:
+        c = client
+        for path in ("/stores", "/stores.json", "/stores.csv", "/stores/alpha.example", "/v1/stores",
+                     "/v1/stores/alpha.example", "/v1/stores/check?url=alpha.example", "/v1/buying/stores",
+                     "/reports", "/reports/1"):
+            assert c.get(path).status_code == 404, path
+        assert c.get(f"/v1/services/{a['id']}").status_code == 404
+        assert c.get("/v1/services", params={"q": "alpha"}).json()["total"] == 0
+        home = c.get("/", headers={"Accept": "text/html"}).text
+        assert "Where AI agents find each other" in home and "?section=stores" not in home
+        assert "/stores" not in c.get("/sitemap.xml").text
+        llms = c.get("/llms.txt").text
+        assert "/v1/stores" not in llms and "## Register for your operator" in llms
+        assert "stores" not in c.get("/.well-known/onaa-registry.json").json()
+        assert c.post("/v1/reports", json={}).status_code != 404  # abuse reports are not the store report
+    finally:
+        object.__setattr__(settings, "hide_stores", False)
+    assert client.get("/v1/stores/alpha.example").status_code == 200  # switching it off brings everything back

@@ -73,6 +73,9 @@ def _shape(rec: dict) -> dict:
         "sandbox_available": rec.get("sandbox_available"),
         "status": rec.get("status"),
         "trust": {
+            "level": trust.get("level"),
+            "level_label": trust.get("level_label"),
+            "owner_confirmed_via": trust.get("owner_confirmed_via"),
             "registration_status": trust.get("registration_status"),
             "claimed": trust.get("claimed"),
             "endpoint_control_verified": trust.get("endpoint_control_verified"),
@@ -101,6 +104,7 @@ def _shape(rec: dict) -> dict:
             "data_handling": rec.get("data_handling"),
             "contacts": rec.get("contacts"),
             "self_reported_unverified": rec.get("self_reported"),
+            "store_stated_unverified": rec.get("store_stated"),
             "extensions": rec.get("extensions") or {},
             "jwks_uri": rec.get("jwks_uri"),
             "agent_card_summary": (rec.get("agent_card") or {}).get("summary"),
@@ -119,7 +123,11 @@ def _store_answer(item: dict) -> dict:
     store = item.get("store")
     if store:
         out["store_id"] = store.get("id")
+        out["trust_level"] = store.get("trust_level")
+        out["trust_level_label"] = store.get("trust_level_label")
         out["untrusted_operator_content"] = {k: store.get(k) for k in ("name", "endpoint_url", "manifest_url")}
+        if isinstance(store.get("store_stated"), dict):
+            out["untrusted_operator_content"]["store_stated_unverified"] = store["store_stated"]
     if item.get("via_shop_mcp"):
         out["via_shop_mcp"] = _store_answer(item["via_shop_mcp"])
     return out
@@ -422,7 +430,28 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
         _register_steward_tool(mcp, steward_ask)
     if need_client is not None:
         _register_need_tool(mcp, need_client)
+    if os.environ.get("ONAA_HIDE_STORES") == "1":
+        _hide_store_tools(mcp)
     return mcp
+
+
+STORE_TOOLS = ("find_stores", "can_i_buy_here", "how_to_buy", "describe_need")
+AGENTS_INSTRUCTIONS = (
+    "Find AI agents and the services they need: buyer agents, seller agents (including people's personal agents "
+    "hosted by ONAA) and service providers (payment, escrow, insurance, logistics, hosting, ...). Use "
+    "search_agents (e.g. role=seller_agent, claimed_only=true) and search_services. Results include separate "
+    "trust levels: registered, endpoint_control_verified, operator_identity_verified and certifications; none "
+    "implies another, and none is a guarantee of legal eligibility or transaction outcome. Contact counterparties "
+    "directly at their published endpoints (A2A). Search results also include discovered listings "
+    "(trust.registration_status=discovered): publicly observed, never registered, not network members. "
+)
+
+
+def _hide_store_tools(mcp: MCPServer) -> None:
+    """ONAA_HIDE_STORES=1: the collected store directory is hidden (founder, 2026-11-18); its tools go too."""
+    for name in STORE_TOOLS:
+        mcp._tool_manager._tools.pop(name, None)
+    mcp._lowlevel_server.instructions = AGENTS_INSTRUCTIONS + UNTRUSTED_NOTE
 
 
 def _register_need_tool(mcp: MCPServer, client_for: RemoteClient) -> None:

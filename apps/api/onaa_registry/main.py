@@ -7,11 +7,13 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from . import __version__
+from . import __version__, oauth, rules_confirm, webhooks
 from .buying import warm_cache as buying_warm_cache
 from .checker_loop import from_env as checker_from_env
 from .config import Settings
 from .db import Base, make_engine, make_sessionmaker
+from .hosting import HostRouter
+from .messaging import number_unsequenced_at_startup
 from .monitoring import ConformanceRunner, live_runner
 from .netsafety import Fetcher, SafeFetcher
 from .routes import (
@@ -21,11 +23,18 @@ from .routes import (
     misc,
     operators,
     optout,
+    pilot,
+    pilot_deals,
+    pilot_qa,
+    pilot_ranges,
+    pilot_reports,
+    pilot_shopping,
     policy,
     privacy,
     reports,
     self_register,
     stats,
+    store_claim,
     stores,
     trust,
     vocabulary,
@@ -43,7 +52,80 @@ SCHEMA_PATH = Path(__file__).resolve().parent / "registry-record.schema.json"
 # Pages that state rules or how to use ONAA: caches and crawlers must revalidate, so nobody keeps reading an old
 # version (e.g. the opt-out rules before the 7-day proof step). Routes that set their own Cache-Control keep it.
 POLICY_PATHS = frozenset({"/opt-out", "/privacy", "/privacy.txt", "/llms.txt", "/llms-full.txt", "/v1/terms",
+                          "/member-terms", "/member-terms.md", "/v1/member-terms",
                           "/openapi.json", "/.well-known/onaa-registry.json", "/v1"})
+
+
+HIDDEN_STORE_EXACT = frozenset({"/stores", "/stores.json", "/stores.csv", "/reports", "/manage-store"})
+HIDDEN_STORE_PREFIXES = ("/stores/", "/v1/stores", "/v1/buying/", "/reports/", "/verify-store/")
+
+
+class HiddenStoresMiddleware:
+    """settings.hide_stores: the store directory, its report and the buying endpoints answer 404 (data is kept)."""
+
+    def __init__(self, app, settings):
+        self.app, self.settings = app, settings
+
+    async def __call__(self, scope, receive, send):
+        path = scope.get("path", "") if scope["type"] == "http" else ""
+        if self.settings.hide_stores and (path in HIDDEN_STORE_EXACT or path.startswith(HIDDEN_STORE_PREFIXES)):
+            body = b'{"detail":"Not Found"}'
+            await send({"type": "http.response.start", "status": 404,
+                        "headers": [(b"content-type", b"application/json"),
+                                    (b"content-length", str(len(body)).encode())]})
+            await send({"type": "http.response.body", "body": body})
+            return
+        await self.app(scope, receive, send)
+
+
+class MemberTermsHeaderMiddleware:
+    """Pilot routes that return their own Response object skip the headers a dependency set; repeat the
+    'member terms accepted for you' header from request.state on every pilot answer."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or not scope.get("path", "").startswith("/v1/market/"):
+            await self.app(scope, receive, send)
+            return
+
+        async def wrapped(message):
+            version = (scope.get("state") or {}).get("onaa_member_terms")
+            if message["type"] == "http.response.start" and version:
+                headers = list(message.get("headers", []))
+                if not any(k.lower() == b"x-onaa-member-terms-accepted" for k, _ in headers):
+                    headers.append((b"x-onaa-member-terms-accepted", version.encode()))
+                    message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, wrapped)
+
+
+class OldMarketPathMiddleware:
+    """The market API moved from /v1/pilot to /v1/market (2026-11-19). Old paths keep working for a transition
+    period: they are served by the new routes and say so in Deprecation and Link headers."""
+
+    OLD = (("/v1/admin/pilot/", "/v1/admin/market/"), ("/v1/pilot/", "/v1/market/"))
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        path = scope.get("path", "") if scope["type"] == "http" else ""
+        moved = next((new + path[len(old):] for old, new in self.OLD if path.startswith(old)), None)
+        if moved is None:
+            await self.app(scope, receive, send)
+            return
+        link = f'<{moved}>; rel="successor-version"'.encode()
+
+        async def wrapped(message):
+            if message["type"] == "http.response.start":
+                headers = [*message.get("headers", []), (b"deprecation", b"true"), (b"link", link)]
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app({**scope, "path": moved, "raw_path": moved.encode()}, receive, wrapped)
 
 
 class PolicyNoCacheMiddleware:
@@ -89,7 +171,7 @@ def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
         Base.metadata.create_all(engine)  # dev/test only; server DBs use Alembic migrations
     app.state.settings = settings
     app.state.engine = engine
-    app.state.sessionmaker = make_sessionmaker(engine)
+    app.state.sessionmaker = make_sessionmaker(engine, settings)
     app.state.fetcher = fetcher or SafeFetcher()
     app.state.rate_limiter = RateLimiter(settings.write_rate_limit_per_minute)
     app.state.operator_limiter = RateLimiter(settings.operator_write_limit_per_minute)
@@ -105,14 +187,24 @@ def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
     app.state.usage.trusted_proxy_hops = settings.trusted_proxy_hops
     app.add_middleware(TrafficMiddleware, usage=app.state.usage)
     app.add_middleware(PolicyNoCacheMiddleware)
+    app.add_middleware(MemberTermsHeaderMiddleware)
+    app.add_middleware(HiddenStoresMiddleware, settings=settings)
+    app.add_middleware(HostRouter, app_state=app.state)  # <member>.<ONAA_HOSTING_DOMAIN> -> hosted agents
+    app.add_middleware(OldMarketPathMiddleware)  # outermost: /v1/pilot/... -> /v1/market/...
     app.add_event_handler("startup", app.state.usage.start)
     app.add_event_handler("shutdown", app.state.usage.stop)
+    if settings.pilot_enabled:  # messages stored by the previous version during a deploy get their seq
+        app.add_event_handler("startup", lambda: number_unsequenced_at_startup(app.state.sessionmaker))
     if os.environ.get("ONAA_STORE_FEED_WARM", "0") == "1":  # build the store snapshot at startup (production)
         base = settings.public_base_url.rstrip("/")
         # One after the other: both read every store, and together they starved the small machine (2026-11-16).
         app.add_event_handler("startup", lambda: buying_warm_cache(
             app.state.sessionmaker, after=warm_snapshot(app.state.sessionmaker, base)))
     app.state.checker = checker_from_env(app.state.sessionmaker, settings.public_base_url)
+    if settings.pilot_enabled and settings.pilot_webhook_worker_seconds > 0:
+        app.state.webhook_worker = webhooks.Worker(app.state, settings.pilot_webhook_worker_seconds)
+        app.add_event_handler("startup", app.state.webhook_worker.start)
+        app.add_event_handler("shutdown", app.state.webhook_worker.stop)
     if app.state.checker is not None:
         app.add_event_handler("startup", app.state.checker.start)
         app.add_event_handler("shutdown", app.state.checker.stop)
@@ -134,6 +226,19 @@ def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
     app.include_router(stores.router)
     app.include_router(reports.router)
     app.include_router(privacy.router)
+    app.include_router(store_claim.router)
+    app.include_router(pilot.router)
+    app.include_router(pilot.admin_router)
+    app.include_router(pilot.msg_router)
+    app.include_router(pilot_deals.router)
+    app.include_router(pilot_ranges.router)
+    app.include_router(pilot_shopping.router)
+    app.include_router(pilot_qa.router)
+    app.include_router(pilot_qa.admin_router)
+    app.include_router(pilot_reports.router)
+    app.include_router(pilot_reports.admin_router)
+    app.include_router(oauth.router)
+    app.include_router(rules_confirm.router)
 
     @app.get("/v1/specs/registry-record.schema.json", tags=["meta"], include_in_schema=False)
     def record_schema():

@@ -78,6 +78,9 @@ def require_steward(request: Request, creds: HTTPAuthorizationCredentials | None
     return "steward"
 
 
+MAX_KEYS = 20_000  # per limiter; each key is a few hundred bytes
+
+
 class RateLimiter:
     """In-process sliding-window limiter for write endpoints (MVP; replace with shared store at scale)."""
 
@@ -86,6 +89,7 @@ class RateLimiter:
         self.window = window_seconds
         self._hits: dict[str, deque[float]] = defaultdict(deque)
         self._lock = threading.Lock()
+        self._last_sweep = 0.0
 
     def check(self, key: str) -> None:
         if self.per_minute <= 0:
@@ -99,9 +103,23 @@ class RateLimiter:
                 raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "rate limit exceeded",
                                     headers={"Retry-After": str(self.window)})
             q.append(now)
-            if len(self._hits) > 10_000:  # bound memory: drop idle clients
+            # bound memory: drop idle clients, at most once a second (the scan is O(keys) under the lock)
+            if len(self._hits) > 10_000 and now - self._last_sweep > 1.0:
+                self._last_sweep = now
                 for k in [k for k, v in self._hits.items() if not v or now - v[-1] > self.window]:
                     del self._hits[k]
+                while len(self._hits) > MAX_KEYS:  # hard cap: forget the oldest-seen keys first
+                    del self._hits[next(iter(self._hits))]
+
+    def remaining(self, key: str) -> int:
+        """Hits left in the current window for key, without recording one."""
+        if self.per_minute <= 0:
+            return 1
+        now = time.monotonic()
+        with self._lock:
+            q = self._hits.get(key)
+            used = sum(1 for t in q if now - t <= self.window) if q else 0
+        return self.per_minute - used
 
 
 def client_ip(request: Request) -> str:
