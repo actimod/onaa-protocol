@@ -72,8 +72,19 @@ def _history_from_audit(session: Session, listing_id: str) -> dict | None:
     return hist
 
 
-def due_listing_ids(session: Session, limit: int, recheck_days: float) -> list[str]:
-    """Stores to check next: never checked first, then the least recently updated whose check is old enough."""
+def _older_than(ac: dict | None, cutoff: dt.datetime) -> bool:
+    try:
+        at = dt.datetime.fromisoformat((ac or {}).get("checked_at") or "")
+    except ValueError:
+        return True
+    return aware(at) < aware(cutoff)
+
+
+def due_listing_ids(session: Session, limit: int, recheck_days: float,
+                    registered_recheck_days: float = 1.0) -> list[str]:
+    """Stores to check next: never checked first, then stores registered by their operator whose check is older
+    than `registered_recheck_days` (daily by default: a benefit of registering), then the least recently updated
+    store whose check is older than `recheck_days`."""
     base = (Listing.service_type == "marketplace", Listing.lifecycle_status.in_(PUBLIC_STATUSES),
             Listing.endpoint_url.is_not(None))
     checked = select(ListingFacet.listing_id).where(ListingFacet.kind == "agent_checkout")
@@ -81,6 +92,16 @@ def due_listing_ids(session: Session, limit: int, recheck_days: float) -> list[s
                                .order_by(Listing.created_at, Listing.id).limit(limit)).all())
     if len(ids) >= limit:
         return ids
+    if registered_recheck_days > 0:
+        reg_cutoff = utcnow() - dt.timedelta(days=registered_recheck_days)
+        reg = session.execute(select(Listing.id, Listing.agent_checkout).where(
+            *base, Listing.id.in_(checked), Listing.operator_id.is_not(None),
+            Listing.lifecycle_status.not_in(("discovered", "claim_pending")))
+            .order_by(Listing.updated_at, Listing.id).limit(limit * 4)).all()
+        due = sorted(((ac or {}).get("checked_at") or "", lid) for lid, ac in reg if _older_than(ac, reg_cutoff))
+        ids += [lid for _, lid in due[:limit - len(ids)]]
+        if len(ids) >= limit:
+            return ids
     cutoff = utcnow() - dt.timedelta(days=recheck_days)
     rows = session.execute(select(Listing.id, Listing.agent_checkout).where(*base, Listing.id.in_(checked),
                                                                             Listing.updated_at < cutoff)
@@ -93,12 +114,13 @@ def due_listing_ids(session: Session, limit: int, recheck_days: float) -> list[s
             at = None
         if at is None or aware(at) < aware(cutoff):
             old.append(((ac or {}).get("checked_at") or "", lid))
-    return ids + [lid for _, lid in sorted(old)[:limit - len(ids)]]
+    return ids + [lid for _, lid in sorted(old) if lid not in ids][:limit - len(ids)]
 
 
 class CheckerLoop:
     def __init__(self, sessionmaker: Callable[[], Session], public_base_url: str, *, workers: int = 3,
                  delay_seconds: float = 3.0, recheck_days: float = 7.0, idle_seconds: float = 1800.0,
+                 registered_recheck_days: float = 1.0,
                  start_delay_seconds: float = 60.0, check_one: Callable | None = None,
                  client_factory: Callable | None = None):
         self.sessionmaker = sessionmaker
@@ -106,6 +128,7 @@ class CheckerLoop:
         self.workers = max(1, min(workers, 8))
         self.delay = delay_seconds
         self.recheck_days = recheck_days
+        self.registered_recheck_days = registered_recheck_days
         self.idle = idle_seconds
         self.start_delay = start_delay_seconds
         self._check_one = check_one
@@ -131,7 +154,8 @@ class CheckerLoop:
                         return lid
                     continue
                 with self.sessionmaker() as s:
-                    fresh = [i for i in due_listing_ids(s, 50 * self.workers, self.recheck_days)
+                    fresh = [i for i in due_listing_ids(s, 50 * self.workers, self.recheck_days,
+                                                     self.registered_recheck_days)
                              if i not in self._claimed]
                 if not fresh:
                     return None
@@ -218,4 +242,5 @@ def from_env(sessionmaker: Callable[[], Session], public_base_url: str) -> Check
     return CheckerLoop(sessionmaker, public_base_url,
                        workers=int(os.environ.get("ONAA_CHECKER_WORKERS", "3")),
                        delay_seconds=float(os.environ.get("ONAA_CHECKER_DELAY_SECONDS", "3")),
-                       recheck_days=float(os.environ.get("ONAA_CHECKER_RECHECK_DAYS", "7")))
+                       recheck_days=float(os.environ.get("ONAA_CHECKER_RECHECK_DAYS", "7")),
+                       registered_recheck_days=float(os.environ.get("ONAA_CHECKER_REGISTERED_RECHECK_DAYS", "1")))

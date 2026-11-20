@@ -432,7 +432,39 @@ class SelfReported(StrictModel):
     references_url: str | None = Field(default=None, max_length=2048)
 
 
-PROFILE_BLOCKS = ("commerce", "jurisdiction", "integration", "data_handling", "contacts", "self_reported")
+class StoreReturns(StrictModel):
+    accepted: bool | None = Field(default=None, description="The store accepts returns")
+    window_days: int | None = Field(default=None, ge=0, le=3650, description="Days after delivery to start a return")
+    policy_url: str | None = Field(default=None, max_length=2048)
+
+
+class StoreStated(StrictModel):
+    """What a store's registered operator states about the store (marketplace listings only). Always shown as
+    "store-stated" next to, and never mixed with, what ONAA's own test checkout observed."""
+
+    ships_worldwide: bool | None = Field(default=None, description="The store says it ships to every country")
+    ships_to: list[str] = Field(default_factory=list, max_length=250,
+                                description="ISO 3166-1 alpha-2 countries the store says it ships to")
+    payment_methods: list[str] = Field(default_factory=list, max_length=20,
+                                       description="Tokens, e.g. card, shop_pay, paypal, apple_pay, google_pay, klarna")
+    returns: StoreReturns | None = None
+    categories: list[str] = Field(default_factory=list, max_length=16,
+                                  description="What the store sells, as tokens, e.g. apparel, coffee, electronics")
+    shipping_policy_url: str | None = Field(default=None, max_length=2048)
+
+    @field_validator("ships_to")
+    @classmethod
+    def _ships(cls, v: list[str]) -> list[str]:
+        return _countries(v, "ships_to")
+
+    @field_validator("payment_methods", "categories")
+    @classmethod
+    def _tok(cls, v: list[str], info) -> list[str]:
+        return _tokens(v, info.field_name)
+
+
+PROFILE_BLOCKS = ("commerce", "jurisdiction", "integration", "data_handling", "contacts", "self_reported",
+                  "store_stated")
 
 
 def validate_extensions(v: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -460,6 +492,9 @@ class _Evolvable(StrictModel):
     data_handling: DataHandling | None = None
     contacts: Contacts | None = None
     self_reported: SelfReported | None = None
+    store_stated: StoreStated | None = Field(
+        default=None, description="Stores (service_type marketplace) only: shipping countries, payment methods, "
+                                  "returns and categories as stated by the store's operator; shown as store-stated")
     extensions: dict[str, Any] | None = Field(
         default=None, description="Namespaced extension fields (`com.example/field`, `x-name/field`), max 8 KiB. "
                                   "Untrusted. Widely used keys can be proposed for promotion via /v1/vocabulary.")
@@ -615,10 +650,23 @@ class Trust(BaseModel):
     review_flags: list[str] = Field(
         default_factory=list, description="Moderation hints set by ONAA (e.g. name_collision_review).")
     registration_method: Literal["operator_account", "agent_self_registration", "discovery_import",
-                                 "system"] | None = Field(
+                                 "system", "store_email_link", "onaa_hosting"] | None = Field(
         default=None,
         description="agent_self_registration means the agent proved control of its endpoint host once, at signup, "
-                    "as an anti-abuse gate. That is not the Endpoint Verified tier (endpoint_control_verified).")
+                    "as an anti-abuse gate. That is not the Endpoint Verified tier (endpoint_control_verified). "
+                    "store_email_link means the store's operator registered through a one-time link sent to the "
+                    "contact address the store publishes itself.")
+    owner_confirmed_via: Literal["published_email"] | None = Field(
+        default=None, description="How the operator confirmed they manage this listing without endpoint control: "
+                                  "published_email = a one-time link sent to the address the store publishes. "
+                                  "Weaker than endpoint_control_verified.")
+    level: Literal["discovered_unverified", "operator_registered", "operator_confirmed_by_email",
+                   "operator_endpoint_verified", "certified"] = Field(
+        default="discovered_unverified",
+        description="One summary of the fields above, lowest to highest: found by ONAA on the public web; registered "
+                    "by its operator; operator confirmed through the store's own published email; operator proved "
+                    "control of the endpoint; plus an active certification. Never a legal identity check.")
+    level_label: str = Field(default="", description="Plain-English text for `level`")
     disclaimer: str = (
         "Registry trust metadata describes what ONAA checked. It is not a guarantee of legal "
         "eligibility, licensing, solvency or transaction outcome."
@@ -654,6 +702,9 @@ class RegistryRecord(BaseModel):
     data_handling: dict | None = None
     contacts: dict | None = None
     self_reported: dict | None = Field(default=None, description="Claimed by the listing; NOT verified by ONAA.")
+    store_stated: dict | None = Field(default=None, description="Stated by the store's registered operator; NOT "
+                                                                "verified by ONAA (see agent_checkout for ONAA's own "
+                                                                "observations).")
     extensions: dict = Field(default_factory=dict, description="Namespaced, untrusted extension fields.")
     jwks_uri: str | None = None
     revision: int = Field(default=1, description="Increments on every change; also sent as the HTTP ETag.")

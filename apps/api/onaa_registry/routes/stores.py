@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from ..buying import MAX_STORES_PER_CHECK
 from ..db import get_session
 from ..landing import CSS
+from ..registrant import count_lookups, hit_registered_ids, rank_registered_first, registered_ids
 from ..security import client_ip
 from ..stores import (
     FEED_NOTE,
@@ -24,6 +25,7 @@ from ..stores import (
     find_store,
     reachability_counts,
     snapshot,
+    store_domain,
     store_record,
 )
 
@@ -159,11 +161,15 @@ def list_stores(
                 (confirmed_reachable_only and row.reach != "reachable"):
             continue
         matched.append(row)
+    if rank_registered_first():  # founder-approved ranking change: registered stores first, else name order
+        matched.sort(key=lambda r: -r.level)
     if offset == 0:  # count searches, not the pages of one search
         count_search(request, "list", {"country": ships, "pays_alone": pays_alone, "checkout": statuses,
                                        "protocol": protos, "payment": handlers, "currency": currencies,
                                        "q": "given" if terms else None}, matched=len(matched))
-    items = list(snap.records(matched[offset:offset + limit]))
+    page_rows = matched[offset:offset + limit]
+    items = list(snap.records(page_rows))
+    hit_registered_ids(request.app.state.usage, [r.id for r in page_rows if r.level], "search")
     untested = sorted(set(ships) - set(TESTED_COUNTRIES))
     out = {"total": len(matched), "limit": limit, "offset": offset, "items": items,
            "reachability_counts": reachability_counts(r.reach for r in matched), "note": FEED_NOTE}
@@ -205,9 +211,11 @@ def run_check(request: Request, session: Session, keys: list[str], *, country: s
         except HTTPException:
             return False
 
-    return check_with_discovery(session, state.fetcher, keys, usage=state.usage, probe_allowed=allowed,
-                                autodiscover=settings.store_autodiscovery_enabled, country=country, agent=agent,
-                                payment=payment, pay_alone=pay_alone)
+    result = check_with_discovery(session, state.fetcher, keys, usage=state.usage, probe_allowed=allowed,
+                                  autodiscover=settings.store_autodiscovery_enabled, country=country, agent=agent,
+                                  payment=payment, pay_alone=pay_alone)
+    hit_registered_ids(state.usage, registered_ids(result["items"]), "check")
+    return result
 
 
 def _split(values: list[str] | None) -> list[str]:
@@ -267,6 +275,7 @@ def get_store(store: str, request: Request,
     if listing is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND,
                             f"store not listed; ask {_base(request)}/v1/stores/check?url={store[:100]}")
+    count_lookups(request.app.state.usage, [listing], "detail")
     return JSONResponse(store_record(listing, _base(request), country=country.upper() if country else None),
                         headers={"Cache-Control": "public, max-age=300"})
 
@@ -325,58 +334,59 @@ def stores_index(request: Request, page: Annotated[int, Query(ge=1, le=10_000)] 
             '<p>ONAA probes each store as an outside agent, up to a created checkout that is then cancelled; '
             'payment is never tested. Agents: page through '
             f'<code>GET {_e(base)}/v1/stores?ships_to=US&amp;pays_alone=true&amp;limit=100</code>, or get '
-            f'everything at once from <a href="{_e(base)}/stores.json">/stores.json</a>.</p></section>'
+            f'everything at once from <a href="{_e(base)}/stores.json">/stores.json</a>. '
+            '<a href="/stores/lookup">See how any store looks to an AI agent</a>.</p></section>'
             f'<p class="list-sub">{nav}</p>' + "".join(rows) + f'<p class="list-sub">{nav}</p>')
     return HTMLResponse(_page(f"{snap.count} stores probed for AI agent checkout | ONAA",
                               "Stores and marketplaces with an agent checkout, tested by ONAA.", body,
                               f"{base}/stores.json"), headers={"Cache-Control": CACHE})
 
 
-def _published_text(pub) -> str:
-    if not isinstance(pub, dict):
-        return "unknown"
-    if pub["ships_worldwide"]:
-        return "worldwide (store's own shipping list)"
-    return f'{len(pub["countries"])} countries: ' + ", ".join(pub["countries"][:40]) + (
-        " ..." if len(pub["countries"]) > 40 else "")
+@router.get("/stores/lookup", response_class=HTMLResponse, include_in_schema=False)
+def store_lookup(request: Request, q: Annotated[str | None, Query(max_length=300)] = None,
+                 session: Session = Depends(get_session)):
+    """Enter any store website: listed stores open their page; others are looked up live at /.well-known/ucp
+    (robots.txt honoured, rate-limited per caller) and, if they publish an agent shopping endpoint, added."""
+    from fastapi.responses import RedirectResponse
+
+    from ..store_view import STORE_CSS, lookup_form, lookup_intro, not_found_body
+    from ..stores import domain_of
+
+    def page(body: str, code: int = 200) -> HTMLResponse:
+        return HTMLResponse(_page("How does a store look to an AI shopping agent? | ONAA",
+                                  "See what an AI shopping agent finds at any online store.",
+                                  f"<style>{STORE_CSS}</style>{body}", f"{_base(request)}/stores.json"),
+                            status_code=code, headers={"Cache-Control": "no-store"})
+
+    if not (q or "").strip():
+        return page(lookup_intro() + lookup_form())
+    domain = domain_of(q)
+    if not domain or "." not in domain:
+        return page(not_found_body((q or "")[:100], "bad_domain", ""), 422)
+    listing = find_store(session, domain)
+    if listing is None:
+        result = run_check(request, session, [domain], country=None, agent=None, payment=[], pay_alone=False)
+        item = result["items"][0]
+        if item.get("found"):
+            session.commit()
+            listing = find_store(session, domain)
+        if listing is None:
+            probe = item.get("probe") or {}
+            return page(not_found_body(domain, probe.get("outcome", "no_manifest"), probe.get("meaning", "")))
+    return RedirectResponse(f"/stores/{store_domain(listing) or listing.id}", status_code=303)
 
 
 @router.get("/stores/{store}", response_class=HTMLResponse, include_in_schema=False)
 def store_page(store: str, request: Request, session: Session = Depends(get_session)):
+    from ..store_view import STORE_CSS, store_view_body, summary_line
+
     base = _base(request)
     listing = find_store(session, store)
     if listing is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "store not listed")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "store not listed; look it up at /stores/lookup")
     it = store_record(listing, base)
-    cp, sh = it["checkout_probe"], it["shipping"]
-    verdict = it.get("agent_purchase") or {}
-    steps = verdict.get("how_to_buy") or []
-    facts = [
-        ("Last checked", cp["checked_at"] or "not yet"),
-        ("Result", STATUS_TEXT.get(cp["status"], cp["status"])),
-        ("Protocol", cp["protocol"] or "unknown"),
-        ("Shop Pay one-time link (payment not tested)",
-         {True: "offered; ONAA never pays, so whether the agent can then pay without a person is not verified",
-          False: "no", None: "unknown"}[cp["agent_can_pay_alone"]]),
-        ("Payment tested", "no: ONAA's checker always stops before payment"),
-        ("Payment options at checkout", ", ".join(cp["payment_handlers"]) or "none seen"),
-        ("Buyer must provide", ", ".join(cp["buyer_info_required"]) or "nothing reported"),
-        ("Ships to (tested by ONAA)", ", ".join(sh["ships_to"]) or "none of the tested countries confirmed"),
-        ("No delivery to (tested by ONAA)", ", ".join(sh["no_shipping_to"]) or "-"),
-        ("Ships to (store-published, not tested)", _published_text(sh["store_published"])),
-        ("Agent shopping endpoint", it["endpoints"]["mcp"] or "not public"),
-    ]
-    table = "".join(f'<li><strong>{_e(k)}:</strong> {_e(v)}</li>' for k, v in facts)
-    how = "".join(f"<li>{_e(step)}</li>" for step in steps)
-    store_link = (f'<a href="{_e(it["store_url"])}" rel="nofollow noopener ugc">{_e(it["store_url"])}</a>'
-                  if it["store_url"] else "")
-    body = (f'<section class="hero"><h1>Can an AI agent check out at {_e(it["name"])}?</h1>'
-            f'<p>{_e(verdict.get("summary") or STATUS_TEXT.get(cp["status"], ""))}</p>'
-            f'<p>{store_link}</p></section>'
-            f'<div class="item"><ul>{table}</ul></div>'
-            + (f'<h2 class="list-h">How an agent buys here</h2><ol>{how}</ol>' if how else "")
-            + f'<p class="list-sub">Machine-readable: <a href="{_e(it["links"]["json"])}">JSON</a> · '
-              f'<a href="{_e(it["links"]["history"])}">check history</a></p>')
-    return HTMLResponse(_page(f"Can an AI agent check out at {it['name']}? | ONAA",
-                              f"Tested agent checkout for {it['name']}: {STATUS_TEXT.get(cp['status'], '')}.",
-                              body, it["links"]["json"]), headers={"Cache-Control": CACHE})
+    steps = (it.get("agent_purchase") or {}).get("how_to_buy") or []
+    body = f"<style>{STORE_CSS}</style>" + store_view_body(it, steps)
+    return HTMLResponse(_page(f"How {it['name']} looks to an AI shopping agent | ONAA",
+                              f"{it['name']}: {summary_line(it)}", body, it["links"]["json"]),
+                        headers={"Cache-Control": CACHE})

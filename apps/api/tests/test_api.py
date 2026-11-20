@@ -14,3 +14,6 @@ def test_privacy_notice_states_the_running_retention(client):
     assert page.status_code == 200 and "up to 7 days" in page.text and "Fly.io" in page.text
     assert "up to 7 days" in client.get("/privacy.txt").text
     assert "/privacy" in client.get("/", headers={"Accept": "text/html"}).text
+    assert "deleted after 30 days" in page.text and "Continue with Google" in page.text  # member sign-in, messages
+    terms = client.get("/terms")
+    assert terms.status_code == 200 and "Terms of use" in terms.text and "/v1/terms" in terms.text

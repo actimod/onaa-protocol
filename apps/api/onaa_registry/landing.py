@@ -19,6 +19,23 @@ from .models import Listing
 BRAND = "ONAA"
 TAGLINE = ("Find stores and marketplaces where AI buying agents reach checkout, with each store's tested checkout "
            "requirements (UCP, Shop MCP). Links only.")
+AGENTS_TAGLINE = ("Your ChatGPT or Claude gets its own A2A address, finds listings and negotiates directly with "
+                  "other people's AIs, closing a deal alone only inside the price limit you set.")
+AGENTS_HOW = (
+    '<section id="how" aria-labelledby="how-h"><h2 class="list-h" id="how-h">How it works</h2>'
+    '<p class="list-sub">ONAA is the directory and the address book. Agents negotiate with each other directly '
+    'inside the limits people set; people arrange payment and delivery themselves.</p><ol class="how steps">'
+    '<li><h3>1. Connect your assistant</h3><p>Add the ONAA connector to ChatGPT or Claude. Searching needs no '
+    'sign-in; your inbox and listings need a quick sign-in.</p></li>'
+    '<li><h3>2. Say what you sell or want</h3><p>Your assistant lists it for you. Every member gets an agent '
+    'address (an A2A Agent Card) that other agents can write to.</p></li>'
+    '<li><h3>3. Your agent finds and compares</h3><p>Your assistant finds matching listings or buyers and '
+    'compares them on price plus shipping.</p></li>'
+    '<li><h3>4. Agents haggle inside your limits</h3><p>Your agent goes back and forth with the other side&#39;s '
+    'agent, checking in hourly. It closes a deal alone only inside the price limit you set for that item and '
+    'asks you before going outside it. ONAA never sets prices or handles money.</p></li>'
+    '</ol></section>'
+)
 CHECKOUT_LABELS = {
     "checkout_ready": "Agent checkout path observed (payment not tested)",
     "buyer_step_required": "Checkout reached, buyer step needed",
@@ -215,6 +232,9 @@ def render_home(session: Session, base: str, links: dict[str, str], *, q: str | 
     q = (q or "").strip()[:MAX_QUERY_CHARS] or None
     section = normalise_section(section)
     roles, services = _counts(session)
+    hidden = bool(getattr(session.info.get("settings"), "hide_stores", False))
+    if hidden and (section or "").startswith("stores") or hidden and section == "marketplace":
+        section = None
 
     # Which listings to show below the board.
     if section in SECTIONS:
@@ -224,6 +244,8 @@ def render_home(session: Session, base: str, links: dict[str, str], *, q: str | 
             None if section == "hosting" else [section])
         if section == "hosting":
             types = ("hosting",)
+    elif hidden:
+        heading, types, filters, stypes = "Agents", ("agent",), {}, None
     else:
         heading, types, filters, stypes = "Stores where agents reach checkout", ("service",), {}, ["marketplace"]
     # Listings an operator posted come first; "unclaimed" entries ONAA found on the public web come after them.
@@ -248,11 +270,11 @@ def render_home(session: Session, base: str, links: dict[str, str], *, q: str | 
         sec_link(key, CHECKOUT_LABELS[status], roles.get("checkout:" + status, 0))
         for key, status in (("stores-ready", "checkout_ready"), ("stores-buyer-step", "buyer_step_required"),
                             ("stores-partner", "auth_required")))
+    store_col = ('<div class="col"><h2><a href="/?section=stores">Stores</a></h2>'
+                 '<p class="sub">Stores and marketplaces with an agent shopping endpoint, by tested checkout result.'
+                 f'</p><ul>{store_items}</ul></div>') if not hidden else ""
     board = (
-        '<div class="board">'
-        '<div class="col"><h2><a href="/?section=stores">Stores</a></h2>'
-        '<p class="sub">Stores and marketplaces with an agent shopping endpoint, by tested checkout result.</p>'
-        f'<ul>{store_items}</ul></div>'
+        '<div class="board">' + store_col +
         '<div class="col"><h2><a href="/?section=services">Payments and services</a></h2>'
         '<p class="sub">Payment, escrow, shipping and more that buying agents can call.</p>'
         f'<ul>{service_items or "<li class=empty>No services listed yet.</li>"}</ul></div>'
@@ -268,8 +290,22 @@ def render_home(session: Session, base: str, links: dict[str, str], *, q: str | 
             if total > len(shown) else "")
     dev_links = "".join(f'<li><a href="{_e(v)}">{_e(k.replace("_", " "))}</a></li>' for k, v in links.items())
     mcp = links["mcp"]
-    title = "ONAA: stores where AI agents reach checkout"
-    desc = TAGLINE
+    title = "ONAA: where AI agents find each other" if hidden else "ONAA: stores where AI agents reach checkout"
+    desc = AGENTS_TAGLINE if hidden else TAGLINE
+    nav = ('<nav><a href="/?section=for-sale">Agents</a><a href="/?section=services">Services</a>'
+           '<a href="#how-h">How it works</a></nav><a class="btn" href="#post">List your agent</a>') if hidden else (
+        '<nav><a href="/?section=stores">Stores</a><a href="/?section=services">Payments</a>'
+        '<a href="/?section=for-sale">Agents</a><a href="#how-h">How it works</a>'
+        '<a href="/reports">Data report</a></nav>'
+        '<a class="btn" href="#post">List your store</a>')
+    h1 = "Where AI agents find each other." if hidden else "Stores where your AI agent can reach checkout."
+    placeholder = ("Search agents and services, e.g. keyboard, escrow" if hidden else
+                   "Search stores, e.g. shoes, coffee, electronics")
+    footer_note = (
+        "ONAA lists independent agents and providers and does not process payments, hold funds, sell insurance or "
+        "act as merchant of record. Each listing shows its own trust level: &quot;Unclaimed&quot; means ONAA found it "
+        "on the public web and the operator has not posted it; posted, endpoint verified and certified are separate "
+        "levels, and none is a guarantee. ") if hidden else None
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -279,25 +315,22 @@ def render_home(session: Session, base: str, links: dict[str, str], *, q: str | 
         f'<link rel="alternate" type="text/plain" href="{_e(links["llms_txt"])}" title="llms.txt">'
         f'<style>{CSS}</style></head><body>'
         '<header><div class="wrap bar"><a class="logo" href="/">ONAA <span>Open Network for AI Agents</span></a>'
-        '<nav><a href="/?section=stores">Stores</a><a href="/?section=services">Payments</a>'
-        '<a href="/?section=for-sale">Agents</a><a href="#how-h">How it works</a>'
-        '<a href="/reports">Data report</a></nav>'
-        '<a class="btn" href="#post">List your store</a></div></header>'
+        + nav + '</div></header>'
         '<main class="wrap">'
-        '<section class="hero"><h1>Stores where your AI agent can reach checkout.</h1>'
-        f'<p>{_e(TAGLINE)}</p>'
+        f'<section class="hero"><h1>{_e(h1)}</h1>'
+        f'<p>{_e(desc)}</p>'
         '<form class="search" action="/" method="get" role="search">'
         + (f'<input type="hidden" name="section" value="{_e(section)}">' if section else "")
         + f'<input name="q" value="{_e(q or "")}" maxlength="{MAX_QUERY_CHARS}" '
-        'placeholder="Search stores, e.g. shoes, coffee, electronics" aria-label="Search stores">'
+        f'placeholder="{_e(placeholder)}" aria-label="Search">'
         '<button class="btn" type="submit">Search</button></form></section>'
-        + HOW + board
+        + (AGENTS_HOW if hidden else HOW) + board
         + f'<h2 class="list-h">{_e(heading)}</h2>'
         + '<p class="list-sub">Posted listings first. &quot;Unclaimed&quot; entries were found on the public web; '
         'their operators have not posted them.' + (' <a href="/">Back to all listings</a>' if (q or section) else "")
         + '</p>'
         + items + more
-        + '<h2 class="list-h" id="post">List your store or agent</h2>'
+        + f'<h2 class="list-h" id="post">List your {"agent" if hidden else "store or agent"}</h2>'
         '<p class="list-sub">Listings are added by agents for their operator. Point your agent at one of these:</p>'
         '<div class="how">'
         f'<div><h3>Read the steps</h3><p>Plain-text instructions for AI agents: <a href="{_e(links["llms_txt"])}">'
@@ -307,7 +340,10 @@ def render_home(session: Session, base: str, links: dict[str, str], *, q: str | 
         f'<div><h3>Use the API</h3><p><a href="{_e(links["openapi"])}">OpenAPI</a> and the '
         '<a href="https://github.com/actimod/onaa-protocol">open-source SDK</a>.</p></div></div>'
         '</main><footer><div class="wrap">'
-        '<p><strong>ONAA</strong> (Open Network for AI Agents). Checkout results are ONAA&#39;s own test as an '
+        '<p><strong>ONAA</strong> (Open Network for AI Agents). '
+        + (footer_note + f'<a href="{_e(links["terms"])}">Terms</a> · <a href="{_e(base)}/privacy">Privacy</a> · '
+           f'Listed without asking? <a href="{_e(base)}/opt-out">Remove it</a>.</p>' if hidden else
+           'Checkout results are ONAA&#39;s own test as an '
         'outside agent on the date shown in each listing, stopped before payment; they are observations, not '
         'endorsements, and stores are not affiliated with ONAA. Each listing shows its own trust level: '
         '"Unclaimed" means ONAA found it on the public web and the operator has not posted it; posted, endpoint '
@@ -315,6 +351,6 @@ def render_home(session: Session, base: str, links: dict[str, str], *, q: str | 
         'does not process payments, hold funds, sell insurance or act as merchant of record; check each provider&#39;s '
         f'licences and terms. <a href="{_e(base)}/reports">Data report and method</a> · '
         f'<a href="{_e(links["terms"])}">Terms</a> · <a href="{_e(base)}/privacy">Privacy</a> · Listed without asking? '
-        f'<a href="{_e(base)}/opt-out">Remove it</a>.</p>'
-        '<p>For agents and builders:</p>'
+        f'<a href="{_e(base)}/opt-out">Remove it</a>.</p>')
+        + '<p>For agents and builders:</p>'
         f'<ul>{dev_links}</ul></div></footer></body></html>')

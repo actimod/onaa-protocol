@@ -3,7 +3,7 @@
 These principles guide the specifications and reference code in this repository. Code comments refer to them by number.
 
 0. **Working name.** ONAA = Open Network for AI Agents. It is a working project name; no trademark registration or domain ownership is implied. Identifiers use URNs (for example `urn:onaa:a2a-ext:commerce:v0`) so that no domain is implied.
-1. **Directory for discovery, agents for trade.** The directory handles discovery, search, registration and trust metadata. Buyer, seller and provider transactions run **directly** between agents over interoperable endpoints. The directory never relays trade messages.
+1. **Directory for discovery, agents for trade.** The directory handles discovery, search, registration and trust metadata. Buyer, seller and provider transactions run **directly** between agents over interoperable endpoints. The directory never negotiates, sets prices or handles money; for members hosted by ONAA it only delivers messages and keeps each member's deal rules.
 2. **One open directory for every role.** Buyer, seller, payment, escrow, insurance, shipping, inspection, dispute, identity and hosting services can all join the same directory.
 3. **External providers first.** Independent companies host seller nodes and supply regulated services (payment, escrow, insurance, logistics).
 4. **Free basic listing.** Basic listing is free. Verification and certification are separate, optional services.

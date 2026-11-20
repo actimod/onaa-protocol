@@ -372,13 +372,18 @@ def assess(listing: Listing, *, country: str | None = None, agent: str | None = 
         cautions.append(f"ONAA has probed this store only {n} time{'s' if n != 1 else ''}: too few to rely on "
                         "the result; re-check at the store")
 
+    from .registrant import LEVEL_LABELS, level_of, store_stated_view
+
+    level = level_of(listing)
     return {
         # The probe's observation never depends on the caller's conditions; eligibility does.
         "checkout_path_observed": status in CHECKOUT_REACHED_STATUSES,
         "eligible_for_request": verdict in CHECKOUT_PATH_VERDICTS,
         "eligibility_reasons": reasons,
         "store": {"id": listing.id, "name": listing.display_name, "endpoint_url": listing.endpoint_url,
-                  "manifest_url": listing.source_url or listing.documentation_url},
+                  "manifest_url": listing.source_url or listing.documentation_url,
+                  "trust_level": level, "trust_level_label": LEVEL_LABELS[level],
+                  "store_stated": store_stated_view(listing)},
         "verdict": verdict,
         "reasons": reasons,
         "cautions": cautions,
@@ -422,6 +427,10 @@ class StoreView:
     reachability: str | None
     operator_id: str | None
     lifecycle_status: str | None
+    endpoint_control_verified: bool = False
+    endpoint_verified_until: dt.datetime | None = None
+    owner_confirmed_via: str | None = None
+    profile: dict | None = None
 
     @property
     def claimed(self) -> bool:
@@ -431,7 +440,8 @@ class StoreView:
 
 _VIEW_COLUMNS = (Listing.id, Listing.display_name, Listing.description, Listing.endpoint_url, Listing.source_url,
                  Listing.documentation_url, Listing.agent_checkout, Listing.reachability, Listing.operator_id,
-                 Listing.lifecycle_status)
+                 Listing.lifecycle_status, Listing.endpoint_control_verified, Listing.endpoint_verified_until,
+                 Listing.owner_confirmed_via, Listing.profile)
 # Probe results that can lead to a yes or maybe; every other status always answers no or unknown.
 POSSIBLE_STATUSES = ("checkout_ready", "buyer_step_required", "auth_required")
 
@@ -705,8 +715,13 @@ _ranks_guard = threading.Lock()
 
 
 def _ranked(stores: list[StoreView], kw: dict) -> list[tuple[StoreView, str, bool]]:
+    from .registrant import LEVEL_RANK, level_of, rank_registered_first
+
+    # With rank_registered_first (founder-approved 2026-11-17), listings registered by their operator come
+    # before unregistered ones only among otherwise equal answers.
+    boost = rank_registered_first()
     key = (_country(kw["country"]), (kw["agent"] or "").lower() or None,
-           tuple(normalise_payment(kw["payment"])), bool(kw["pay_alone"]))
+           tuple(normalise_payment(kw["payment"])), bool(kw["pay_alone"]), boost)
     hit = _ranks.get(key)
     if hit is not None and hit[0] is stores:
         return hit[1]
@@ -719,7 +734,8 @@ def _ranked(stores: list[StoreView], kw: dict) -> list[tuple[StoreView, str, boo
         scored = [(s, assess(s, steps=False, **kw)) for s in stores]
         scored.sort(key=lambda p: (VERDICT_RANK[p[1]["verdict"]], p[1]["endpoint_environment"] == "sandbox",
                                    p[1]["pay_alone"] != "after_one_time_link",
-                                   p[1]["ships_to_country"] is not True, (p[0].display_name or "").lower()))
+                                   p[1]["ships_to_country"] is not True,
+                                   -LEVEL_RANK[level_of(p[0])] if boost else 0, (p[0].display_name or "").lower()))
         ranked = [(s, r["verdict"], r["endpoint_environment"] == "sandbox") for s, r in scored]
         with _ranks_guard:
             for k in [k for k, v in _ranks.items() if v[0] is not stores]:

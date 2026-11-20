@@ -530,6 +530,17 @@
               }
             ]
           },
+          "store_stated": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StoreStated"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stores (service_type marketplace) only: shipping countries, payment methods, returns and categories as stated by the store's operator; shown as store-stated"
+          },
           "supported_protocols": {
             "items": {
               "type": "string"
@@ -785,6 +796,17 @@
                 "type": "null"
               }
             ]
+          },
+          "store_stated": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StoreStated"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stores (service_type marketplace) only: shipping countries, payment methods, returns and categories as stated by the store's operator; shown as store-stated"
           },
           "supported_protocols": {
             "anyOf": [
@@ -1605,6 +1627,90 @@
         "title": "DataHandling",
         "type": "object"
       },
+      "DealActIn": {
+        "properties": {
+          "action": {
+            "enum": [
+              "propose",
+              "agree",
+              "message",
+              "cancel",
+              "done",
+              "report",
+              "block"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "proposal_at": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal At"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no_show",
+                  "scam",
+                  "abuse",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "shares_address": {
+            "default": false,
+            "title": "Shares Address",
+            "type": "boolean"
+          },
+          "terms": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Terms"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "message, or a note with any action",
+            "title": "Text"
+          },
+          "user_approved": {
+            "default": false,
+            "title": "User Approved",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "DealActIn",
+        "type": "object"
+      },
       "DecisionIn": {
         "additionalProperties": false,
         "properties": {
@@ -2106,6 +2212,36 @@
           }
         },
         "title": "Integration",
+        "type": "object"
+      },
+      "InviteCreate": {
+        "properties": {
+          "days": {
+            "default": 30,
+            "maximum": 90.0,
+            "minimum": 1.0,
+            "title": "Days",
+            "type": "integer"
+          },
+          "email": {
+            "description": "The contact address the store publishes itself",
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          },
+          "email_source_url": {
+            "description": "Page or manifest where the store publishes it",
+            "maxLength": 2048,
+            "title": "Email Source Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "email_source_url"
+        ],
+        "title": "InviteCreate",
         "type": "object"
       },
       "Jurisdiction": {
@@ -3034,6 +3170,151 @@
         "title": "Quoting",
         "type": "object"
       },
+      "RangeIn": {
+        "properties": {
+          "handoff_place": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "a public place, or shipping",
+            "title": "Handoff Place"
+          },
+          "handoff_time": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "e.g. weekday evenings",
+            "title": "Handoff Time"
+          },
+          "highest_price": {
+            "anyOf": [
+              {
+                "maximum": 1000000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "buy: the most paid",
+            "title": "Highest Price"
+          },
+          "item_id": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "your listing (sell) or one to buy",
+            "title": "Item Id"
+          },
+          "lowest_price": {
+            "anyOf": [
+              {
+                "maximum": 1000000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "sell: the least accepted",
+            "title": "Lowest Price"
+          },
+          "payment_detail": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "e.g. Venmo; no account numbers",
+            "title": "Payment Detail"
+          },
+          "payment_methods": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "cash",
+                    "bank_transfer",
+                    "card",
+                    "payment_app",
+                    "escrow",
+                    "crypto",
+                    "other"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 7,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "acceptable ways to pay",
+            "title": "Payment Methods"
+          },
+          "trade_methods": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "in_person",
+                    "shipping",
+                    "online"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "acceptable ways to hand over",
+            "title": "Trade Methods"
+          },
+          "want_id": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "your want",
+            "title": "Want Id"
+          }
+        },
+        "title": "RangeIn",
+        "type": "object"
+      },
       "RegistryRecord": {
         "properties": {
           "agent_card": {
@@ -3362,6 +3643,19 @@
             "title": "Status",
             "type": "string"
           },
+          "store_stated": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stated by the store's registered operator; NOT verified by ONAA (see agent_checkout for ONAA's own observations).",
+            "title": "Store Stated"
+          },
           "supported_interfaces": {
             "items": {
               "additionalProperties": true,
@@ -3465,6 +3759,38 @@
         "title": "ReportCreate",
         "type": "object"
       },
+      "ReportIn": {
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "what is wrong, in the member's words",
+            "title": "Note"
+          },
+          "reason": {
+            "enum": [
+              "illegal",
+              "prohibited",
+              "scam",
+              "other"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "ReportIn",
+        "type": "object"
+      },
       "ReportOut": {
         "properties": {
           "category": {
@@ -3497,6 +3823,170 @@
           "created_at"
         ],
         "title": "ReportOut",
+        "type": "object"
+      },
+      "RulesIn": {
+        "properties": {
+          "cancel_deal": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "ask"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Deal"
+          },
+          "choose_payment": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "ask"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Choose Payment"
+          },
+          "clear_confirm_deal_max": {
+            "default": false,
+            "title": "Clear Confirm Deal Max",
+            "type": "boolean"
+          },
+          "clear_confirm_sale_min": {
+            "default": false,
+            "title": "Clear Confirm Sale Min",
+            "type": "boolean"
+          },
+          "confirm_deal": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "ask"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirm Deal"
+          },
+          "confirm_deal_max": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "{amount, currency}: auto confirm buying up to this",
+            "title": "Confirm Deal Max"
+          },
+          "confirm_done": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "ask"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirm Done"
+          },
+          "confirm_sale_min": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "{amount, currency}: auto confirm selling at or above this",
+            "title": "Confirm Sale Min"
+          },
+          "only_in_range": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "auto confirm only on listings with a saved price range, inside it",
+            "title": "Only In Range"
+          },
+          "set_handoff": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "ask"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set Handoff"
+          },
+          "share_address": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "ask"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Address"
+          },
+          "share_contact": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "ask"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Contact"
+          },
+          "user_approved": {
+            "default": false,
+            "title": "User Approved",
+            "type": "boolean"
+          }
+        },
+        "title": "RulesIn",
         "type": "object"
       },
       "SearchPage": {
@@ -4077,6 +4567,17 @@
             "title": "Service Type",
             "type": "string"
           },
+          "store_stated": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StoreStated"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stores (service_type marketplace) only: shipping countries, payment methods, returns and categories as stated by the store's operator; shown as store-stated"
+          },
           "supported_interfaces": {
             "items": {
               "$ref": "#/components/schemas/SupportedInterface"
@@ -4361,6 +4862,17 @@
               }
             ]
           },
+          "store_stated": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StoreStated"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stores (service_type marketplace) only: shipping countries, payment methods, returns and categories as stated by the store's operator; shown as store-stated"
+          },
           "terms_url": {
             "anyOf": [
               {
@@ -4500,6 +5012,120 @@
         "title": "SkillIO",
         "type": "object"
       },
+      "StoreReturns": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The store accepts returns",
+            "title": "Accepted"
+          },
+          "policy_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Url"
+          },
+          "window_days": {
+            "anyOf": [
+              {
+                "maximum": 3650.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Days after delivery to start a return",
+            "title": "Window Days"
+          }
+        },
+        "title": "StoreReturns",
+        "type": "object"
+      },
+      "StoreStated": {
+        "additionalProperties": false,
+        "description": "What a store's registered operator states about the store (marketplace listings only). Always shown as\n\"store-stated\" next to, and never mixed with, what ONAA's own test checkout observed.",
+        "properties": {
+          "categories": {
+            "description": "What the store sells, as tokens, e.g. apparel, coffee, electronics",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Categories",
+            "type": "array"
+          },
+          "payment_methods": {
+            "description": "Tokens, e.g. card, shop_pay, paypal, apple_pay, google_pay, klarna",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Payment Methods",
+            "type": "array"
+          },
+          "returns": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StoreReturns"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shipping_policy_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shipping Policy Url"
+          },
+          "ships_to": {
+            "description": "ISO 3166-1 alpha-2 countries the store says it ships to",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 250,
+            "title": "Ships To",
+            "type": "array"
+          },
+          "ships_worldwide": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The store says it ships to every country",
+            "title": "Ships Worldwide"
+          }
+        },
+        "title": "StoreStated",
+        "type": "object"
+      },
       "SupportedInterface": {
         "additionalProperties": false,
         "properties": {
@@ -4544,6 +5170,87 @@
           "kind"
         ],
         "title": "SupportedInterface",
+        "type": "object"
+      },
+      "Terms": {
+        "properties": {
+          "handoff_place": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "a public meeting place or 'shipping'; a home address goes in share_address",
+            "title": "Handoff Place"
+          },
+          "handoff_time": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "e.g. Sat 3pm, or ships by Fri",
+            "title": "Handoff Time"
+          },
+          "payment_detail": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "e.g. which app or escrow provider; no account numbers",
+            "title": "Payment Detail"
+          },
+          "payment_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "cash",
+                  "bank_transfer",
+                  "card",
+                  "payment_app",
+                  "escrow",
+                  "crypto",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method"
+          },
+          "trade_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "in_person",
+                  "shipping",
+                  "online"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trade Method"
+          }
+        },
+        "title": "Terms",
         "type": "object"
       },
       "Trust": {
@@ -4625,9 +5332,41 @@
             "title": "Legal Entity Verified",
             "type": "boolean"
           },
+          "level": {
+            "default": "discovered_unverified",
+            "description": "One summary of the fields above, lowest to highest: found by ONAA on the public web; registered by its operator; operator confirmed through the store's own published email; operator proved control of the endpoint; plus an active certification. Never a legal identity check.",
+            "enum": [
+              "discovered_unverified",
+              "operator_registered",
+              "operator_confirmed_by_email",
+              "operator_endpoint_verified",
+              "certified"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "level_label": {
+            "default": "",
+            "description": "Plain-English text for `level`",
+            "title": "Level Label",
+            "type": "string"
+          },
           "operator_identity_verified": {
             "title": "Operator Identity Verified",
             "type": "boolean"
+          },
+          "owner_confirmed_via": {
+            "anyOf": [
+              {
+                "const": "published_email",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How the operator confirmed they manage this listing without endpoint control: published_email = a one-time link sent to the address the store publishes. Weaker than endpoint_control_verified.",
+            "title": "Owner Confirmed Via"
           },
           "reachability": {
             "default": "unknown",
@@ -4647,7 +5386,9 @@
                   "operator_account",
                   "agent_self_registration",
                   "discovery_import",
-                  "system"
+                  "system",
+                  "store_email_link",
+                  "onaa_hosting"
                 ],
                 "type": "string"
               },
@@ -4655,7 +5396,7 @@
                 "type": "null"
               }
             ],
-            "description": "agent_self_registration means the agent proved control of its endpoint host once, at signup, as an anti-abuse gate. That is not the Endpoint Verified tier (endpoint_control_verified).",
+            "description": "agent_self_registration means the agent proved control of its endpoint host once, at signup, as an anti-abuse gate. That is not the Endpoint Verified tier (endpoint_control_verified). store_email_link means the store's operator registered through a one-time link sent to the contact address the store publishes itself.",
             "title": "Registration Method"
           },
           "registration_status": {
@@ -6020,6 +6761,63 @@
         ]
       }
     },
+    "/v1/admin/stores/{store}/invites": {
+      "post": {
+        "description": "Returns the link to put in the email. Nothing is sent: sending is a separate, founder-approved step.",
+        "operationId": "create_invite_v1_admin_stores__store__invites_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "store",
+            "required": true,
+            "schema": {
+              "title": "Store",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create a one-time 'verify my store' link for the store's own published contact address",
+        "tags": [
+          "store registration",
+          "admin"
+        ]
+      }
+    },
     "/v1/admin/verification/observations": {
       "post": {
         "operationId": "observation_v1_admin_verification_observations_post",
@@ -7190,6 +7988,64 @@
         ]
       }
     },
+    "/v1/agents/{listing_id}/lookups": {
+      "get": {
+        "description": "Counts of outside agents and apps fetching this listing, asking whether they can buy there, or getting it\non a page of search results. Counted from registration on; nothing about who asked is kept.",
+        "operationId": "lookups_v1_agents__listing_id__lookups_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "listing_id",
+            "required": true,
+            "schema": {
+              "title": "Listing Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weeks",
+            "required": false,
+            "schema": {
+              "default": 8,
+              "maximum": 26,
+              "minimum": 1,
+              "title": "Weeks",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "How often agents looked this listing up, per week (owner only)",
+        "tags": [
+          "agents"
+        ]
+      }
+    },
     "/v1/agents/{listing_id}/refresh-card": {
       "post": {
         "operationId": "refresh_v1_agents__listing_id__refresh_card_post",
@@ -7885,13 +8741,13 @@
             }
           },
           {
-            "description": "hide stores whose endpoint hostname looks like a sandbox, staging or test store (endpoint_environment=sandbox). Off by default: such stores are listed with a caution and ranked last within their verdict",
+            "description": "hide stores whose endpoint hostname looks like a sandbox, staging or test store (endpoint_environment=sandbox). On by default: no real purchase happens there. false lists them, with a caution, ranked last within their verdict",
             "in": "query",
             "name": "exclude_sandbox",
             "required": false,
             "schema": {
-              "default": false,
-              "description": "hide stores whose endpoint hostname looks like a sandbox, staging or test store (endpoint_environment=sandbox). Off by default: such stores are listed with a caution and ranked last within their verdict",
+              "default": true,
+              "description": "hide stores whose endpoint hostname looks like a sandbox, staging or test store (endpoint_environment=sandbox). On by default: no real purchase happens there. false lists them, with a caution, ranked last within their verdict",
               "title": "Exclude Sandbox",
               "type": "boolean"
             }
@@ -8304,6 +9160,350 @@
         "summary": "Use a one-time key link (JSON)",
         "tags": [
           "self-registration"
+        ]
+      }
+    },
+    "/v1/market/deals/{offer_id}": {
+      "post": {
+        "operationId": "deal_action_v1_market_deals__offer_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "offer_id",
+            "required": true,
+            "schema": {
+              "title": "Offer Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DealActIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Deal Action",
+        "tags": [
+          "pilot"
+        ]
+      }
+    },
+    "/v1/market/items/{target_id}/report": {
+      "post": {
+        "description": "Report a listing as illegal, prohibited, a scam or other (once per member).",
+        "operationId": "report_item_v1_market_items__target_id__report_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "target_id",
+            "required": true,
+            "schema": {
+              "title": "Target Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Report Item",
+        "tags": [
+          "pilot"
+        ]
+      }
+    },
+    "/v1/market/ranges": {
+      "get": {
+        "operationId": "overview_v1_market_ranges_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Overview",
+        "tags": [
+          "pilot"
+        ]
+      },
+      "post": {
+        "operationId": "save_v1_market_ranges_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RangeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Save",
+        "tags": [
+          "pilot"
+        ]
+      }
+    },
+    "/v1/market/ranges/{range_id}": {
+      "delete": {
+        "operationId": "remove_v1_market_ranges__range_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "range_id",
+            "required": true,
+            "schema": {
+              "title": "Range Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Remove",
+        "tags": [
+          "pilot"
+        ]
+      }
+    },
+    "/v1/market/rules": {
+      "get": {
+        "operationId": "get_rules_v1_market_rules_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Rules",
+        "tags": [
+          "pilot"
+        ]
+      },
+      "patch": {
+        "operationId": "set_rules_v1_market_rules_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RulesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Set Rules",
+        "tags": [
+          "pilot"
+        ]
+      }
+    },
+    "/v1/market/wants/{target_id}/report": {
+      "post": {
+        "description": "Report a want (a buying request) as illegal, prohibited, a scam or other (once per member).",
+        "operationId": "report_want_v1_market_wants__target_id__report_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "target_id",
+            "required": true,
+            "schema": {
+              "title": "Target Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Report Want",
+        "tags": [
+          "pilot"
         ]
       }
     },
@@ -9730,6 +10930,64 @@
           }
         },
         "summary": "Public change history (which fields changed, when, at which revision)",
+        "tags": [
+          "services"
+        ]
+      }
+    },
+    "/v1/services/{listing_id}/lookups": {
+      "get": {
+        "description": "Counts of outside agents and apps fetching this listing, asking whether they can buy there, or getting it\non a page of search results. Counted from registration on; nothing about who asked is kept.",
+        "operationId": "lookups_v1_services__listing_id__lookups_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "listing_id",
+            "required": true,
+            "schema": {
+              "title": "Listing Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weeks",
+            "required": false,
+            "schema": {
+              "default": 8,
+              "maximum": 26,
+              "minimum": 1,
+              "title": "Weeks",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "How often agents looked this listing up, per week (owner only)",
         "tags": [
           "services"
         ]

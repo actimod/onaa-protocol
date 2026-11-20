@@ -25,6 +25,8 @@ from typing import Protocol
 from urllib.parse import urljoin, urlsplit
 
 import httpx
+from onaa_protocol.safe_fetch import UnsafeURLError as UnsafeAddress
+from onaa_protocol.safe_fetch import check_address
 
 MAX_URL_LENGTH = 2048
 MAX_BODY_BYTES = 64 * 1024
@@ -53,7 +55,13 @@ def system_resolver(host: str) -> list[str]:
 def _ip_is_public(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
         ip = ip.ipv4_mapped
-    return ip.is_global and not ip.is_multicast and not ip.is_reserved
+    if not (ip.is_global and not ip.is_multicast and not ip.is_reserved):
+        return False
+    try:  # the protocol package's stricter check also refuses site-local, NAT64, 6to4 and Teredo forms
+        check_address(str(ip), allow_localhost=False)
+    except UnsafeAddress:
+        return False
+    return True
 
 
 def validate_public_url(url: str) -> str:

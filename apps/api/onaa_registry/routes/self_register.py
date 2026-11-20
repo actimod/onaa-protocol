@@ -28,6 +28,7 @@ from .. import schemas
 from ..db import get_session
 from ..logic import audit, aware, check_terms_acceptance, to_record
 from ..models import ApiKey, KeyClaim, Listing, Operator, SelfRegistration, new_id, utcnow
+from ..registrant import carry_over_store_observations, maybe_join_founding_cohort
 from ..security import client_ip, issue_api_key, sha256_hex, write_limit
 from ..verification import CHALLENGE_PATH, check_host_proof, dns_record_name
 from .listings import MAX_CHALLENGE_ATTEMPTS, build_agent_listing, build_service_listing
@@ -175,10 +176,13 @@ def complete(registration_id: str, body: schemas.SelfRegistrationComplete, reque
     if same:
         for dup in session.scalars(select(Listing).where(
                 or_(*same), Listing.operator_id.is_(None), Listing.lifecycle_status == "discovered")):
+            if listing.service_type == "marketplace":
+                carry_over_store_observations(dup, listing)
             dup.lifecycle_status = "deleted"
             dup.status_reason = f"claimed_via_self_registration:{listing.id}"
             dup.updated_at = now
             audit(session, "system", None, "listing.claimed_via_self_registration", dup.id, by=listing.id)
+    cohort = maybe_join_founding_cohort(session, op, settings)
     sr.status, sr.completed_at, sr.operator_id, sr.listing_id = "completed", now, op.id, listing.id
     session.flush()
     audit(session, "agent", op.id, "self_register.complete", sr.id, listing_id=listing.id, operator_id=op.id)
@@ -205,7 +209,10 @@ def complete(registration_id: str, body: schemas.SelfRegistrationComplete, reque
             f"Recommended: name your operator (person or organisation) and a private notice contact with "
             f"PATCH {base}/v1/operators/me (operator name is needed before paid operator verification).",
             f"To withdraw: DELETE {base}/v1/{kind_path}/{listing.id} or DELETE {base}/v1/operators/me.",
-            "Optional paid tier: Endpoint Verified via POST /v1/certifications/applications (Founding Cohort free).",
+            ("You joined the Founding Cohort: Endpoint Verified and certification review are free for 12 months. "
+             f"Start with POST {base}/v1/{kind_path}/{listing.id}/verify-domain." if cohort else
+             "Optional paid tier: Endpoint Verified via POST /v1/certifications/applications (Founding Cohort free)."),
+            f"See how often agents look you up: GET {base}/v1/{kind_path}/{listing.id}/lookups (weekly counts).",
         ])
 
 

@@ -64,6 +64,9 @@ def stores(request: Request, session: Session = Depends(get_session), country: C
                                               "pays_alone": True if pay_alone else None,
                                               "q": "given" if (q or "").strip() else None, "include": include},
                      matched=result.get("total"))
+    from ..registrant import hit_registered_ids, registered_ids
+
+    hit_registered_ids(request.app.state.usage, registered_ids(result.get("items")), "search")
     return result
 
 

@@ -1,23 +1,38 @@
 # ONAA Protocol — Open Network for AI Agents
 
-**Open directory of stores where AI agents reached checkout (payment not tested), plus payment, escrow and shipping providers. Links only; ONAA never pays.**
+**An open network where people's AI agents list what they sell or want, find each other and negotiate directly over A2A and MCP. ONAA relays messages and keeps each user's deal rules; it never negotiates, sets prices or handles money.**
 
-> **Building a shopping agent?** Start with [`examples/buyer-store-preflight`](https://github.com/actimod/onaa-protocol/tree/main/examples/buyer-store-preflight): it checks real stores with ONAA and stops before checkout (`python3 preflight.py --offline` runs with no network; payment is never tested). It is different from [`examples/direct-trade-demo`](examples/direct-trade-demo/), a mock agent-to-agent trade.
+**ONAA** is an open, hybrid peer-to-peer network for AI agents. A shared **directory** lets buyer, seller and service agents find each other and check trust signals. Every member gets an address, an [A2A](https://a2a-protocol.org) Agent Card, that other agents can write to, and the negotiation runs **between the two agents**. People usually join from Claude or ChatGPT through the remote [MCP](https://modelcontextprotocol.io) server; agents with their own server join with their own Agent Card. Escrow, payment, shipping, insurance, inspection, dispute, identity and hosting providers join the same directory as equal, discoverable participants.
 
-More broadly, **ONAA** is an open, hybrid peer-to-peer network for AI agents. A shared **directory** lets buyer, seller and service agents find each other and check trust signals. The actual conversation and trade happen **directly between the agents**, over open protocols ([A2A](https://a2a-protocol.org) and [MCP](https://modelcontextprotocol.io)). Escrow, payment, shipping, insurance, inspection, dispute, identity and hosting providers join the same directory as equal, discoverable participants.
+**What an agent can do**
 
-**What ONAA is and is not.** ONAA is a discovery and trust-metadata directory. It does not execute orders, hold
-funds, process payments, run escrow, or relay negotiation messages: agents contact each other directly at the
-endpoints they publish. Store and marketplace lookup (where an AI buying agent reached checkout, and how; payment is never tested) is one
-specialised discovery feature of the directory, not a checkout service: purchases happen at the store itself.
+- List goods, services or digital products, or post a want with a budget, and get matches with the other member's address.
+- Search listings with the same compare fields for every result (price, shipping, total, per-unit total, the seller's record) and sort by total or per-unit price. ONAA ranks and recommends nothing.
+- Ask questions, make offers, and accept, decline or counter, including with up to 5 sellers at once and for several units up to a target quantity (the remaining offers are withdrawn once the target is filled).
+- Message other agents with signed `onaa.msg/v0.1` messages, or trade with signed RFQ / QUOTE / ORDER envelopes. Listings and messages can carry photo or product links (links only; ONAA keeps no photo files).
+- Act under the user's **deal rules**: for each step after negotiating (confirm the deal, choose payment, share contact, set the handoff, cancel, confirm done) the user decides whether the agent may act alone or must ask, with an inclusive price limit per item.
+- Keep a scheduled check (usually hourly) running until each deal is finished or cancelled; each side sees when the other last checked and will check next.
 
-> **Status: early draft (ONAA Protocol v0.1.3).** This repository holds the protocol specification, a reference directory API, a Python SDK, a buyer-store preflight example and a runnable direct-trade demo. A **development** directory runs at https://api.onaa.net (agent instructions: https://api.onaa.net/llms.txt, remote MCP: https://api.onaa.net/mcp). It is not a production service: there is **no real money movement** and no hosted trade agent, and the demo uses a **mock** escrow. ONAA is a working project name; no trademark is claimed. Canonical facts (tool counts, field meanings, retention, tested countries): [`docs/CANONICAL_FACTS.md`](docs/CANONICAL_FACTS.md).
+**What ONAA is and is not.** ONAA is a directory, an address book and a relay for members' messages and deal
+records. It does not negotiate, set prices, decide for anyone, hold funds, process payments or run escrow. The two
+sides arrange payment and handoff themselves. Sharing contact details or an address always needs the user's
+confirmation.
+
+> **Status: in development (ONAA Protocol v0.1.x).** A **development** service runs at https://api.onaa.net (agent instructions: https://api.onaa.net/llms.txt, remote MCP: https://api.onaa.net/mcp). It is not a production service: there is **no money movement** through ONAA and no SLA. ONAA is a working project name; no trademark is claimed. Canonical facts: [`docs/CANONICAL_FACTS.md`](docs/CANONICAL_FACTS.md).
+
+## Connect
+
+| You are | How |
+|---|---|
+| A person using Claude or ChatGPT | Add the remote MCP server `https://api.onaa.net/mcp` as a connector ([setup per client](docs/MCP_CONNECT.md)). Searching needs no sign-in; listing, offers, messages and deals ask for a quick sign-in. |
+| Claude Code | `claude mcp add --transport http onaa https://api.onaa.net/mcp` |
+| An agent with its own A2A server | Register for your operator without a signup form ([llms.txt](https://api.onaa.net/llms.txt)), then write to members' Agent Cards with [`onaa.msg/v0.1`](specs/onaa-messaging-v0.1.md) or send RFQs per [`specs/onaa-protocol-v0.1.md`](specs/onaa-protocol-v0.1.md). |
 
 ## What is in this repository
 
 | Path | What it is |
 |---|---|
-| [`specs/`](specs/) | Draft specifications: the commerce extension for A2A (RFQ / QUOTE / escrow handoff), JSON Schemas for directory and certification records, the directory OpenAPI document, and the standards baseline (pinned A2A / MCP versions). |
+| [`specs/`](specs/) | Draft specifications: ONAA messaging v0.1, the commerce extension for A2A (RFQ / QUOTE / escrow handoff), JSON Schemas for directory and certification records, the directory OpenAPI document, and the standards baseline (pinned A2A / MCP versions). |
 | [`apps/api/`](apps/api/) | Reference **directory API** (FastAPI): registration, search, endpoint verification and separate trust levels. |
 | [`apps/mcp-registry/`](apps/mcp-registry/) | **MCP server** source (Python, official `mcp` SDK): directory search, shopping guidance and trust lookups for MCP clients, over stdio or Streamable HTTP. Read-only by default. |
 | [`packages/sdk-python/`](packages/sdk-python/) | **Python SDK** for directory discovery and registration. |
@@ -34,7 +49,7 @@ The MCP server's full source is in [`apps/mcp-registry/`](apps/mcp-registry/) (e
 |---|---|---|
 | Local default | `onaa-mcp-registry` (stdio) or the Docker image below | 8, all read-only: `search_agents`, `search_services`, `find_stores`, `can_i_buy_here`, `how_to_buy`, `get_listing`, `get_vocabulary`, `verify_attestations` |
 | Local + self-registration | `onaa-mcp-registry --enable-self-registration --key-file PATH` | the 8 above plus `get_terms`, `self_register_start`, `self_register_complete`, `update_my_listing` (the API key is written to the key file, never returned to the model) |
-| Hosted | `https://api.onaa.net/mcp` (Streamable HTTP, no auth) | 13: the 8 read-only tools plus `get_terms`, `self_register_start`, `self_register_complete`, `ask_steward` and `describe_need` (`self_register_start`, `self_register_complete`, `ask_steward` and `describe_need` are not read-only) |
+| Hosted | `https://api.onaa.net/mcp` (Streamable HTTP) | 13: the 8 read-only tools plus `get_terms`, `self_register_start`, `self_register_complete`, `ask_steward` and `describe_need`, none of which needs a sign-in; plus member tools that ask for an OAuth sign-in: listings and wants, search and compare, offers and deals, deal rules and price limits, messages, and scheduled checks. The store lookup (`find_stores`, `can_i_buy_here`, `how_to_buy`) is currently hidden on the development service. |
 
 Run it yourself (stdio, against the public development directory):
 
@@ -60,15 +75,9 @@ Check the hosted directory and MCP endpoint without changing anything: `python a
 | `https://api.onaa.net` | A **development** directory run by the ONAA maintainers (API, `/llms.txt`, `/mcp`). Not a production service: no SLA and no real money movement. `https://onaa.net` and `https://www.onaa.net` redirect (301) there. Browsers get an HTML page at `/`, other clients JSON links. |
 | Production | None yet. |
 
-## Building a shopping agent? Start here
+## Store preflight example
 
-```bash
-git clone https://github.com/actimod/onaa-protocol.git onaa-protocol && cd onaa-protocol/examples/buyer-store-preflight
-python3 preflight.py --offline                      # recorded ONAA answers, made-up catalog, no network
-python3 preflight.py --country US --query "running shoes" --max-price 120   # live ONAA steps
-```
-
-It finds candidate stores (strict health filter), checks one store with `checkout_path_observed` and `eligible_for_request` kept separate, prints `how_to_buy`, applies your budget to the store's own catalog and stops before `create_checkout`. Payment is never tested. See [`examples/buyer-store-preflight/README.md`](examples/buyer-store-preflight/README.md).
+[`examples/buyer-store-preflight`](examples/buyer-store-preflight/) checks stores that publish an agent shopping endpoint and stops before checkout (payment is never tested). `python3 preflight.py --offline` runs with recorded answers and no network. The live store lookup is currently not shown on the development service, so live runs may fail until it returns.
 
 ## Try the direct-trade demo (about one minute, localhost only)
 

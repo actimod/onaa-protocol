@@ -138,9 +138,10 @@ def in_founding_cohort(operator) -> bool:
 def verification_entitlement(listing: Listing, operator) -> str | None:
     """Why this operator may run endpoint verification for this listing, or None.
 
-    Founding Cohort covers agent listings only (service providers are not in the cohort).
+    Founding Cohort covers every listing type: agents, stores and service providers (founder decision 2026-11-17,
+    early registrants get verification and certification free; before that it covered agent listings only).
     """
-    if listing.listing_type == "agent" and in_founding_cohort(operator):
+    if in_founding_cohort(operator):
         return "founding_cohort"
     if _future(listing.verification_entitled_until):
         return "approved_application"

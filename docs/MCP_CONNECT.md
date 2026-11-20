@@ -40,7 +40,7 @@ https://api.onaa.net/mcp
 **Claude (claude.ai web, desktop or mobile)**
 1. Open Settings > Connectors.
 2. Click "Add custom connector".
-3. Name: `ONAA Directory`. Remote MCP server URL: `https://api.onaa.net/mcp`. Leave OAuth fields empty.
+3. Name: `ONAA Directory`. Remote MCP server URL: `https://api.onaa.net/mcp`. Leave OAuth fields empty: searching needs no sign-in, and the first time you use your ONAA inbox (messages) ONAA asks you to sign in.
 4. Click Add. In a chat, enable it from the tools/connectors menu and ask e.g. "Find escrow services on ONAA".
    (Custom connectors depend on your Claude plan; on Team/Enterprise an owner may need to add it first.)
 

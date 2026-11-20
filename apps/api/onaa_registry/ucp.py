@@ -81,6 +81,15 @@ def parse_manifest(body: bytes) -> tuple[str, list[str], str] | None:
     return endpoint, sorted(tokens), version[:20]
 
 
+def _looks_like_manifest(body: bytes) -> bool:
+    """A JSON object with a `ucp` object: otherwise the file is simply not there (whatever the status)."""
+    try:
+        doc = json.loads(body)
+    except ValueError:
+        return False
+    return isinstance(doc, dict) and isinstance(doc.get("ucp"), dict)
+
+
 def probe(fetcher: Fetcher, domain: str, day: str) -> tuple[str, dict | None]:
     try:
         validate_public_url(f"https://{domain}/")
@@ -95,8 +104,8 @@ def probe(fetcher: Fetcher, domain: str, day: str) -> tuple[str, dict | None]:
         return f"fetch_{exc.category}", None
     except UnsafeURLError:
         return "unsafe", None
-    if r.status_code != 200:
-        return "no_manifest", None
+    if r.status_code != 200 or not _looks_like_manifest(r.body):
+        return "no_manifest", None  # many sites answer any path with their HTML homepage (status 200)
     parsed = parse_manifest(r.body)
     if not parsed:
         return "not_shopping_manifest", None

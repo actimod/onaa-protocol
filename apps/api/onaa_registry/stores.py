@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 from .buying import HEAVY_BUILD_LOCK, PAYMENT_EVIDENCE, TESTED_COUNTRIES, VERDICT_NOTE, check_record, shipping_view
 from .logic import PUBLIC_STATUSES, aware, ensure_not_taken, host_of, make_listing_id, set_facets
 from .models import Listing, utcnow
+from .registrant import LEVEL_LABELS, LEVEL_RANK, level_of, store_stated_view
 
 log = logging.getLogger("onaa.stores")
 
@@ -105,6 +106,7 @@ def store_record(listing: Listing, base: str, *, country: str | None = None) -> 
     ships, no_ship = view["ships_to"], view["no_shipping_to"]
     tested = sorted(set(ships) | set(no_ship))
     key = domain or listing.id
+    level = level_of(listing)
     rec = {
         "id": listing.id,
         "name": listing.display_name,
@@ -173,7 +175,10 @@ def store_record(listing: Listing, base: str, *, country: str | None = None) -> 
             } if view["published_known"] else UNKNOWN,
         },
         "catalog": CATALOG_UNKNOWN,
+        "store_stated": store_stated_view(listing),
         "trust": {
+            "level": level,
+            "level_label": LEVEL_LABELS[level],
             "registration_status": listing.lifecycle_status,
             "claimed": listing.operator_id is not None and listing.lifecycle_status != "discovered",
             "reachability": listing.reachability or "unknown",
@@ -236,6 +241,7 @@ class StoreRow:
     id: str = ""  # listing id, to replace or drop this row when the listing changes
     sort: str = ""  # display name, for the feed order
     reach: str = "unknown"  # trust.reachability: reachable, unknown or unreachable
+    level: int = 0  # registrant.LEVEL_RANK of trust.level (0 = found by ONAA, not registered)
 
     def record(self) -> dict:
         return json.loads(zlib.decompress(self.blob))
@@ -300,7 +306,8 @@ def _row(rec: dict, pool: dict | None = None, raw: str | None = None) -> StoreRo
         # Level 1: the build compresses ~30k records on a shared CPU; level 6 took most of the build time.
         blob=zlib.compress((raw or _dump(rec)).encode(), 1),
         id=rec["id"], sort=rec["name"] or "",
-        reach=REACH_STATES.get(rec["trust"].get("reachability"), "unknown"))
+        reach=REACH_STATES.get(rec["trust"].get("reachability"), "unknown"),
+        level=LEVEL_RANK.get(rec["trust"].get("level"), 0))
 
 
 def _dump(rec: dict) -> str:

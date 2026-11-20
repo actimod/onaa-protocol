@@ -45,7 +45,7 @@ Environment variables (all optional; see `onaa_registry/config.py`):
 | `ONAA_OPERATOR_WRITE_LIMIT` | `120` | Authenticated write requests per operator per minute. |
 | `ONAA_TRUSTED_PROXY_HOPS` | `0` | Reverse proxies in front of the API; >0 reads the client IP from `X-Forwarded-For`. |
 | `ONAA_REQUIRE_VERIFICATION_ENTITLEMENT` | `1` | Endpoint verification needs an entitlement. `0` only for local dev/tests. |
-| `ONAA_FOUNDING_COHORT_SIZE` | `50` | Founding Cohort seats (agent operators). |
+| `ONAA_FOUNDING_COHORT_SIZE` | `50` | Founding Cohort seats: free verification and certification review for early registrants (agents, stores, service providers), given automatically at self-registration or store email verification while seats last (founder decision 2026-11-17). |
 | `ONAA_PUBLIC_BASE_URL` | `http://localhost:8000` | Used in discovery metadata links. |
 
 Regenerate the OpenAPI snapshot after changing routes or schemas (a test fails if it is stale):
@@ -182,7 +182,8 @@ Each level is reported separately in `trust` and never implies another:
    badge, the host reservation and any certified status until the owner re-verifies. A sweep runs lazily every
    minute and on `POST /v1/admin/jobs/expire-verifications`.
    **Endpoint Verified is a paid tier; listing and search stay free.** `verify-domain` returns
-   `402` unless the operator is in the Founding Cohort (agent listings only; granted by an admin via
+   `402` unless the operator is in the Founding Cohort (any listing type since 2026-11-17; given automatically
+   to early registrants at self-registration or store email verification, or by an admin via
    `POST /v1/admin/operators/{id}/founding-cohort`, seats capped and never silently reopened) or the listing has an
    approved `endpoint_verified` application (`POST /v1/certifications/applications`). The Directory has no billing:
    any fee is handled outside it and needs separate founder approval. An entitlement is not itself a trust signal.

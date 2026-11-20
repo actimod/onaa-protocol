@@ -35,10 +35,12 @@ from ..logic import (
     require_owner,
     require_same_host,
     set_facets,
+    stores_hidden,
     to_record,
     verified_predicate,
 )
 from ..models import AuditEvent, DomainChallenge, Listing, ListingFacet, Operator, utcnow
+from ..registrant import count_lookups, hit_registered_ids, rank_registered_first, weekly_lookups
 from ..security import current_operator, sha256_hex, write_limit
 from ..verification import CHALLENGE_PATH, check_host_proof, dns_record_name, verification_entitlement
 
@@ -105,6 +107,8 @@ def search(session: Session, *, listing_types: tuple[str, ...], q: str | None, f
         stmt = stmt.where(term_predicate(term))
     if service_type:
         stmt = stmt.where(Listing.service_type.in_(service_type))
+    if stores_hidden(session):
+        stmt = stmt.where(func.coalesce(Listing.service_type, "") != "marketplace")
     for kind, values in filters.items():
         if not values:
             continue
@@ -136,6 +140,11 @@ def search(session: Session, *, listing_types: tuple[str, ...], q: str | None, f
         order = (Listing.updated_at.asc(), Listing.id)
     else:
         order = (rank.desc(), verified_predicate().desc(), Listing.updated_at.desc(), Listing.id)
+        if rank_registered_first():  # founder-approved: operator-registered before found-on-the-web, else as before
+            registered = and_(Listing.operator_id.is_not(None),
+                              Listing.lifecycle_status.not_in(("discovered", "claim_pending")))
+            order = (rank.desc(), verified_predicate().desc(), registered.desc(), Listing.updated_at.desc(),
+                     Listing.id)
     rows = session.scalars(stmt.order_by(*order).limit(limit).offset(offset)).all()
     return schemas.SearchPage(items=[_record(session, r) for r in rows], total=total or 0, limit=limit, offset=offset)
 
@@ -163,6 +172,7 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
 
     @router.get("", response_model=schemas.SearchPage, summary=f"Search {kind}")
     def list_listings(
+        request: Request,
         session: Session = Depends(get_session),
         q: Annotated[str | None, Query(max_length=200, description=(
             "Free text. Every word must match the name, description, service type, role, capability, "
@@ -233,11 +243,14 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
             filters["region"] = sorted(set(filters["region"]) | set(_norm_list(country, True)))
         if updated_since is not None and updated_since.tzinfo is None:
             updated_since = updated_since.replace(tzinfo=dt.UTC)
-        return search(session, listing_types=listing_types, q=q, filters=filters,
+        page = search(session, listing_types=listing_types, q=q, filters=filters,
                       service_type=None if is_agent else (_norm_list((type or []) + (service_type or [])) or None),
                       verified_only=verified_only, certified_only=certified_only, claimed_only=claimed_only,
                       reachable_only=reachable_only, status_in=_norm_list(status_) or None, limit=limit, offset=offset,
                       updated_since=updated_since, sort=sort)
+        hit_registered_ids(request.app.state.usage,
+                           [r.id for r in page.items if r.trust.level != "discovered_unverified"], "search")
+        return page
 
     @router.get("/{listing_id}", response_model=schemas.RegistryRecord,
                 responses={304: {"description": "Not modified (If-None-Match matched the ETag)"}})
@@ -247,6 +260,7 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
         if request.headers.get("if-none-match") == etag:
             return Response(status_code=304, headers={"ETag": etag})
         response.headers["ETag"] = etag
+        count_lookups(request.app.state.usage, [listing], "detail")
         return _record(session, listing)
 
     @router.get("/{listing_id}/history", response_model=list[schemas.HistoryEntry],
@@ -265,6 +279,15 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
     @router.get("/{listing_id}/trust", response_model=schemas.Trust)
     def trust(listing_id: str, session: Session = Depends(get_session)):
         return _record(session, _load(session, listing_id)).trust
+
+    @router.get("/{listing_id}/lookups", summary="How often agents looked this listing up, per week (owner only)")
+    def lookups(listing_id: str, weeks: Annotated[int, Query(ge=1, le=26)] = 8,
+                op: Operator = Depends(current_operator), session: Session = Depends(get_session)):
+        """Counts of outside agents and apps fetching this listing, asking whether they can buy there, or getting it
+        on a page of search results. Counted from registration on; nothing about who asked is kept."""
+        listing = _load(session, listing_id)
+        require_owner(listing, op)
+        return weekly_lookups(session, listing.id, weeks)
 
     if is_agent:
         @router.post("", status_code=201, response_model=schemas.RegistryRecord,
@@ -288,6 +311,7 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
                 raise HTTPException(422, "roles cannot be empty")
             if "endpoint_url" in data:
                 require_same_host(listing, data["endpoint_url"], "endpoint_url")
+            check_store_stated(listing, data)
             _apply_scalar_updates(listing, data)
             set_facets(listing, data)
             apply_profile(listing, body.model_dump(mode="json", exclude_unset=True), partial=True)
@@ -343,6 +367,7 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
             listing = _load(session, listing_id)
             require_owner(listing, op)
             data = body.model_dump(exclude_unset=True)
+            check_store_stated(listing, data)
             _apply_scalar_updates(listing, data)
             set_facets(listing, data)
             apply_profile(listing, body.model_dump(mode="json", exclude_unset=True), partial=True)
@@ -385,8 +410,9 @@ def build_router(kind: Literal["agents", "services"]) -> APIRouter:
         if request.app.state.settings.require_verification_entitlement and entitlement is None:
             raise HTTPException(
                 status.HTTP_402_PAYMENT_REQUIRED,
-                "Endpoint Verified is a separate tier from free listing. Join the Founding Cohort (agent operators) "
-                "or apply via POST /v1/certifications/applications with scheme 'endpoint_verified'. "
+                "Endpoint Verified is a separate tier from free listing. Founding Cohort members (early "
+                "registrants) verify free; others apply via POST /v1/certifications/applications with scheme "
+                "'endpoint_verified'. "
                 "Your listing stays free and searchable either way.")
         token = "onaa-verify-" + secrets.token_urlsafe(32)
         now = utcnow()
@@ -498,6 +524,7 @@ def build_agent_listing(session: Session, body: schemas.AgentCreate, operator_id
         supported_interfaces=[], regulatory_claims=[], registration_method=registration_method,
     )
     require_same_host(listing, listing.endpoint_url, "endpoint_url")
+    check_store_stated(listing, body.model_dump(exclude_unset=True))
     flag_name_collision(session, listing)
     set_facets(listing, body.model_dump())
     apply_profile(listing, body.model_dump(mode="json", exclude_none=True), partial=False)
@@ -533,12 +560,19 @@ def build_service_listing(session: Session, body: schemas.ServiceCreate, operato
     require_same_host(listing, listing.agent_card_url, "agent_card_url")
     for itf in interfaces:
         require_same_host(listing, itf.get("url"), "supported_interfaces.url")
+    check_store_stated(listing, body.model_dump(exclude_unset=True))
     flag_name_collision(session, listing)
     data = body.model_dump()
     data["roles"] = ["hosting_provider" if ltype == "hosting" else "service_provider"]
     set_facets(listing, data)
     apply_profile(listing, body.model_dump(mode="json", exclude_none=True), partial=False)
     return listing
+
+
+def check_store_stated(listing: Listing, data: dict) -> None:
+    """store_stated is for stores (service_type marketplace) only."""
+    if data.get("store_stated") is not None and listing.service_type != "marketplace":
+        raise HTTPException(422, "store_stated is for stores (service_type marketplace) only")
 
 
 def _apply_scalar_updates(listing: Listing, data: dict) -> None:
