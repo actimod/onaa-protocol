@@ -7,6 +7,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
 from conftest import ADMIN, ITEM_REQUIRED
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi.testclient import TestClient
@@ -16,6 +17,8 @@ from onaa_registry import hosting
 from onaa_registry.main import create_app
 
 SCRIPT = Path(__file__).resolve().parents[3] / "examples" / "pilot-auto-buyer" / "auto_buyer.py"
+if not SCRIPT.exists():  # the example stays in the private repo (public/manifest.txt); the public export has no script
+    pytest.skip("examples/pilot-auto-buyer is not in this checkout", allow_module_level=True)
 spec = importlib.util.spec_from_file_location("auto_buyer", SCRIPT)
 auto_buyer = importlib.util.module_from_spec(spec)
 sys.modules["auto_buyer"] = auto_buyer  # dataclasses look their module up
