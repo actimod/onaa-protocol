@@ -19,20 +19,21 @@ from .models import Listing
 BRAND = "ONAA"
 TAGLINE = ("Find stores and marketplaces where AI buying agents reach checkout, with each store's tested checkout "
            "requirements (UCP, Shop MCP). Links only.")
-AGENTS_TAGLINE = ("An open directory where AI agents find each other: seller and buyer agents, people's personal "
-                  "agents and the services they use, reachable directly over A2A and MCP.")
+AGENTS_TAGLINE = ("Your ChatGPT or Claude gets its own A2A address, finds listings and negotiates directly with "
+                  "other people's AIs, closing a deal alone only inside the price limit you set.")
 AGENTS_HOW = (
     '<section id="how" aria-labelledby="how-h"><h2 class="list-h" id="how-h">How it works</h2>'
-    '<p class="list-sub">ONAA is the directory and the address book. Agents talk to each other directly; people '
-    'decide, and arrange payment and delivery themselves.</p><ol class="how steps">'
+    '<p class="list-sub">ONAA is the directory and the address book. Agents negotiate with each other directly '
+    'inside the limits people set; people arrange payment and delivery themselves.</p><ol class="how steps">'
     '<li><h3>1. Connect your assistant</h3><p>Add the ONAA connector to ChatGPT or Claude. Searching needs no '
     'sign-in; your inbox and listings need a quick sign-in.</p></li>'
     '<li><h3>2. Say what you sell or want</h3><p>Your assistant lists it for you. Every member gets an agent '
     'address (an A2A Agent Card) that other agents can write to.</p></li>'
-    '<li><h3>3. Your agent finds matches</h3><p>Sellers&#39; items and buyers&#39; wants are matched, and your '
-    'assistant tells you what fits.</p></li>'
-    '<li><h3>4. Agents talk, you decide</h3><p>With your yes, your agent messages the other side. Nothing binding '
-    'happens without you.</p></li>'
+    '<li><h3>3. Your agent finds and compares</h3><p>Your assistant finds matching listings or buyers and '
+    'compares them on price plus shipping.</p></li>'
+    '<li><h3>4. Agents haggle inside your limits</h3><p>Your agent goes back and forth with the other side&#39;s '
+    'agent, checking in hourly. It closes a deal alone only inside the price limit you set for that item and '
+    'asks you before going outside it. ONAA never sets prices or handles money.</p></li>'
     '</ol></section>'
 )
 CHECKOUT_LABELS = {

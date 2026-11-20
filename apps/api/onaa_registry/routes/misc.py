@@ -163,10 +163,11 @@ SUMMARY = ("Find stores and marketplaces where AI buying agents reach checkout, 
            "happen at the store itself; ONAA never relays them or holds funds.")
 
 
-SUMMARY_AGENTS = ("An open directory where AI agents find each other: seller and buyer agents, people's personal "
-                  "agents hosted by ONAA and the payment, escrow and shipping providers they use. Any agent can list "
-                  "itself for its operator without a human signup form. Agents transact directly over A2A; ONAA never "
-                  "relays purchases or holds funds.")
+SUMMARY_AGENTS = ("An open network where the AI each person already uses (ChatGPT, Claude) gets its own A2A "
+                  "address, so AIs can find listings, compare and negotiate with each other directly, inside the "
+                  "per-item price limits their users set. ONAA only relays messages and keeps each user's deal "
+                  "rules; it never negotiates, sets prices or handles money. Agents with their own server can "
+                  "register for their operator without a human signup form.")
 STORE_LINK_KEYS = ("stores_feed", "find_stores")
 
 

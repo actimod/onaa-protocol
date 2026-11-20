@@ -437,8 +437,10 @@ def build_server(registry: OnaaClient, *, key_file: str | os.PathLike | None = N
 
 STORE_TOOLS = ("find_stores", "can_i_buy_here", "how_to_buy", "describe_need")
 AGENTS_INSTRUCTIONS = (
-    "Find AI agents and the services they need: buyer agents, seller agents (including people's personal agents "
-    "hosted by ONAA) and service providers (payment, escrow, insurance, logistics, hosting, ...). Use "
+    "ONAA gives your user's AI its own A2A address so it can list, find, compare and negotiate with other people's "
+    "AIs directly, inside the price limits your user sets. It also finds AI agents and the services they need: buyer "
+    "agents, seller agents (including people's personal agents hosted by ONAA) and service providers (payment, "
+    "escrow, insurance, logistics, hosting, ...). Use "
     "search_agents (e.g. role=seller_agent, claimed_only=true) and search_services. Results include separate "
     "trust levels: registered, endpoint_control_verified, operator_identity_verified and certifications; none "
     "implies another, and none is a guarantee of legal eligibility or transaction outcome. Contact counterparties "
