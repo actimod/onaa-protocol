@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from . import __version__, oauth, rules_confirm, webhooks
-from .buying import warm_cache as buying_warm_cache
-from .checker_loop import from_env as checker_from_env
 from .config import Settings
 from .db import Base, make_engine, make_sessionmaker
 from .hosting import HostRouter
@@ -17,7 +14,6 @@ from .messaging import number_unsequenced_at_startup
 from .monitoring import ConformanceRunner, live_runner
 from .netsafety import Fetcher, SafeFetcher
 from .routes import (
-    buying,
     certifications,
     listings,
     misc,
@@ -31,16 +27,12 @@ from .routes import (
     pilot_shopping,
     policy,
     privacy,
-    reports,
     self_register,
     stats,
-    store_claim,
-    stores,
     trust,
     vocabulary,
 )
 from .security import RateLimiter
-from .stores import warm_snapshot
 from .terms import load_terms
 from .traffic import TrafficMiddleware, Usage
 from .trust_ops import load_trust_config
@@ -54,28 +46,6 @@ SCHEMA_PATH = Path(__file__).resolve().parent / "registry-record.schema.json"
 POLICY_PATHS = frozenset({"/opt-out", "/privacy", "/privacy.txt", "/llms.txt", "/llms-full.txt", "/v1/terms",
                           "/member-terms", "/member-terms.md", "/v1/member-terms",
                           "/openapi.json", "/.well-known/onaa-registry.json", "/v1"})
-
-
-HIDDEN_STORE_EXACT = frozenset({"/stores", "/stores.json", "/stores.csv", "/reports", "/manage-store"})
-HIDDEN_STORE_PREFIXES = ("/stores/", "/v1/stores", "/v1/buying/", "/reports/", "/verify-store/")
-
-
-class HiddenStoresMiddleware:
-    """settings.hide_stores: the store directory, its report and the buying endpoints answer 404 (data is kept)."""
-
-    def __init__(self, app, settings):
-        self.app, self.settings = app, settings
-
-    async def __call__(self, scope, receive, send):
-        path = scope.get("path", "") if scope["type"] == "http" else ""
-        if self.settings.hide_stores and (path in HIDDEN_STORE_EXACT or path.startswith(HIDDEN_STORE_PREFIXES)):
-            body = b'{"detail":"Not Found"}'
-            await send({"type": "http.response.start", "status": 404,
-                        "headers": [(b"content-type", b"application/json"),
-                                    (b"content-length", str(len(body)).encode())]})
-            await send({"type": "http.response.body", "body": body})
-            return
-        await self.app(scope, receive, send)
 
 
 class MemberTermsHeaderMiddleware:
@@ -160,10 +130,10 @@ def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
         title="ONAA API (Open Network for AI Agents)",
         version=__version__,
         description=(
-            "Find stores and marketplaces where AI buying agents reach checkout, with each store's tested "
-            "checkout requirements (UCP, Shop MCP); links only. Also lists payment and other providers and buyer "
-            "and seller agents. This directory API holds listings and trust metadata "
-            "only; it never relays buyer/seller transactions, holds funds, or hosts seller data."
+            "Gives each person's own AI (ChatGPT, Claude) an A2A address so AIs can list, find, compare and "
+            "negotiate with each other directly, inside the price limits their users set. ONAA relays messages and "
+            "keeps each user's deal rules; it never negotiates, sets prices, handles money or ships anything. "
+            "Agents with their own A2A server can register for their operator and be found."
         ),
     )
     engine = make_engine(settings.database_url)
@@ -179,8 +149,6 @@ def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
     app.state.conformance_runner = conformance_runner or live_runner
     app.state.trust = load_trust_config(settings)  # fails fast on a misconfigured or non-test signing key
     app.state.self_register_limiter = RateLimiter(settings.self_registration_per_ip_per_hour, window_seconds=3600)
-    app.state.store_probe_limiter = RateLimiter(settings.store_probe_per_ip_per_hour, window_seconds=3600)
-    app.state.needs_limiter = RateLimiter(settings.needs_per_ip_per_hour, window_seconds=3600)
     app.state.opt_out_limiter = RateLimiter(settings.opt_out_per_ip_per_day, window_seconds=86400)
     # Anonymous agent-traffic counters (no IPs or user agents stored); see traffic.py.
     app.state.usage = Usage(app.state.sessionmaker, settings.usage_flush_seconds)
@@ -188,30 +156,18 @@ def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
     app.add_middleware(TrafficMiddleware, usage=app.state.usage)
     app.add_middleware(PolicyNoCacheMiddleware)
     app.add_middleware(MemberTermsHeaderMiddleware)
-    app.add_middleware(HiddenStoresMiddleware, settings=settings)
     app.add_middleware(HostRouter, app_state=app.state)  # <member>.<ONAA_HOSTING_DOMAIN> -> hosted agents
     app.add_middleware(OldMarketPathMiddleware)  # outermost: /v1/pilot/... -> /v1/market/...
     app.add_event_handler("startup", app.state.usage.start)
     app.add_event_handler("shutdown", app.state.usage.stop)
     if settings.pilot_enabled:  # messages stored by the previous version during a deploy get their seq
         app.add_event_handler("startup", lambda: number_unsequenced_at_startup(app.state.sessionmaker))
-    if os.environ.get("ONAA_STORE_FEED_WARM", "0") == "1":  # build the store snapshot at startup (production)
-        base = settings.public_base_url.rstrip("/")
-        # One after the other: both read every store, and together they starved the small machine (2026-11-16).
-        app.add_event_handler("startup", lambda: buying_warm_cache(
-            app.state.sessionmaker, after=warm_snapshot(app.state.sessionmaker, base)))
-    app.state.checker = checker_from_env(app.state.sessionmaker, settings.public_base_url)
     if settings.pilot_enabled and settings.pilot_webhook_worker_seconds > 0:
         app.state.webhook_worker = webhooks.Worker(app.state, settings.pilot_webhook_worker_seconds)
         app.add_event_handler("startup", app.state.webhook_worker.start)
         app.add_event_handler("shutdown", app.state.webhook_worker.stop)
-    if app.state.checker is not None:
-        app.add_event_handler("startup", app.state.checker.start)
-        app.add_event_handler("shutdown", app.state.checker.stop)
 
     app.include_router(misc.router)
-    app.include_router(buying.router)
-    app.include_router(buying.admin_router)
     app.include_router(operators.router)
     app.include_router(self_register.router)
     app.include_router(self_register.claims_router)
@@ -223,10 +179,7 @@ def create_app(settings: Settings | None = None, fetcher: Fetcher | None = None,
     app.include_router(policy.router)
     app.include_router(trust.router)
     app.include_router(stats.router)
-    app.include_router(stores.router)
-    app.include_router(reports.router)
     app.include_router(privacy.router)
-    app.include_router(store_claim.router)
     app.include_router(pilot.router)
     app.include_router(pilot.admin_router)
     app.include_router(pilot.msg_router)

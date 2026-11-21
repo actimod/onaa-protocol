@@ -314,6 +314,29 @@ def test_new_member_picks_a_nickname_after_the_code(settings, fetcher, txt, runn
         assert done.status_code == 302 and done.headers["location"].startswith("https://app.example/cb?code=")
 
 
+def test_member_terms_are_agreed_on_the_sign_in_page(settings, fetcher, txt, runner, monkeypatch):
+    """Decision 2026-11-20 (directory reviews): the person agrees on the sign-in page, not the assistant."""
+    from sqlalchemy import select
+
+    from onaa_registry import member_terms, oauth
+
+    sent = {}
+    monkeypatch.setattr(oauth, "send_code", lambda s, email, code: sent.update({email: code}))
+    with _oauth_app(settings, fetcher, txt, runner) as c:
+        login_id = _sign_in_page(c)
+        r = c.post("/oauth/authorize/email", data={"login_id": login_id, "email": "terms" + AT + "example.org"})
+        r = c.post("/oauth/authorize/code", data={"login_id": login_id, "code": sent["terms" + AT + "example.org"]})
+        assert "By continuing, you agree" in r.text and member_terms.PATH in r.text  # nickname step
+        done = c.post("/oauth/google/nickname", data={"login_id": login_id, "nickname": "terms"},
+                      follow_redirects=False)
+        assert done.status_code == 302
+        with c.app.state.sessionmaker() as s:
+            m = s.scalar(select(PilotMember).where(PilotMember.nickname == "terms"))
+            assert member_terms.accepted(m) and m.terms_accepted_via == "oauth_signin"
+            assert not member_terms.notice_due(m)  # the assistant has nothing to announce
+    assert "By continuing, you agree" in oauth.TERMS_NOTICE
+
+
 def test_one_address_cannot_use_up_the_hourly_mail_allowance(settings, fetcher, txt, runner, monkeypatch):
     from onaa_registry import oauth
 

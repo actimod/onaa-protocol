@@ -258,7 +258,7 @@ def test_one_mcp_url_registry_tools_open_member_tools_after_sign_in(server):
     listed = _rpc(base, {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}})
     assert listed.status_code == 200
     tools = {t["name"]: t for t in listed.json()["result"]["tools"]}
-    assert {"search_agents", "find_stores", "check_inbox", "send_message"} <= set(tools)
+    assert {"search_agents", "search_services", "check_inbox", "send_message"} <= set(tools)
     assert tools["search_agents"]["_meta"]["securitySchemes"] == [{"type": "noauth"}]
     assert tools["check_inbox"]["_meta"]["securitySchemes"][0]["type"] == "oauth2"
     # a registry tool works without signing in
@@ -287,7 +287,7 @@ async def test_the_sdk_client_signs_in_when_a_member_tool_is_first_used_on_mcp(s
     base, codes = server
     c, store = connector(base, codes, mail("dee"), "dee", path="/mcp")
     async with c as dee:
-        assert "find_stores" in {t.name for t in (await dee.list_tools()).tools}
+        assert "search_agents" in {t.name for t in (await dee.list_tools()).tools}
         assert store.tokens is None  # browsing needs no sign-in
         me = _payload(await dee.call_tool("my_address", {}))  # 401 -> sign-in -> retried
         assert me["name"] == "dee" and store.tokens.access_token.startswith("onaa_at_")

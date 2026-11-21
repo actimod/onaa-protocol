@@ -25,8 +25,6 @@ Environment:
     ONAA_ISSUER_ROOT_JWK    Pinned issuer root public JWK (JSON or file path) for the verify_attestations tool.
                             Unset = the tool answers no_pinned_root_key and vouches for nothing.
     ONAA_VERIFY_ALLOW_TEST_ONLY  "1" accepts TEST-ONLY (staging) attestations in verify_attestations.
-    (describe_need)         Always offered: free-text buying requests answered with matching stores; the Registry
-                            removes personal data and keeps the redacted text (ONAA_NEED_TEXT_RETENTION_DAYS, 7).
     ONAA_STEWARD_ENABLED    "1" (default) mounts the Registry Steward A2A agent at /steward (apps/steward) and runs
                             its periodic sweep; "0" turns it off. Without ONAA_STEWARD_TOKEN a random per-process
                             token is generated and shared in-process with the registry's Policy Service.
@@ -385,10 +383,10 @@ async def _read_body(receive):
     return doc, _replay([body], None, upstream=receive)
 
 
-# One-time codes travel in the query string of these links (key claim, store verification). uvicorn writes the
+# One-time codes travel in the query string of these links (key claim). uvicorn writes the
 # access-log line from the server's scope when the response starts, so the query is cleared at that moment: the
 # route has already read it, and the code never reaches the logs (review 2026-11-19).
-SECRET_QUERY_PREFIXES = ("/claim-key/", "/verify-store/")
+SECRET_QUERY_PREFIXES = ("/claim-key/",)
 
 
 def _scrub_query_before_log(scope: Scope, send):
@@ -534,12 +532,11 @@ def steward_asker(upstream: str, trusted_proxy_hops: int, *, timeout: float = 12
 
 
 def build_hosted_app(registry_app: ASGIApp, registry: OnaaClient, *, hosts: list[str],
-                     remote_client=None, steward=None, steward_ask=None, need_client=None,
+                     remote_client=None, steward=None, steward_ask=None,
                      pilot_upstream: str | None = None) -> ASGIApp:
     allow_test_only = os.environ.get("ONAA_VERIFY_ALLOW_TEST_ONLY") == "1"
     mcp = build_server(registry, remote_client=remote_client,  # refuses an API key
-                       root_jwk=root_jwk_from_env(), allow_test_only=allow_test_only, steward_ask=steward_ask,
-                       need_client=need_client)
+                       root_jwk=root_jwk_from_env(), allow_test_only=allow_test_only, steward_ask=steward_ask)
     mcp_app = mcp.streamable_http_app(
         streamable_http_path=MCP_PATH,
         stateless_http=True,
@@ -553,7 +550,7 @@ def build_hosted_app(registry_app: ASGIApp, registry: OnaaClient, *, hosts: list
         signed_in = None
         if os.environ.get("ONAA_MCP_LOGIN") == "1":  # one signed-in server: registry tools + the member's inbox
             signed_in = build_server(registry, remote_client=remote_client, root_jwk=root_jwk_from_env(),
-                                     allow_test_only=allow_test_only, steward_ask=steward_ask, need_client=need_client)
+                                     allow_test_only=allow_test_only, steward_ask=steward_ask)
         caller = http_caller(pilot_upstream, extra_headers=_origin_header)
         public_names = set(signed_in._tool_manager._tools) if signed_in is not None else set()
         pilot_server = build_pilot_server(caller, signed_in)
@@ -615,5 +612,4 @@ def create_app() -> ASGIApp:
         asker = steward_asker(upstream, settings.trusted_proxy_hops)
     return build_hosted_app(registry_app, origin_forwarding(OnaaClient(upstream)), hosts=hosts, remote_client=remote,
                             steward=steward, steward_ask=asker,
-                            need_client=forwarding_client_factory(upstream, settings.trusted_proxy_hops),
                             pilot_upstream=upstream if settings.pilot_enabled else None)

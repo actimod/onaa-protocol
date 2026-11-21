@@ -203,7 +203,9 @@ def get_listing(session: Session, listing_id: str, *, include_hidden: bool = Fal
 
 
 def stores_hidden(session: Session) -> bool:
-    return bool(getattr(session.info.get("settings"), "hide_stores", False))
+    """Store listings (service_type "marketplace") from the retired store directory stay in the database but are
+    never shown: hidden since 2026-11-18, the directory itself removed after the pivot."""
+    return True
 
 
 def require_owner(listing: Listing, operator: Operator, *, allow_claim_pending: bool = False) -> None:

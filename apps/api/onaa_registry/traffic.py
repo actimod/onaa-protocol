@@ -139,14 +139,15 @@ EXACT_PATHS = frozenset({
     "/", "/v1/health", "/llms.txt", "/llms-full.txt", "/robots.txt", "/sitemap.xml", "/openapi.json", "/opt-out",
     "/privacy", "/privacy.txt",
     "/mcp",
-    "/stores", "/stores.json", "/stores.csv", "/v1/stores", "/v1/stores/check", "/v1/stores/stats",
-    "/v1/buying/stores", "/v1/buying/check", "/v1/agents", "/v1/services", "/v1/stats/usage", "/v1/terms",
+    "/stores", "/stores.json", "/stores.csv", "/v1/stores", "/v1/stores/check", "/v1/buying/stores",
+    "/v1/buying/check", "/v1/agents", "/v1/services", "/v1/stats/usage", "/v1/terms",
     "/v1/stats/usage/hourly", "/v1/stats/usage/weekly",
-    "/v1/vocabulary", "/v1/self-register", "/agent/ucp-profile.json", "/.well-known/onaa-registry.json",
+    "/v1/vocabulary", "/v1/self-register", "/.well-known/onaa-registry.json",
     "/.well-known/agent-card.json", "/.well-known/agent.json", "/.well-known/mcp.json",
-    "/.well-known/mcp/server-card.json", "/.well-known/onaa-stores.json", "/.well-known/ucp",
+    "/.well-known/mcp/server-card.json", "/member-terms",
 })
 PREFIX_GROUPS = (
+    # retired store directory paths: still grouped, so hits on old links stay visible (they answer 404)
     ("/stores/", "/stores/{store}"),
     ("/v1/stores/", "/v1/stores/{store}"),
     ("/v1/agents/", "/v1/agents/{id}"),
@@ -156,82 +157,9 @@ PREFIX_GROUPS = (
     ("/v1/admin/", "/v1/admin"),
     ("/v1/", "/v1/other"),
 )
-HOST_RE = re.compile(r"^(?=.{4,120}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}$")
 MAX_KEYS = 10000  # daily + hourly buffer entries between flushes
 HOURLY_KEEP_DAYS = 30
 MAX_VISITORS_PER_DAY = 200_000  # memory bound (about 10 MB); beyond it new visitors are not counted
-
-# ---- search-condition vocabulary (anything outside it is counted as "other"; free text never stored) ----
-SEARCH_DOORS = ("find_stores", "check", "list")
-COUNTRY_RE = re.compile(r"^[A-Z]{2}$")
-CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
-# Payment words agents may ask for -> one canonical token. Includes methods ONAA's stores do not offer yet, because
-# demand for those is exactly what this measures.
-PAYMENT_VOCAB = {
-    "shop_pay": "shop_pay", "shoppay": "shop_pay", "shop": "shop_pay",
-    "card": "card", "credit_card": "card", "debit_card": "card", "shopify.card": "card", "visa": "card",
-    "mastercard": "card", "amex": "card", "cards": "card",
-    "gpay": "google_pay", "google_pay": "google_pay", "googlepay": "google_pay", "com.google.pay": "google_pay",
-    "apple_pay": "apple_pay", "applepay": "apple_pay", "paypal": "paypal", "venmo": "paypal",
-    "klarna": "bnpl", "afterpay": "bnpl", "affirm": "bnpl", "bnpl": "bnpl", "clearpay": "bnpl",
-    "usdc": "stablecoin", "usdt": "stablecoin", "stablecoin": "stablecoin", "crypto": "crypto",
-    "bitcoin": "crypto", "btc": "crypto", "eth": "crypto", "x402": "x402", "ap2": "ap2", "acp": "acp",
-    "stripe": "stripe", "link": "stripe", "bank_transfer": "bank_transfer", "sepa": "bank_transfer",
-    "ach": "bank_transfer", "wire": "bank_transfer", "ideal": "bank_transfer", "upi": "upi", "pix": "pix",
-    "alipay": "alipay", "wechat_pay": "wechat_pay", "wechat": "wechat_pay", "kakao_pay": "kakao_pay",
-    "kakaopay": "kakao_pay", "naver_pay": "naver_pay", "naverpay": "naver_pay", "toss": "toss_pay",
-    "toss_pay": "toss_pay", "paypay": "paypay", "amazon_pay": "amazon_pay", "cash_on_delivery": "cash_on_delivery",
-    "cod": "cash_on_delivery", "prepaid_balance": "prepaid_balance", "gift_card": "gift_card",
-}
-# (substring of the lower-cased agent parameter, platform). First match wins.
-AGENT_VOCAB = (
-    ("chatgpt", "chatgpt"), ("openai", "chatgpt"), ("operator", "chatgpt"), ("gpt", "chatgpt"),
-    ("claude", "claude"), ("anthropic", "claude"), ("gemini", "gemini"), ("mariner", "gemini"),
-    ("google", "gemini"), ("bard", "gemini"), ("perplexity", "perplexity"), ("comet", "perplexity"),
-    ("copilot", "copilot"), ("microsoft", "copilot"), ("bing", "copilot"), ("meta", "meta_ai"),
-    ("llama", "meta_ai"), ("grok", "grok"), ("xai", "grok"), ("mistral", "mistral"), ("le chat", "mistral"),
-    ("deepseek", "deepseek"), ("qwen", "qwen"), ("alibaba", "qwen"), ("manus", "manus"), ("cursor", "cursor"),
-    ("langchain", "langchain"), ("llamaindex", "llamaindex"), ("crewai", "crewai"), ("autogen", "autogen"),
-    ("n8n", "n8n"), ("zapier", "zapier"), ("alexa", "alexa"), ("amazon", "amazon"), ("rufus", "amazon"),
-    ("siri", "apple"), ("apple", "apple"), ("custom", "custom"), ("own", "custom"),
-)
-PROTOCOL_VOCAB = ("ucp", "shop-mcp")
-CHECKOUT_VOCAB = frozenset({"checkout_ready", "buyer_step_required", "auth_required", "no_checkout", "failed",
-                            "not_checked_yet"})
-INCLUDE_VOCAB = frozenset({"buyable", "possible", "all"})
-MAX_SEARCH_VALUES = 10  # per field and search: a list longer than this counts only its first values
-
-
-def search_value(field: str, value: object) -> str | None:
-    """Map one filter value onto the fixed vocabulary; None means "not given" (nothing counted)."""
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    v = str(value).strip()
-    if not v:
-        return None
-    if field == "country":
-        c = v.upper()
-        c = "GB" if c == "UK" else c
-        return c if COUNTRY_RE.match(c) else "invalid"
-    if field == "currency":
-        return v.upper() if CURRENCY_RE.match(v.upper()) else "invalid"
-    if field == "payment":
-        return PAYMENT_VOCAB.get(re.sub(r"[\s-]+", "_", v.lower()), "other")
-    if field == "agent":
-        a = v.lower()
-        return next((name for needle, name in AGENT_VOCAB if needle in a), "other")
-    if field == "protocol":
-        return v.lower() if v.lower() in PROTOCOL_VOCAB else "other"
-    if field == "checkout":
-        return v.lower() if v.lower() in CHECKOUT_VOCAB else "other"
-    if field == "include":
-        return v if v in INCLUDE_VOCAB else "other"
-    if field == "q":
-        return "given"
-    return None
-
 
 def agent_class(user_agent: str | None) -> str:
     ua = (user_agent or "").lower()
@@ -371,58 +299,6 @@ class Usage:
                 return
             self._visitors.add(tag)
         self.hit("visitor", visitor_category(cls), origin=EXTERNAL)
-
-    def hit_store_asked(self, domain: str) -> None:
-        d = (domain or "").lower().strip(".")
-        if HOST_RE.match(d):
-            self.hit("store_asked", d)
-
-    def hit_search(self, door: str, conditions: dict[str, object], matched: int | None = None) -> None:
-        """Count the filter values of one store search or check (external origin only, fixed vocabulary only).
-
-        `conditions` maps a field (country, pays_alone, payment, agent, protocol, checkout, currency, include, q) to
-        a value or a list of values. `matched` is the number of results (0 is counted as `_no_results`)."""
-        if door not in SEARCH_DOORS or current_origin.get() != EXTERNAL:
-            return
-        combo: list[str] = []
-        for field in sorted(conditions):
-            raw = conditions[field]
-            values = raw if isinstance(raw, (list, tuple, set)) else [raw]
-            seen = sorted({t for t in (search_value(field, v) for v in list(values)[:MAX_SEARCH_VALUES]) if t})
-            for token in seen:
-                self.hit("search_filter", f"{door}|{field}={token}")
-            if seen:
-                combo.append(f"{field}={'+'.join(seen)}")
-        self.hit("search_filter", f"{door}|_searches")
-        if matched == 0:
-            self.hit("search_filter", f"{door}|_no_results")
-        self.hit("search_combo", f"{door}|{'&'.join(combo) or '(no filters)'}")
-
-    def hit_need(self, themes: list[str], matched: int, pii_removed: bool) -> None:
-        """Count one free-text need (external only): its themes (fixed vocabulary, needs.THEMES) and outcome."""
-        if current_origin.get() != EXTERNAL:
-            return
-        from .needs import THEMES
-
-        self.hit("need", "_requests")
-        if matched == 0:
-            self.hit("need", "_not_found")
-        if pii_removed:
-            self.hit("need", "_personal_data_removed")
-        for t in [t for t in themes if t in THEMES][:5] or ["(no theme)"]:
-            self.hit("need", f"theme={t}")
-
-    def hit_report_view(self, issue: int, referer: str | None) -> None:
-        """Count one view of a report page with the referring site's domain only (no path, query or person)."""
-        host = ""
-        if referer:
-            from urllib.parse import urlsplit
-
-            try:
-                host = (urlsplit(referer).hostname or "").lower().removeprefix("www.")
-            except ValueError:
-                host = ""
-        self.hit("report_view", f"{int(issue)}|{host if HOST_RE.match(host) else '(direct)'}")
 
     def flush(self) -> int:
         if self.sessionmaker is None:

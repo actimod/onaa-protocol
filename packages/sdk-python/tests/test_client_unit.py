@@ -48,5 +48,5 @@ def test_transport_errors_become_retryable_onaa_errors(exc, status):
 
     c = OnaaClient("https://registry.example.com", http_client=httpx.Client(transport=httpx.MockTransport(handler)))
     with pytest.raises(OnaaError) as ei:
-        c.buying_stores(country="US")
+        c.search_agents(q="bike")
     assert ei.value.status_code == status and "retry" in str(ei.value.detail)

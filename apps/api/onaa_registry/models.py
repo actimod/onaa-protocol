@@ -581,7 +581,7 @@ class PilotMember(Base):
     # When the member's assistant first used the connector (then it offers an hourly inbox check once).
     welcomed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Member terms acceptance (terms/member-*.md): exact version, SHA-256 of that text, when and how
-    # (assistant_auto | agent_on_behalf_of_operator). A new version means the member accepts again
+    # (assistant_auto | oauth_signin | agent_on_behalf_of_operator). A new version means the member accepts again
     # before using member tools.
     terms_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
     terms_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)

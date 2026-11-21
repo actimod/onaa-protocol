@@ -19,10 +19,9 @@ from onaa_mcp_registry.server import build_server
 
 README = Path(__file__).resolve().parents[1] / "README.md"
 PROFILES = ("local", "local_self_registration", "hosted")
-# These tools change registry state, record data (describe_need keeps redacted text) or reach out to third
+# These tools change registry state or reach out to third
 # parties; they must never claim to be read-only.
-MUST_BE_WRITE = {"self_register_start", "self_register_complete", "update_my_listing", "ask_steward",
-                 "describe_need"}
+MUST_BE_WRITE = {"self_register_start", "self_register_complete", "update_my_listing", "ask_steward"}
 
 
 def _client() -> OnaaClient:
@@ -36,8 +35,7 @@ def _server(profile: str, tmp_path: Path):
         return build_server(reg)
     if profile == "local_self_registration":
         return build_server(reg, key_file=tmp_path / "key")
-    return build_server(reg, remote_client=lambda ctx: _client(), steward_ask=lambda q, c, ctx: {},
-                        need_client=lambda ctx: _client())
+    return build_server(reg, remote_client=lambda ctx: _client(), steward_ask=lambda q, c, ctx: {})
 
 
 def _readme_table() -> dict[str, dict]:
@@ -86,8 +84,8 @@ def test_readme_profile_counts_match_table():
 def test_existing_tool_names_stay_compatible():
     """Tools agents already call keep their names; new tools are additions, never renames."""
     table = _readme_table()
-    for name in ("search_agents", "search_services", "find_stores", "can_i_buy_here", "how_to_buy", "get_listing",
-                 "get_vocabulary", "verify_attestations", "get_terms", "self_register_start",
+    for name in ("search_agents", "search_services", "get_listing", "get_vocabulary", "verify_attestations",
+                 "get_terms", "self_register_start",
                  "self_register_complete", "ask_steward"):
         assert "hosted" in table[name]["profiles"], name
     assert "update_my_listing" in table
@@ -113,3 +111,15 @@ async def test_directory_discovery_document_lists_the_hosted_tools(tmp_path):
     actual = await _tools("hosted", tmp_path)
     assert set(inventory.HOSTED_TOOLS) == set(actual), "update onaa_registry/mcp_inventory.py"
     assert {n for n, ro in actual.items() if ro} == set(inventory.HOSTED_READ_ONLY)
+
+
+@pytest.mark.anyio
+async def test_every_tool_has_a_title(tmp_path):
+    """The Claude and ChatGPT directory reviews flag tools without a human-readable title (2026-11-20)."""
+    from onaa_mcp_registry.pilot import build_pilot_server
+
+    servers = [_server(p, tmp_path) for p in PROFILES] + [build_pilot_server(lambda *a, **k: {})]
+    for server in servers:
+        async with Client(server) as client:
+            for t in (await client.list_tools()).tools:
+                assert t.title and t.title.strip(), f"{t.name}: add title= to its @mcp.tool decorator"
