@@ -1,22 +1,28 @@
 {
-  "_about": "Single source of truth for every public claim about ONAA: what it is, MCP tools, field meanings, retention, tested countries, filter rules, payment wording, versions and deprecations. Change a fact HERE first, then the code and texts. tests/repo/test_canonical_facts.py fails when code, docs, READMEs, listings or pages disagree with this file; `scripts/facts_census.py --live --external` checks the live site (after every deploy) and the third-party listings (daily). docs/CANONICAL_FACTS.md explains each entry for people.",
-  "updated": "2026-11-16",
-
+  "_about": "Single source of truth for every public claim about ONAA: what it is, MCP tools, filter rules, retention, wording rules and versions. Change a fact HERE first, then the code and texts. tests/repo/test_canonical_facts.py fails when code, docs, READMEs, listings or pages disagree with this file; `scripts/facts_census.py --live --external` checks the live site (after every deploy) and the third-party listings (daily). docs/CANONICAL_FACTS.md explains each entry for people.",
+  "updated": "2026-11-21",
   "product": {
     "name": "ONAA (Open Network for AI Agents)",
     "one_liner": "An open network where people's AI agents list what they sell or want, find each other and negotiate directly over A2A and MCP. ONAA relays messages and keeps each user's deal rules; it never negotiates, sets prices or handles money.",
     "one_liner_source": "Proposed 2026-11-20 for the personal buying and selling network (replaces the 2026-11-16 store-directory text); needs founder approval before merge",
     "listing_short": "Your ChatGPT or Claude gets an A2A address to find, compare and haggle with other people's AIs.",
-    "listing_short_used_by": ["Official MCP Registry server.json description", "Glama", "awesome-mcp-servers line"],
+    "listing_short_used_by": [
+      "Official MCP Registry server.json description",
+      "Glama",
+      "awesome-mcp-servers line"
+    ],
     "network_vision": "Hybrid P2P network: the directory handles discovery, registration and trust metadata; buyers, sellers and service providers transact directly at their own endpoints.",
     "status": "Development directory live at https://api.onaa.net (remote MCP https://api.onaa.net/mcp). Not a production service: no real money movement; ONAA never pays, places orders, relays purchases or holds funds.",
-    "never_says": ["no hosted registry", "hosted registry yet", "pre-launch"]
+    "never_says": [
+      "no hosted registry",
+      "hosted registry yet",
+      "pre-launch"
+    ]
   },
-
   "checkout_wording": {
     "observed_label": "Agent checkout path observed (payment not tested)",
     "pay_alone_label": "Shop Pay one-time link offered (payment not tested)",
-    "rule": "ONAA's checker stops before payment. Say an agent reached or observed checkout; never that an agent can buy, buys, pays or pays alone.",
+    "rule": "ONAA never pays, places orders or handles money. Never claim that an agent can buy, buys, pays or pays alone through ONAA.",
     "banned_regex": [
       "(?:can|agents?) (?:actually )?buy (?:here|from|at)",
       "agent can buy",
@@ -35,40 +41,18 @@
     ],
     "allowed_exceptions": "Field and parameter names (agent_can_pay_alone, pay_alone, pays_alone) and the quoted titles of already-published posts in growth/ history files."
   },
-
-  "checkout_status_labels": {
-    "checkout_ready": "Agent checkout path observed (payment not tested)",
-    "buyer_step_required": "Checkout reached, buyer step needed",
-    "auth_required": "Partner or approved agents only",
-    "no_checkout": "No agent checkout found",
-    "failed": "Last check failed",
-    "not_checked_yet": "Not checked yet"
-  },
-
-  "fields": {
-    "checkout_path_observed": "true when ONAA's last probe saw an agent reach the store's checkout (verdict yes or yes_buyer_finishes). The observation never changes with the caller's filters. Read this, not verdict.",
-    "checkout_status": "Raw result of the last checkout probe: checkout_ready, buyer_step_required, auth_required, no_checkout, failed, not_checked_yet.",
-    "verdict": "Answer for this caller: yes, yes_buyer_finishes, maybe, no, unknown. yes = checkout path observed and no buyer step seen; deprecated, renamed on the deprecation date below.",
-    "eligible_for_request": "Whether the store matches this request's filters (country, payment method, pay_alone); eligibility_reasons says why not. Separate from checkout_path_observed.",
-    "agent_can_pay_alone": "true = the store offers a Shop Pay one-time link to the agent. Offered, not observed: payment is never tested.",
-    "payment_tested": "Always false.",
-    "payment_success_verified": "Always false.",
-    "post_link_autonomy_verified": "Always false.",
-    "trust.reachability": "reachable, unknown (not checked yet) or unreachable (3 consecutive failed health checks)."
-  },
-  "payment_flags_always_false": ["payment_tested", "payment_success_verified", "post_link_autonomy_verified"],
-  "verdict_values": ["yes", "yes_buyer_finishes", "maybe", "no", "unknown"],
-
   "filters": {
     "reachable_only": "Hides only unreachable listings or stores; keeps reachable and unknown.",
     "exclude_unreachable": "Alias of reachable_only (same rule).",
     "confirmed_reachable_only": "Keeps only listings or stores whose last health check succeeded (reachable).",
     "claimed_only": "Operator-registered listings only (hides discovered).",
-    "pay_alone": "Stores that offer a Shop Pay one-time link to the agent (payment not tested).",
-    "reachability_states": ["reachable", "unknown", "unreachable"],
+    "reachability_states": [
+      "reachable",
+      "unknown",
+      "unreachable"
+    ],
     "unreachable_after_failures": 3
   },
-
   "retention_days": {
     "describe_need_redacted_text": 7,
     "usage_counters_hourly": 30,
@@ -76,34 +60,48 @@
     "opt_out_no_rehide_window": 30,
     "attestation_status_max_age": 7
   },
-
-  "tested_countries": ["US", "GB", "DE", "JP", "KR", "CA", "AU", "FR", "SG", "IN"],
-
   "mcp": {
     "endpoint": "https://api.onaa.net/mcp",
-    "transport": "streamable-http, no auth",
+    "transport": "streamable-http; search tools without sign-in, member tools after OAuth sign-in",
     "registry_name": "io.github.actimod/onaa-registry",
     "profiles": {
-      "local": ["search_agents", "search_services", "find_stores", "can_i_buy_here", "how_to_buy", "get_listing",
-                "get_vocabulary", "verify_attestations"],
-      "local_self_registration": ["search_agents", "search_services", "find_stores", "can_i_buy_here", "how_to_buy",
-                                  "get_listing", "get_vocabulary", "verify_attestations", "get_terms",
-                                  "self_register_start", "self_register_complete", "update_my_listing"],
-      "hosted": ["search_agents", "search_services", "find_stores", "can_i_buy_here", "how_to_buy", "get_listing",
-                 "get_vocabulary", "verify_attestations", "get_terms", "self_register_start",
-                 "self_register_complete", "ask_steward", "describe_need"]
+      "local": [
+        "search_agents",
+        "search_services",
+        "get_listing",
+        "get_vocabulary",
+        "verify_attestations"
+      ],
+      "local_self_registration": [
+        "search_agents",
+        "search_services",
+        "get_listing",
+        "get_vocabulary",
+        "verify_attestations",
+        "get_terms",
+        "self_register_start",
+        "self_register_complete",
+        "update_my_listing"
+      ],
+      "hosted": [
+        "search_agents",
+        "search_services",
+        "get_listing",
+        "get_vocabulary",
+        "verify_attestations",
+        "get_terms",
+        "self_register_start",
+        "self_register_complete",
+        "ask_steward"
+      ]
     },
-    "hidden_while_stores_hidden": ["find_stores", "can_i_buy_here", "how_to_buy", "describe_need"],
-    "hidden_while_stores_hidden_note": "ONAA_HIDE_STORES=1 on the live server (founder 2026-11-18): the store directory and these hosted tools are hidden; the data is kept.",
-    "not_read_only": ["self_register_start", "self_register_complete", "update_my_listing", "ask_steward",
-                      "describe_need"]
+    "not_read_only": [
+      "self_register_start",
+      "self_register_complete",
+      "update_my_listing",
+      "ask_steward"
+    ]
   },
-
-  "deprecations": [
-    {"what": "verdict value \"yes\"", "replacement": "checkout_path_observed", "announced": "2026-11-16",
-     "rename_on": "2027-02-14"}
-  ],
-
   "versions": {
     "protocol_spec": "0.1.3",
     "protocol_spec_note": "ONAA Protocol v0.1 with errata v0.1.1, v0.1.2 (security) and v0.1.3 (payment methods). DRAFT.",

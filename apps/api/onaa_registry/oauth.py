@@ -39,7 +39,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from . import hosting
+from . import hosting, member_terms
 from .db import get_session
 from .logic import audit
 from .models import PilotMember, PilotOAuthClient, PilotOAuthLogin, PilotOAuthToken
@@ -298,6 +298,12 @@ def google_enabled(settings) -> bool:
     return bool(getattr(settings, "google_client_id", None) and getattr(settings, "google_client_secret", None))
 
 
+# Shown next to every button that finishes a sign-in; _finish records the acceptance as "oauth_signin", so the
+# person agrees on this page themselves (decision 2026-11-20, for the ChatGPT / Claude directory reviews).
+TERMS_NOTICE = ("<p class=small>By continuing, you agree to ONAA's <a href='" + member_terms.PATH + "' "
+                "target=_blank rel=noopener>Member Terms and Privacy Notice</a>.</p>")
+
+
 def _google_button(login: PilotOAuthLogin, google: bool) -> str:
     if not google:
         return ""
@@ -324,7 +330,7 @@ def _email_form(login: PilotOAuthLogin, client: PilotOAuthClient, error: str = "
         "<label for=email>Email</label><input id=email name=email type=email required autocomplete=email>"
         "<label for=nickname>Nickname (first time only)</label>"
         "<input id=nickname name=nickname maxlength=40 autocomplete=nickname>"
-        "<button type=submit>Email me a code</button></form>"
+        "<button type=submit>Email me a code</button></form>" + TERMS_NOTICE +
         "<p class=small>We use your email only to sign you in. We keep a fingerprint of it, not the address, and "
         "never show it to anyone.</p>"))
 
@@ -744,6 +750,8 @@ def _finish(session: Session, settings, login: PilotOAuthLogin, nickname: str | 
         return _error_page("This account is disabled.", 403)
     if login.status == "google_ok":  # an operator of server agents must have signed in with Google
         member.google_verified_at = now()
+    if not member_terms.accepted(member):  # agreed on the sign-in page (TERMS_NOTICE)
+        member_terms.record(session, member, "oauth_signin")
     auth_code = secrets.token_urlsafe(32)
     login.member_id, login.code_hash, login.otp_hash = member.id, sha256_hex(auth_code), None
     login.status, login.expires_at = "authorized", now() + CODE_TTL
@@ -794,7 +802,7 @@ def _nickname_form(login: PilotOAuthLogin, suggested: str = "", error: str = "")
         f"<input type=hidden name=login_id value='{html.escape(login.id)}'>"
         "<label for=nickname>Nickname</label>"
         f"<input id=nickname name=nickname maxlength=40 required value='{html.escape(suggested)}'>"
-        "<button type=submit>Continue</button></form>"), also_form_to=login.redirect_uri)
+        "<button type=submit>Continue</button></form>" + TERMS_NOTICE), also_form_to=login.redirect_uri)
 
 
 @router.get("/oauth/google/start")

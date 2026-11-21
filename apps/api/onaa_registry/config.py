@@ -97,18 +97,9 @@ class Settings:
     # Anonymous usage counters are buffered in memory and written every N seconds (0 = only on demand).
     usage_flush_seconds: float = field(
         default_factory=lambda: float(os.environ.get("ONAA_USAGE_FLUSH_SECONDS", "30")))
-    # "Can I buy here?" for a store ONAA has not listed: fetch its public /.well-known/ucp (robots.txt honoured)
-    # and add a usable shopping manifest as a discovered, links-only listing. Per caller IP per hour; 0 disables.
-    store_probe_per_ip_per_hour: int = field(
-        default_factory=lambda: int(os.environ.get("ONAA_STORE_PROBE_PER_IP_PER_HOUR", "60")))
-    store_autodiscovery_enabled: bool = field(
-        default_factory=lambda: os.environ.get("ONAA_STORE_AUTODISCOVERY", "1") == "1")
-    # Free-text buying needs (describe_need): days the redacted text is kept (0 = never store text, count themes
-    # only) and requests per caller IP per hour (0 disables the limit). See needs.py.
+    # Retired free-text buying needs (describe_need): rows already kept are deleted after this many days.
     need_text_retention_days: int = field(
         default_factory=lambda: int(os.environ.get("ONAA_NEED_TEXT_RETENTION_DAYS", "7")))
-    needs_per_ip_per_hour: int = field(
-        default_factory=lambda: int(os.environ.get("ONAA_NEEDS_PER_IP_PER_HOUR", "30")))
     # Opt-out requests (no account, no proof yet) per client IP per day (live re-verification P1-02).
     opt_out_per_ip_per_day: int = field(
         default_factory=lambda: int(os.environ.get("ONAA_OPT_OUT_PER_IP_PER_DAY", "2")))
@@ -172,10 +163,6 @@ class Settings:
         default_factory=lambda: int(os.environ.get("ONAA_UNLINKED_READS_PER_IP_DAY", "5000")))
     unlinked_reads_all_day: int = field(
         default_factory=lambda: int(os.environ.get("ONAA_UNLINKED_READS_ALL_DAY", "50000")))
-    # Hide the collected store directory (service_type "marketplace": UCP/Shop MCP stores, not reachable over A2A)
-    # everywhere: store pages and APIs, the report, search, the home page and the MCP store tools. Data is kept;
-    # set in infra/fly/fly.registry.toml; ONAA_HIDE_STORES=0 shows it again (founder, 2026-11-18).
-    hide_stores: bool = field(default_factory=lambda: os.environ.get("ONAA_HIDE_STORES", "0") == "1")
     # Check cycle shown for new members (minutes). 0 = not shared until the member's assistant publishes one with
     # publish_check_schedule (a made-up default promised replies nobody was polling for).
     pilot_default_check_minutes: int = field(

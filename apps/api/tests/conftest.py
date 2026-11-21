@@ -189,17 +189,6 @@ def verify_listing(client, fetcher, kind, listing_id, headers):
     return r.json()
 
 
-@pytest.fixture(autouse=True)
-def _fresh_store_snapshot(monkeypatch):
-    """Store snapshots are module-level and rebuilt lazily; each test starts empty and rebuilds on every change."""
-    from onaa_registry import stores
-
-    monkeypatch.setattr(stores, "FEED_MIN_REFRESH_SECONDS", 0)
-    stores.reset_snapshot()
-    yield
-    stores.reset_snapshot()
-
-
 # Details every new pilot listing must state (founder decision 2026-11-18); tests merge them into item bodies.
 ITEM_REQUIRED = {"currency": "USD", "region": "Seoul Mapo", "trade_methods": ["in_person"], "payment_methods": ["cash"],
                  "quantity": 1, "condition": "used_good"}

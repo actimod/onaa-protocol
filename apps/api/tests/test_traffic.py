@@ -33,15 +33,12 @@ def test_requests_counted_without_ip_or_user_agent(client):
     client.get("/llms.txt", headers={"User-Agent": ua})
     client.get("/llms.txt", headers={"User-Agent": ua})
     client.get("/v1/services/svc_doesnotexist", headers={"User-Agent": "curl/8.5"})
-    client.app.state.usage.hit_store_asked("Shop.Example.com")
-    client.app.state.usage.hit_store_asked("not a domain; drop table")
     stats = client.get("/v1/stats/usage").json()
     ext = stats["external"]
     assert ext["by_path"]["/llms.txt"] == 2
     assert ext["ai_agents_by_path"]["/llms.txt"] == 2
     assert ext["by_agent_class"]["chatgpt_user"] == 2
     assert ext["by_path"]["/v1/services/{id}"] == 1
-    assert ext["unlisted_stores_asked"] == {"shop.example.com": 1}
     day = next(iter(stats["by_day"].values()))["external"]
     assert day["requests"] >= 3 and day["ai_agent_requests"] == 2
     with client.app.state.sessionmaker() as s:
@@ -108,47 +105,6 @@ def test_stats_split_into_three_groups(client):
     assert stats["probes"]["mcp_tools"] == {"__mcpcheckup_probe_nonexistent_tool__": 1}
     assert stats["by_day"][today]["probes"]["mcp_tool_calls"] == 1
     assert stats["origin_tagging_since"] == today
-
-
-def test_search_conditions_counted_from_fixed_vocabulary(client):
-    ua = {"User-Agent": "Mozilla/5.0 (compatible; ChatGPT-User/1.0)"}
-    client.get("/v1/buying/stores", params={"country": "kr", "pay_alone": "true", "payment": "USDC,shop pay",
-                                            "agent": "My secret GPT agent", "q": "private words"}, headers=ua)
-    client.get("/v1/buying/stores", params={"country": "KR", "offset": 20}, headers=ua)  # a later page: not counted
-    client.get("/v1/stores", params={"ships_to": "de,xx1", "protocol": "ucp", "payment_handler": "weird-pay",
-                                     "currency": "eur", "pays_alone": "false"}, headers=ua)
-    client.get("/v1/stores/check", params={"url": "shop.example.com", "country": "UK", "payment": "paypal"},
-               headers=ua)
-    client.get("/v1/buying/stores", params={"country": "JP"}, headers={"X-ONAA-Traffic": "internal"})  # ours
-    stats = client.get("/v1/stats/usage").json()
-    sc = stats["external"]["search_conditions"]
-    fs = sc["find_stores"]
-    assert fs["_totals"]["searches"] == 1
-    assert fs["country"] == {"KR": 1}
-    assert fs["pays_alone"] == {"true": 1}
-    assert fs["payment"] == {"shop_pay": 1, "stablecoin": 1}
-    assert fs["agent"] == {"chatgpt": 1}
-    assert fs["q"] == {"given": 1}
-    assert sc["list"]["country"] == {"DE": 1, "invalid": 1}
-    assert sc["list"]["payment"] == {"other": 1}
-    assert sc["list"]["currency"] == {"EUR": 1}
-    assert sc["list"]["pays_alone"] == {"false": 1}
-    assert sc["check"]["country"] == {"GB": 1}
-    assert sc["check"]["payment"] == {"paypal": 1}
-    combos = stats["external"]["search_combinations"]["find_stores"]
-    assert combos == {"agent=chatgpt&country=KR&include=possible&payment=shop_pay+stablecoin&pays_alone=true"
-                      "&q=given": 1}
-    assert stats["ours"]["search_conditions"] == {} and stats["ours"]["search_combinations"] == {}
-    with client.app.state.sessionmaker() as s:
-        keys = " ".join(r.key for r in s.query(UsageCounter).all())
-    assert "secret" not in keys and "private" not in keys and "weird" not in keys and "xx1" not in keys.lower()
-
-
-def test_search_with_no_results_is_counted(client):
-    client.get("/v1/stores", params={"ships_to": "BR"})
-    sc = client.get("/v1/stats/usage").json()["external"]["search_conditions"]
-    assert sc["list"]["_totals"] == {"no_results": 1, "searches": 1}
-    assert client.get("/v1/stats/usage").json()["external"]["search_combinations"]["list"] == {"country=BR": 1}
 
 
 def test_hourly_counts_and_30_day_pruning(client):

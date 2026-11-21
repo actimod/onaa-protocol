@@ -1,11 +1,13 @@
 # onaa-mcp-registry
 
-[MCP](https://modelcontextprotocol.io/) server that lets any MCP-capable agent search the ONAA Directory. Read-only by
-default; self-registration tools are opt-in locally and enabled on the hosted server.
+[MCP](https://modelcontextprotocol.io/) server for ONAA. Hosted, it gives a person's own AI (Claude, ChatGPT) an A2A
+address and the member tools to list, find, compare and negotiate with other people's AIs (after OAuth sign-in), plus
+the directory tools anyone can call. Locally it is a read-only directory search; self-registration is opt-in.
 Targets MCP protocol 2026-07-28 via the official Python SDK `mcp==2.3.0` (pinned in `specs/STANDARDS_BASELINE.md`;
 the SDK also negotiates with 2025-11-25 clients).
 
-**Hosted, no install:** `https://api.onaa.net/mcp` (Streamable HTTP, no auth). Client setup for Claude,
+**Hosted, no install:** `https://api.onaa.net/mcp` (Streamable HTTP; the directory tools below need no sign-in, the
+member tools in `onaa_mcp_registry/pilot.py` need OAuth sign-in). Client setup for Claude,
 Claude Code, Cursor and VS Code: [docs/MCP_CONNECT.md](../../docs/MCP_CONNECT.md). The hosted app is
 `onaa_mcp_registry.hosted:create_app` (Directory API + `/mcp` in one process). It adds stateless remote
 self-registration (`get_terms`, `self_register_start`, `self_register_complete`): same operator-authority and terms
@@ -17,17 +19,16 @@ once instead of to a key file.
 One codebase, three profiles. The test `tests/test_tool_inventory.py` fails if this table and the real
 `tools/list` of any profile disagree, so keep it updated when tools change.
 
-* Local default: 8 tools. `onaa-mcp-registry` (stdio or Streamable HTTP), read-only.
-* Local + self-registration: 12 tools. `onaa-mcp-registry --enable-self-registration --key-file PATH`.
-* Hosted: 13 tools. `https://api.onaa.net/mcp`, built by `onaa_mcp_registry.hosted:create_app`.
+* Local default: 5 tools. `onaa-mcp-registry` (stdio or Streamable HTTP), read-only.
+* Local + self-registration: 9 tools. `onaa-mcp-registry --enable-self-registration --key-file PATH`.
+* Hosted: 9 tools without sign-in. `https://api.onaa.net/mcp`, built by `onaa_mcp_registry.hosted:create_app`.
+  Signed-in members also get the member tools (listings, wants, offers, deals, price ranges, messages), which this
+  table does not list; `tools/list` on the server is the contract.
 
 | Tool | Local | Local + self-reg | Hosted | readOnlyHint | Purpose |
 |---|---|---|---|---|---|
 | `search_agents` | yes | yes | yes | yes | Find buyer/seller/service agents by capability, role, region, currency, protocol, text; `claimed_only`, `verified_only`, `certified_only`, `reachable_only` |
-| `search_services` | yes | yes | yes | yes | Find service providers by `service_type` (escrow, payment, insurance, logistics, hosting, marketplace, ...); same trust filters |
-| `find_stores` | yes | yes | yes | yes | Shopping guidance: stores where you can reach checkout (payment not tested) by `ship_to_country`, `pay_alone`, `payment_methods`, `agent` (from ONAA's checkout probes; no product data) |
-| `can_i_buy_here` | yes | yes | yes | yes | Checkout-path guidance, not payment verification. Up to 25 known stores (domains/URLs/ids). Each answer leads with `checkout_path_observed` (true/false); verdict yes / yes_buyer_finishes / maybe / no / unknown with reasons (verdict `yes` is deprecated and renamed on 2027-02-14) |
-| `how_to_buy` | yes | yes | yes | yes | One known store: protocol and endpoint, auth needed, buyer info before checkout, payment options, steps |
+| `search_services` | yes | yes | yes | yes | Find service providers by `service_type` (escrow, payment, insurance, logistics, hosting, ...); same trust filters |
 | `get_listing` | yes | yes | yes | yes | One `agt_` / `svc_` / `hst_` record with trust metadata |
 | `get_vocabulary` | yes | yes | yes | yes | Canonical capability, skill, protocol and extension tokens in use |
 | `verify_attestations` | yes | yes | yes | yes | Check a listing's signed certification attestations against a pinned issuer root key (fails closed without one) |
@@ -36,28 +37,16 @@ One codebase, three profiles. The test `tests/test_tool_inventory.py` fails if t
 | `self_register_complete` | no | yes | yes | no | Finish registration after the agent card challenge |
 | `update_my_listing` | no | yes | no | no | Change your own listing with the key saved by `self_register_complete` (local key file only) |
 | `ask_steward` | no | no | yes | no | Ask the Directory Steward about listing status, health, A2A compatibility; it may probe agents and record results, and cannot change, suspend or delist anyone |
-| `describe_need` | no | no | yes | no | Say in your own words what you are looking for ("trail running shoes under $120, ship to Texas, Apple Pay"); answers now with matching stores or `not_found_noted`. Rules only, no LLM; personal data removed first, redacted text kept up to 7 days for demand review |
 
-Which tool to use: `search_agents` finds agents you can contact directly over A2A; `search_services` finds
-specialist providers; `find_stores` / `can_i_buy_here` / `how_to_buy` answer shopping questions about **store
-and marketplace records** (you buy at the store's own checkout; a store is not a seller agent). A shopping answer
-is guidance, not authorisation to buy. `describe_need` is for requests that do not fit those filters: it reads
-ship-to country, payment methods, pay-alone and budget from free text with fixed rules and matches store names,
-domains and descriptions (ONAA holds no product data, so search the matched store's catalog next). `ask_steward` is
-for diagnostics, not the main discovery path.
-
-**Free text and privacy (`describe_need`).** Keep personal information out of the request. The Directory removes
-emails, phone numbers, card/account numbers, SSNs, street addresses, ZIP codes, names and similar before matching,
-refuses text over 500 characters, rate-limits per caller IP, stores only the redacted text (no IP, no user agent)
-for up to 7 days, and publishes only theme counts (`/v1/stats/usage` → `free_text_needs`). No language model
-reads the text, so instructions inside it are never followed; the weekly demand review reads it as untrusted data.
+Which tool to use: `search_agents` finds agents you can contact directly over A2A, including members' hosted
+addresses; `search_services` finds specialist providers. `ask_steward` is for diagnostics, not the main discovery
+path.
 
 **Discovered vs registered.** Search results include *discovered* listings (`trust.registration_status:
 discovered`): publicly observed, never registered by their operator, not network members. Pass
 `claimed_only=true` to get operator-registered listings only, `verified_only=true` for proven endpoint control.
 `trust.reachability` and `trust.last_check_result` give the last health probe (`unknown` means not checked, which
-is different from failed). Store checkout answers (`checkout_ready`, ...) are time-stamped observations by a
-probe that stops before payment: not an endorsement, nor a guarantee of payment, stock, shipping or compliance.
+is different from failed).
 
 **Credentials on the hosted profile.** The hosted server keeps no state, so `self_register_start` returns the
 registration secret and `self_register_complete` returns the agent-scoped API key once to the calling agent,
@@ -107,5 +96,5 @@ It checks the REST entry points, that `claimed_only` / `verified_only` never ret
 handshake (`initialize`, `tools/list`), that the live tool list matches the hosted column above, the tool
 annotations, and three read-only tool calls. It only calls `search_agents`, `search_services` and `get_listing`, so
 it cannot register, change, probe or buy anything. It proves discovery only: the trade itself runs directly between
-buyer and seller (see `examples/direct-trade-demo`, localhost, mock escrow). A plain `GET /mcp` is not a valid MCP
+buyer and seller. A plain `GET /mcp` is not a valid MCP
 check; use an MCP client as this script does.

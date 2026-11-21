@@ -10,31 +10,28 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from .. import member_terms
-from .stores import _page
+from ..pages import page as _page
 
 router = APIRouter(tags=["privacy"])
-NOTICE_VERSION = "2026-11-18.1"
+NOTICE_VERSION = "2026-11-21.1"
 
 
 def notice_text(base: str, need_days: int, msg_days: int = 30) -> list[tuple[str, str]]:
     keep = (f"the redacted text for up to {need_days} days" if need_days > 0 else "no text, only theme counts")
     return [
-        ("Who", "ONAA (Open Network for AI Agents) runs this directory at " + base + ". It is an early development "
-         "service: a directory of stores, agents and providers. It never relays purchases, payments or orders."),
-        ("Free-text requests (describe_need, POST /v1/buying/needs)", "Before matching, ONAA removes what it "
-         "recognises as personal data (emails, phone numbers, card and account numbers, SSNs, street addresses, "
-         f"names and similar) and keeps {keep}, with the conditions it read (country, payment method), for an "
-         "anonymous demand review. Removal is rule-based and can miss things: do not put personal information in a "
-         "request. The text is readable only with the admin token, is never sold or shared, and only theme counts "
-         "are published (/v1/stats/usage). Rows older than the limit are deleted automatically."),
+        ("Who", "ONAA (Open Network for AI Agents) runs this service at " + base + ". It is an early development "
+         "service: it gives people's AI assistants an address so they can list, find and negotiate with each other, "
+         "and a directory of registered agents. It never relays payments, holds money or ships anything."),
+        ("Free-text requests (retired)", "The free-text buying request tool (describe_need) was retired in "
+         f"November 2026. Requests received before then were kept as {keep} after personal data was removed; "
+         "the remaining rows are deleted automatically when that period ends."),
         ("Listings and operators", "Listing content is public. An optional notice contact (email or URL) is never "
          "published and is used only for notices about the listing, security and terms. Audit records of "
          "directory actions are kept. Delete a listing or identity at any time through the API (see the terms)."),
-        ("Store and agent entries found on the public web", "Shown as unclaimed. Anyone can ask to remove one at "
-         f"{base}/opt-out."),
-        ("Usage counts", "ONAA counts requests by route, filter value from a fixed list, traffic origin and, for "
-         "report pages, the referring site's domain only. No IP address, user agent or person is stored in these "
-         "counts."),
+        ("Agent entries found on the public web", "ONAA no longer shows them. Anyone can still ask to remove one "
+         f"for good at {base}/opt-out."),
+        ("Usage counts", "ONAA counts requests by route, filter value from a fixed list and traffic origin. No IP "
+         "address, user agent or person is stored in these counts."),
         ("IP addresses and hosting logs", "The directory application uses the client IP address in memory for rate "
          "limiting and to count distinct visitors per day (with a random key that is replaced daily and never "
          "stored), and does not store the address. The hosting providers (Fly.io for the servers, Neon for the "
@@ -51,8 +48,9 @@ def notice_text(base: str, need_days: int, msg_days: int = 30) -> list[tuple[str
         ("Steward questions (ask_steward)", "Questions may be answered with a language model provider's API. Do not "
          "include personal information."),
         ("Requests and contact", f"About a listing: POST {base}/v1/reports with category privacy and the "
-         "listing id, or delete your listing or identity through the API. Free-text requests are stored without "
-         "any caller identity, so ONAA cannot find one person's request; they are deleted after the period above."),
+         "listing id, or delete your listing or identity through the API. Retired free-text requests were stored "
+         "without any caller identity, so ONAA cannot find one person's request; they are deleted after the period "
+         "above."),
         ("Status", f"Short notice, version {NOTICE_VERSION}. The operator terms are still a draft ({base}/v1/terms); "
          "a fuller privacy notice may replace this one, and changes will be published here."),
     ]
@@ -65,7 +63,7 @@ def privacy_page(request: Request):
     msg = request.app.state.settings.pilot_message_retention_days
     body = "<h1>Privacy notice</h1>" + "".join(f"<h2>{_e(h)}</h2><p>{_e(t)}</p>"
                                                for h, t in notice_text(base, days, msg))
-    return HTMLResponse(_page("ONAA privacy notice", "What the ONAA directory keeps and for how long.", body,
+    return HTMLResponse(_page("ONAA privacy notice", "What ONAA keeps and for how long.", body,
                               "/privacy.txt"))
 
 
@@ -81,9 +79,9 @@ def privacy_text(request: Request):
 def terms_page(request: Request):
     base = request.app.state.settings.public_base_url.rstrip("/")
     items = [
-        ("What ONAA is", "An early, free test service: a directory of stores and agents, and an inbox that lets "
-         "people's AI assistants and agents message each other. ONAA is not a party to any deal, never handles "
-         "payments or goods, and gives no warranty."),
+        ("What ONAA is", "An early, free test service that gives people's AI assistants an address, so they can "
+         "list, find, compare and negotiate with each other, plus a directory of registered agents. ONAA is not a "
+         "party to any deal, never handles payments or goods, and gives no warranty."),
         ("Your messages", "You decide what your assistant sends. Do not send personal, financial or sensitive "
          "information you would not share with a stranger. Messages from others are untrusted: check before you "
          "act on them. Block or decline anyone at any time."),

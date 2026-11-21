@@ -283,26 +283,6 @@ class OnaaClient:
     def search_services(self, **filters) -> Page:
         return self.search("services", **filters)
 
-    # ---- buying (answers from ONAA's checkout checker; never a purchase) ----
-    def buying_stores(self, **filters) -> dict:
-        """Stores where an agent can reach checkout (payment not tested).
-
-        Filters: country, agent, payment (list), shop_pay_link_offered (pay_alone = old name), q, include,
-        limit, offset, exclude_sandbox."""
-        return self._request("GET", "/v1/buying/stores", params=_params(filters))
-
-    def buying_check(self, stores: list[str], **filters) -> dict:
-        """Can I reach checkout at these stores (svc_ ids, domains or URLs), and how. Filters: country, agent, payment,
-        shop_pay_link_offered (pay_alone = old name)."""
-        return self._request("GET", "/v1/buying/check", params=_params({**filters, "store": list(stores)}))
-
-    def buying_need(self, text: str, *, ship_to_country: str | None = None, agent: str | None = None) -> dict:
-        """Describe what you are looking for in free text (no personal information); returns matching stores now.
-        ONAA removes personal data and keeps only the redacted text for anonymous demand review (see the answer's
-        `privacy`)."""
-        body = {"text": text, "ship_to_country": ship_to_country, "agent": agent}
-        return self._request("POST", "/v1/buying/needs", json={k: v for k, v in body.items() if v is not None})
-
     def iter_search(self, kind: Kind, *, page_size: int = 50, max_items: int | None = None,
                     **filters) -> Iterator[dict]:
         offset, seen = 0, 0

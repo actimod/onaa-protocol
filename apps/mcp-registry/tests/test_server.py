@@ -66,15 +66,14 @@ async def test_tools_are_read_only(fake_registry):
     async with Client(build_server(reg)) as client:
         tools = (await client.list_tools()).tools
     assert {t.name for t in tools} == {"search_agents", "search_services", "get_listing", "get_vocabulary",
-                                       "verify_attestations", "find_stores", "can_i_buy_here", "how_to_buy"}
+                                       "verify_attestations"}
     for t in tools:
         assert t.annotations.read_only_hint is True and t.annotations.destructive_hint is False
 
 
 @pytest.mark.anyio
-async def test_store_tools_hidden_while_stores_hidden(fake_registry, monkeypatch):
+async def test_no_store_tools_and_no_store_wording(fake_registry):
     reg, _ = fake_registry
-    monkeypatch.setenv("ONAA_HIDE_STORES", "1")
     server = build_server(reg)
     async with Client(server) as client:
         tools = {t.name for t in (await client.list_tools()).tools}

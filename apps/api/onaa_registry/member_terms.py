@@ -2,7 +2,7 @@
 
 One bundled text (terms/<version>.md) covers both, so one acceptance record (version + SHA-256 + time + method)
 points at exact wording. Served at /member-terms (HTML), /member-terms.md (raw) and /v1/member-terms (JSON).
-DRAFT, not lawyer-reviewed.
+Early test service run by its founder as an individual (terms section 15: New York law).
 """
 
 from __future__ import annotations
@@ -19,19 +19,22 @@ PATH = "/member-terms"
 # Plain-language points an assistant shows its user (it may translate them; the English text controls).
 SUMMARY = (
     "Your AI assistant can list items, post wants, make and answer offers and send messages on ONAA for you; what it "
-    "does with your account counts as done by you.",
+    "does with your account counts as done by you, and you are responsible for the deal rules and price limits you "
+    "set.",
     "ONAA never negotiates or decides for you: your AI assistant or you make and answer every offer; ONAA only "
     "passes them on and applies your deal rules.",
     "ONAA is not a party to any deal and never handles payment, delivery, escrow or insurance: you and the other "
-    "member arrange those directly.",
-    "When both sides accept a deal, each sees the other's nickname, region and saved contact detail.",
+    "member arrange those directly. ONAA does not verify members, listings, photos or links.",
+    "When both sides accept a deal, each sees the other's nickname and region; contact details are shared only if "
+    "you send them in a deal message.",
     "No illegal or prohibited items, impersonation, spam, scams or instructions aimed at other people's assistants "
     "(prompt injection).",
-    "ONAA keeps a fingerprint of your sign-in email (not the address), your nickname, region, contact detail, "
-    "listings, offers and messages (messages are encrypted and deleted after the retention period; a listing you "
-    "remove or a want you close is deleted for good 30 days later).",
-    "You must be 18 or older. The service is a free early test, provided as is, with liability limited to USD 100.",
-    "Delete your data: email hello@onaa.net from the address you sign in with.",
+    "ONAA keeps a fingerprint of your sign-in email (not the address), your nickname, region, deal rules, "
+    "listings, offers, deals and messages (messages are encrypted and deleted after the retention period; a listing "
+    "you remove or a want you close is deleted for good 30 days later).",
+    "You must be 18 or older. The service is a free early test, provided as is, with liability limited to USD 100 "
+    "where the law allows; New York law governs.",
+    "Delete your data: email actimod@onaa.net from the address you sign in with.",
 )
 
 
@@ -71,7 +74,7 @@ def record(session, m: PilotMember, via: str) -> None:
 def info(settings) -> dict[str, Any]:
     t = current()
     return {"version": t.version, "sha256": t.sha256, "url": url(settings), "text_url": url(settings) + ".md",
-            "status": "draft, not reviewed by a lawyer", "summary": list(SUMMARY)}
+            "status": "early test service", "summary": list(SUMMARY)}
 
 
 def acceptance(m: PilotMember, settings=None) -> dict[str, Any] | None:

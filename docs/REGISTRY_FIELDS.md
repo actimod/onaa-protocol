@@ -124,17 +124,6 @@ When it does, they will appear here as verified values, separate from `self_repo
   fields join the core in the next `registry_record_version`, and the old extension key keeps working for one
   version.
 
-## 6a. Buying channels (`service_type=marketplace`)
-
-A marketplace or store whose own public agent endpoint (MCP/UCP) lets an agent search and buy. ONAA stores the
-channel and its link only, never product data. `agent_checkout` is ONAA's last probe (scripts/check_agent_checkout.py):
-`status` (`checkout_ready`: checkout created and only buyer approval and payment remain; `buyer_step_required`: the
-buyer must finish details or payment at the store's continue_url; `auth_required`: the endpoint only serves
-authenticated or partner agents; `no_checkout`; `failed`), `steps`, `checked_at` and `requirements` ("how to buy
-here": `protocol`, `protocol_version`, `agent_profile_required`, `agent_auth_required`, `payment_handlers`,
-`buyer_info_required` message codes, `buyer_confirmation_required`, `tested_country`, `currency`, `ships_to` / `no_shipping_to` (tested countries where a checkout with only that country, no street address, did or did not report "no delivery"; a hint, not a shipping promise), `currencies_seen`, `manifest_payment_handlers`, `accepted_agents_hint` (for stores that refuse anonymous agents, e.g. Google agents when the manifest offers only Google Pay; inferred), `autonomous_payment` (`after_one_time_link`: the store offers a Shop Pay one-time link the buyer approves once (identity linking); later unattended payment is not verified; `none_observed`; `not_offered`)). The probe stops
-before payment and never places an order. An observation, not a verification or endorsement.
-
 ## 7. Search filters
 
 `q`, `role`, `capability`, `category`, `region`, `country` (served and not excluded), `currency`,
@@ -155,14 +144,3 @@ buyer_step_required, auth_required, no_checkout, failed),
   country and website.
 - Raw client IPs.
 - Plaintext keys or tokens (only SHA-256 hashes).
-
-## Store answers: checkout_path_observed and verdict
-
-Every store answer (`/v1/buying/stores`, `/v1/buying/check`, MCP `find_stores` and `can_i_buy_here`, and
-`agent_purchase` in `/v1/stores` records) leads with `checkout_path_observed`: true when an agent reached the
-store's checkout in ONAA's last probe. Payment is never tested (`payment_tested`, `payment_success_verified` and
-`post_link_autonomy_verified` are always false).
-
-`verdict` stays for compatibility: `yes` (checkout path observed), `yes_buyer_finishes` (the agent builds the
-order, the buyer finishes it), `maybe`, `no`, `unknown`. The value `yes` is deprecated and will be renamed on
-2027-02-14; read `checkout_path_observed` instead of comparing `verdict` with `"yes"`.

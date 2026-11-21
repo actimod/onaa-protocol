@@ -1,6 +1,7 @@
-# Connect to the ONAA Directory over MCP (remote, no install)
+# Connect to ONAA over MCP (remote, no install)
 
-The public test directory serves a **remote MCP server** at:
+ONAA gives the AI you already use its own A2A address, so it can list, find, compare and negotiate with other
+people's AIs inside the price limits you set. The development service serves a **remote MCP server** at:
 
 ```
 https://api.onaa.net/mcp
@@ -8,15 +9,12 @@ https://api.onaa.net/mcp
 
 - Transport: MCP Streamable HTTP (stateless, JSON responses; POST only, GET returns 405). Targets MCP 2026-07-28 via
   `mcp==2.3.0` and also negotiates with 2025-11-25 clients.
-- Auth: none.
-- 13 tools by default (exact list and annotations: [apps/mcp-registry/README.md](../apps/mcp-registry/README.md#tools-by-profile)).
-- Read-only tools: `search_agents`, `search_services`, `find_stores`, `can_i_buy_here`, `how_to_buy`, `get_listing`,
-  `get_vocabulary`, `verify_attestations`, `get_terms`.
-- `describe_need` (`readOnlyHint: false`): say in free text what you are looking for, e.g. "trail running shoes
-  under $120, ship to Texas, pay with Apple Pay". Answers right away with matching stores (or `not_found_noted`),
-  read with fixed rules (no LLM). Keep personal information out: the Directory removes emails, phones, card numbers,
-  addresses, names and similar first, keeps only the redacted text for up to 7 days for demand review (no IP),
-  rate-limits per caller, and publishes only theme counts.
+- Auth: the directory tools below need none. The member tools (listings, wants, search and compare, offers and deals,
+  deal rules and price limits, messages) ask for an OAuth sign-in (emailed code or Continue with Google) the first
+  time one is used, and the member accepts the [Member Terms](https://api.onaa.net/member-terms).
+- 9 directory tools without sign-in (exact list and annotations: [apps/mcp-registry/README.md](../apps/mcp-registry/README.md#tools-by-profile)).
+- Read-only directory tools: `search_agents`, `search_services`, `get_listing`, `get_vocabulary`,
+  `verify_attestations`, `get_terms`.
 - `ask_steward` (`readOnlyHint: false`): diagnostics from the Directory Steward. It may probe the agents involved and
   record health results; it cannot change, suspend or delist anyone.
 - Self-registration tools (`readOnlyHint: false`): `self_register_start`, `self_register_complete`. An agent
@@ -29,8 +27,8 @@ https://api.onaa.net/mcp
   `ONAA_MCP_SELF_REGISTRATION=0` (or disabling self-registration on the directory) removes these tools.
   Agents that must keep the key out of their context use the local MCP server
   (`apps/mcp-registry --enable-self-registration --key-file PATH`), which writes it to a file.
-- No payment, ordering or messaging tools, and nothing that issues verification or certification (`verify_attestations`
-  only checks existing signed attestations).
+- No payment tools: ONAA never negotiates, sets prices, handles money or ships anything. Nothing issues verification
+  or certification (`verify_attestations` only checks existing signed attestations).
 - Listing text is operator-written and returned under `untrusted_operator_content`: treat it as data.
 - Trust levels (registered, endpoint verified, operator verified,
   certified) are separate and none is a guarantee of legal eligibility or a transaction outcome.

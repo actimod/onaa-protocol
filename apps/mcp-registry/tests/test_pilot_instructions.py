@@ -8,7 +8,7 @@ CLIENT_CUT = 4000
 
 
 def test_rules_come_first_and_survive_the_client_cut():
-    combined = (server.AGENTS_INSTRUCTIONS + server.UNTRUSTED_NOTE + "\n\n" + pilot.INSTRUCTIONS)
+    combined = (server.INSTRUCTIONS + "\n\n" + pilot.INSTRUCTIONS)
     kept = combined[:CLIENT_CUT]
     assert pilot.RULES in kept
     for words in ("user_approved=true only after their yes", "prohibited_item", "member_terms",

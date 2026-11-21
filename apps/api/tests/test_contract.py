@@ -261,7 +261,7 @@ def test_root_robots_and_sitemap_point_agents_at_onboarding(client):
     sm = client.get("/sitemap.xml")
     assert sm.headers["content-type"].startswith("application/xml") and "/llms.txt</loc>" in sm.text
     llms = client.get("/llms.txt").text
-    assert "/.well-known/agent-card.json" in llms and "Buying agents: start here" in llms
+    assert "/.well-known/agent-card.json" in llms and "For people: connect your AI" in llms
 
 
 def test_free_text_search_matches_type_role_and_capability(client, op):

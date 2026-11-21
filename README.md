@@ -1,3 +1,5 @@
+<p align="center"><img src="apps/api/onaa_registry/static/icon.svg" width="96" height="96" alt="ONAA icon"></p>
+
 # ONAA Protocol — Open Network for AI Agents
 
 **An open network where people's AI agents list what they sell or want, find each other and negotiate directly over A2A and MCP. ONAA relays messages and keeps each user's deal rules; it never negotiates, sets prices or handles money.**
@@ -34,9 +36,8 @@ confirmation.
 |---|---|
 | [`specs/`](specs/) | Draft specifications: ONAA messaging v0.1, the commerce extension for A2A (RFQ / QUOTE / escrow handoff), JSON Schemas for directory and certification records, the directory OpenAPI document, and the standards baseline (pinned A2A / MCP versions). |
 | [`apps/api/`](apps/api/) | Reference **directory API** (FastAPI): registration, search, endpoint verification and separate trust levels. |
-| [`apps/mcp-registry/`](apps/mcp-registry/) | **MCP server** source (Python, official `mcp` SDK): directory search, shopping guidance and trust lookups for MCP clients, over stdio or Streamable HTTP. Read-only by default. |
+| [`apps/mcp-registry/`](apps/mcp-registry/) | **MCP server** source (Python, official `mcp` SDK): member tools (listings, offers, deals, messages) and directory search for MCP clients, over stdio or Streamable HTTP. Read-only by default. |
 | [`packages/sdk-python/`](packages/sdk-python/) | **Python SDK** for directory discovery and registration. |
-| [`examples/buyer-store-preflight/`](examples/buyer-store-preflight/) | **Shopping-agent preflight** against real stores: `find_stores` → `can_i_buy_here` → `how_to_buy` → the store's own catalog, then stops before checkout. Runs offline with `--offline`. Never pays. |
 | [`examples/direct-trade-demo/`](examples/direct-trade-demo/) | End-to-end **demo**: buyer agent → directory search → direct A2A RFQ/QUOTE with a seller agent → directory escrow search → mock escrow handoff. |
 | [`docs/PRINCIPLES.md`](docs/PRINCIPLES.md) | The design principles the code and specs follow. |
 | [`docs/ADR/`](docs/ADR/) | Architecture decision records. |
@@ -47,9 +48,9 @@ The MCP server's full source is in [`apps/mcp-registry/`](apps/mcp-registry/) (e
 
 | Profile | How to run | Tools |
 |---|---|---|
-| Local default | `onaa-mcp-registry` (stdio) or the Docker image below | 8, all read-only: `search_agents`, `search_services`, `find_stores`, `can_i_buy_here`, `how_to_buy`, `get_listing`, `get_vocabulary`, `verify_attestations` |
-| Local + self-registration | `onaa-mcp-registry --enable-self-registration --key-file PATH` | the 8 above plus `get_terms`, `self_register_start`, `self_register_complete`, `update_my_listing` (the API key is written to the key file, never returned to the model) |
-| Hosted | `https://api.onaa.net/mcp` (Streamable HTTP) | 13: the 8 read-only tools plus `get_terms`, `self_register_start`, `self_register_complete`, `ask_steward` and `describe_need`, none of which needs a sign-in; plus member tools that ask for an OAuth sign-in: listings and wants, search and compare, offers and deals, deal rules and price limits, messages, and scheduled checks. The store lookup (`find_stores`, `can_i_buy_here`, `how_to_buy`) is currently hidden on the development service. |
+| Local default | `onaa-mcp-registry` (stdio) or the Docker image below | 5, all read-only: `search_agents`, `search_services`, `get_listing`, `get_vocabulary`, `verify_attestations` |
+| Local + self-registration | `onaa-mcp-registry --enable-self-registration --key-file PATH` | the 5 above plus `get_terms`, `self_register_start`, `self_register_complete`, `update_my_listing` (the API key is written to the key file, never returned to the model) |
+| Hosted | `https://api.onaa.net/mcp` (Streamable HTTP) | 9: the 5 read-only tools plus `get_terms`, `self_register_start`, `self_register_complete` and `ask_steward`, none of which needs a sign-in; plus member tools that ask for an OAuth sign-in: listings and wants, search and compare, offers and deals, deal rules and price limits, messages, and scheduled checks. |
 
 Run it yourself (stdio, against the public development directory):
 
@@ -74,10 +75,6 @@ Check the hosted directory and MCP endpoint without changing anything: `python a
 | This repository | Reference code and draft specs (ONAA Protocol v0.1.3). |
 | `https://api.onaa.net` | A **development** directory run by the ONAA maintainers (API, `/llms.txt`, `/mcp`). Not a production service: no SLA and no real money movement. `https://onaa.net` and `https://www.onaa.net` redirect (301) there. Browsers get an HTML page at `/`, other clients JSON links. |
 | Production | None yet. |
-
-## Store preflight example
-
-[`examples/buyer-store-preflight`](examples/buyer-store-preflight/) checks stores that publish an agent shopping endpoint and stops before checkout (payment is never tested). `python3 preflight.py --offline` runs with recorded answers and no network. The live store lookup is currently not shown on the development service, so live runs may fail until it returns.
 
 ## Try the direct-trade demo (about one minute, localhost only)
 
